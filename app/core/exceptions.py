@@ -3,6 +3,9 @@ class AppException(Exception):
 
 
 # ====== Basic Exception ======
+class WebException(AppException):
+    pass
+
 class DatabaseException(AppException):
     pass
 

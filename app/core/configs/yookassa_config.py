@@ -1,12 +1,12 @@
-import re
-from typing import ClassVar, List, Literal, Optional, Any
-
-from app.utils.log import log
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from functools import lru_cache
+from typing import Optional
+import re
 
 from app.utils.path import env_file
 from app.core.exceptions import *
+from app.utils.log import log
 
 class _YookassaConfig(BaseSettings):
     """
@@ -20,7 +20,7 @@ class _YookassaConfig(BaseSettings):
         env_file=env_file,
         env_file_encoding="utf-8",
         extra="ignore",
-        case_sensitive=False,
+        case_sensitive=True,
         frozen=True,
     )
     
@@ -73,10 +73,12 @@ class _YookassaConfig(BaseSettings):
         log.warning("⚠️ Not using Yookassa Payment, check '.env'")
         return None
 
-
-yookassa = None        
+@lru_cache()
+def get_yookassa_config() -> _YookassaConfig:
+    return _YookassaConfig()
+  
 try:
-    yookassa = _YookassaConfig()
+    yookassa = get_yookassa_config()
     log.success("✅ Yookassa config initialized successfully")
     log.debug(f"Yookassa: {yookassa}")
 except Exception as e:

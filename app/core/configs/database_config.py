@@ -1,10 +1,11 @@
+from pydantic import Field, SecretStr, model_validator, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Literal, Optional
+from functools import lru_cache
+import ipaddress
 import re
 
 from app.utils.log import log
-from pydantic import Field, SecretStr, model_validator, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
 from app.utils.path import env_file
 from app.core.exceptions import *
 
@@ -23,7 +24,7 @@ class _DatabaseConfig(BaseSettings):
         env_file=env_file,
         env_file_encoding="utf-8",
         extra="ignore",
-        case_sensitive=False,
+        case_sensitive=True,
         frozen=True,
     )
 
@@ -147,20 +148,14 @@ class _DatabaseConfig(BaseSettings):
         log.info("✅ Database password set")
         return value
 
-    @property
-    def dsn(self) -> Optional[str]:
-        if self.db_engine == "postgresql":
-            password = self.db_password.get_secret_value() if self.db_password else ""
-            return f"postgresql+asyncpg://{self.db_user}:{password}@{self.db_host}:{self.db_port}/{self.db_name}"
+    # @property
+    # def dsn(self) -> Optional[str]:
+    #     if self.db_engine == "postgresql":
+    #         password = self.db_password.get_secret_value() if self.db_password else ""
+    #         return f"postgresql+asyncpg://{self.db_user}:{password}@{self.db_host}:{self.db_port}/{self.db_name}"
         
-        return None
+    #     return None
 
-    @property
-    def sync_dsn(self) -> Optional[str]:
-        if self.db_engine == "postgresql":
-            password = self.db_password.get_secret_value() if self.db_password else ""
-            return f"postgresql://{self.db_user}:{password}@{self.db_host}:{self.db_port}/{self.db_name}"
-        return None
 
     def get_connection_params(self) -> dict:
         return {
@@ -170,13 +165,15 @@ class _DatabaseConfig(BaseSettings):
             "password": self.db_password.get_secret_value() if self.db_password else "",
             "database": self.db_name,
         }
+    
+@lru_cache()
+def get_database_config() -> _DatabaseConfig:
+    return _DatabaseConfig()
 
-database = None
+#[ ]: Переделать инициализацию конфигурации.
 try:
-    database = _DatabaseConfig()
+    database = get_database_config()
     log.success("✅ Database config initialized successfully")
-    log.debug(f"Database:{database}")
-    log.debug(f"DSN: {database.dsn}")
 except Exception as e:
     log.error(f"❌ Failed to initialize Database config: {e}")
     raise
