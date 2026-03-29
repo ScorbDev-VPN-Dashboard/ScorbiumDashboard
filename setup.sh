@@ -18,14 +18,16 @@ echo "║        VPN Dashboard — Setup & Deploy            ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo -e "${RESET}"
 
+# ── Зависимости ───────────────────────────────────────────────────────────────
 for cmd in docker curl openssl; do
-    command -v "$cmd" &>/dev/null || error "Не найден '$cmd'."
+    command -v "$cmd" &>/dev/null || error "Не найден '$cmd'. Установите его."
 done
 docker compose version &>/dev/null || error "Нужен Docker Compose v2."
 
+# ── Режим ─────────────────────────────────────────────────────────────────────
 echo ""
 echo "Режим запуска:"
-echo "  1) Продакшен (домен + SSL)"
+echo "  1) Продакшен (домен + SSL) — только на VPS"
 echo "  2) Разработка (localhost)"
 read -rp "Выбор [1/2]: " MODE
 MODE=${MODE:-2}
@@ -33,12 +35,21 @@ MODE=${MODE:-2}
 # ── Ввод данных ───────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}── Основные ────────────────────────────────────────${RESET}"
-read -rp "Название панели [VPN Dashboard]: " APP_NAME; APP_NAME=${APP_NAME:-"VPN Dashboard"}
-read -rp "Telegram Bot Token: " BOT_TOKEN; [[ -z "$BOT_TOKEN" ]] && error "Обязателен"
-read -rp "Telegram Admin IDs (например: 123456789): " ADMIN_IDS_RAW; [[ -z "$ADMIN_IDS_RAW" ]] && error "Обязателен"
+read -rp "Название панели [VPN Dashboard]: " APP_NAME
+APP_NAME=${APP_NAME:-"VPN Dashboard"}
+
+read -rp "Telegram Bot Token: " BOT_TOKEN
+[[ -z "$BOT_TOKEN" ]] && error "Bot Token обязателен"
+
+read -rp "Telegram Admin IDs (например: 123456789): " ADMIN_IDS_RAW
+[[ -z "$ADMIN_IDS_RAW" ]] && error "Admin IDs обязательны"
 ADMIN_IDS="[$(echo "$ADMIN_IDS_RAW" | tr -s ' ,' ',' | sed 's/^,//;s/,$//')]"
-read -rp "Логин панели [admin]: " WEB_USER; WEB_USER=${WEB_USER:-admin}
-read -rsp "Пароль панели (мин. 6 символов): " WEB_PASS; echo ""
+
+read -rp "Логин панели [admin]: " WEB_USER
+WEB_USER=${WEB_USER:-admin}
+
+read -rsp "Пароль панели (мин. 6 символов): " WEB_PASS
+echo ""
 [[ ${#WEB_PASS} -lt 6 ]] && error "Пароль слишком короткий"
 
 echo ""
@@ -50,7 +61,7 @@ read -rsp "Пароль БД [postgres]: " DB_PASS; echo ""; DB_PASS=${DB_PASS:-
 echo ""
 echo -e "${BOLD}── PasarGuard / Marzban ────────────────────────────${RESET}"
 read -rp "URL панели (например: https://panel.example.com:8012): " PASAR_URL
-[[ -z "$PASAR_URL" ]] && error "Обязателен"
+[[ -z "$PASAR_URL" ]] && error "URL панели обязателен"
 read -rp "Логин Marzban [admin]: " PASAR_LOGIN; PASAR_LOGIN=${PASAR_LOGIN:-admin}
 read -rsp "Пароль Marzban: " PASAR_PASS; echo ""
 
@@ -115,98 +126,76 @@ success ".env создан"
 # ── Запуск ────────────────────────────────────────────────────────────────────
 echo ""
 read -rp "Запустить? [Y/n]: " START; START=${START:-Y}
-[[ ! "$START" =~ ^[Yy]$ ]] && { info "Запустите вручную: docker compose up -d"; exit 0; }
+[[ ! "$START" =~ ^[Yy]$ ]] && { info "Запустите вручную."; exit 0; }
 
 if [[ "$MODE" == "1" ]]; then
     # ── ПРОДАКШЕН ─────────────────────────────────────────────────────────────
 
     # Настраиваем nginx.conf под домен
-    info "Настраиваю nginx для ${DOMAIN}..."
-    # Заменяем YOUR_DOMAIN если ещё не заменён
     if grep -q "YOUR_DOMAIN" nginx/nginx.conf 2>/dev/null; then
+        info "Настраиваю nginx для ${DOMAIN}..."
         sed -i "s/YOUR_DOMAIN/${DOMAIN}/g" nginx/nginx.conf
+        success "nginx/nginx.conf обновлён"
     fi
 
-    # Создаём временный HTTP-only nginx конфиг для получения сертификата
-    info "Создаю временный HTTP конфиг для certbot..."
-    cat > /tmp/nginx_http_only.conf <<NGINXEOF
-worker_processes auto;
-events { worker_connections 1024; }
-http {
-    server {
-        listen 80;
-        server_name ${DOMAIN};
-        location /.well-known/acme-challenge/ {
-            root /var/www/certbot;
-        }
-        location / {
-            proxy_pass http://app:8000;
-            proxy_set_header Host \$host;
-        }
-    }
-}
-NGINXEOF
-
-    # Останавливаем всё старое
+    # Останавливаем старые контейнеры
     docker compose -f docker-compose.prod.yml down 2>/dev/null || true
 
-    # Проверяем есть ли уже сертификат
+    # Запускаем db + app
+    info "Запускаю db и app..."
+    docker compose -f docker-compose.prod.yml up -d db app
+    info "Жду запуска приложения (10 сек)..."
+    sleep 10
+
+    # Получаем SSL сертификат
     CERT_PATH="nginx/ssl/live/${DOMAIN}/fullchain.pem"
     if [[ -f "$CERT_PATH" ]]; then
-        success "SSL сертификат уже существует, пропускаю получение"
-        info "Запускаю все сервисы..."
-        docker compose -f docker-compose.prod.yml up -d
+        success "SSL сертификат уже существует, пропускаю"
     else
-        info "Запускаю db + app для получения сертификата..."
-        docker compose -f docker-compose.prod.yml up -d db app
+        info "Получаю SSL сертификат через certbot standalone..."
 
-        # Запускаем nginx с HTTP-only конфигом
-        info "Запускаю nginx (HTTP only)..."
-        docker run -d --name tmp_certbot_nginx \
-            --network "$(basename $(pwd))_vpn_net" \
-            -p 80:80 \
-            -v /tmp/nginx_http_only.conf:/etc/nginx/nginx.conf:ro \
-            -v certbot_www:/var/www/certbot \
-            nginx:alpine 2>/dev/null || \
-        docker run -d --name tmp_certbot_nginx \
-            --network vpn_net \
-            -p 80:80 \
-            -v /tmp/nginx_http_only.conf:/etc/nginx/nginx.conf:ro \
-            -v "$(basename $(pwd))_certbot_www:/var/www/certbot" \
-            nginx:alpine 2>/dev/null || true
+        # Устанавливаем certbot если нет
+        if ! command -v certbot &>/dev/null; then
+            info "Устанавливаю certbot..."
+            apt-get update -qq
+            apt-get install -y -qq certbot
+        fi
 
-        sleep 5
-
-        info "Получаю SSL сертификат для ${DOMAIN}..."
-        mkdir -p nginx/ssl
-
-        if docker compose -f docker-compose.prod.yml run --rm certbot certonly \
-            --webroot \
-            --webroot-path=/var/www/certbot \
+        # Получаем сертификат (standalone — certbot сам поднимает HTTP сервер)
+        certbot certonly --standalone \
             --email "${LE_EMAIL}" \
             --agree-tos \
             --no-eff-email \
-            --non-interactive \
-            -d "${DOMAIN}"; then
-            success "SSL сертификат получен!"
-        else
-            warn "Не удалось получить SSL. Проверьте что домен указывает на этот сервер."
-            warn "Запустите вручную после исправления:"
-            warn "  docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot --webroot-path=/var/www/certbot --email ${LE_EMAIL} --agree-tos -d ${DOMAIN}"
-        fi
+            -d "${DOMAIN}" || {
+            warn "Не удалось получить SSL сертификат."
+            warn "Убедитесь что домен указывает на этот сервер и порт 80 открыт."
+            warn "Запустите вручную: certbot certonly --standalone -d ${DOMAIN}"
+            exit 1
+        }
 
-        # Останавливаем временный nginx
-        docker stop tmp_certbot_nginx 2>/dev/null || true
-        docker rm tmp_certbot_nginx 2>/dev/null || true
+        # Копируем сертификаты в папку проекта
+        info "Копирую сертификаты..."
+        mkdir -p "nginx/ssl/live/${DOMAIN}"
+        cp "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" "nginx/ssl/live/${DOMAIN}/"
+        cp "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" "nginx/ssl/live/${DOMAIN}/"
+        success "Сертификаты скопированы"
 
-        # Запускаем всё с SSL
-        info "Запускаю все сервисы с SSL..."
-        docker compose -f docker-compose.prod.yml up -d
+        # Настраиваем автообновление
+        CRON_FILE="/etc/cron.d/vpn-certbot-renew"
+        PROJECT_DIR="$(pwd)"
+        cat > "$CRON_FILE" <<CRONEOF
+0 3 * * * root certbot renew --quiet --standalone --pre-hook "docker compose -f ${PROJECT_DIR}/docker-compose.prod.yml stop nginx" --post-hook "cp /etc/letsencrypt/live/${DOMAIN}/fullchain.pem ${PROJECT_DIR}/nginx/ssl/live/${DOMAIN}/ && cp /etc/letsencrypt/live/${DOMAIN}/privkey.pem ${PROJECT_DIR}/nginx/ssl/live/${DOMAIN}/ && docker compose -f ${PROJECT_DIR}/docker-compose.prod.yml start nginx"
+CRONEOF
+        success "Автообновление сертификата настроено (каждый день в 3:00)"
     fi
 
-    info "Жду запуска приложения (15 сек)..."
-    sleep 15
+    # Запускаем nginx с SSL
+    info "Запускаю nginx с SSL..."
+    docker compose -f docker-compose.prod.yml up -d nginx
+
+    # Применяем миграции
     info "Применяю миграции БД..."
+    sleep 5
     docker compose -f docker-compose.prod.yml exec app uv run alembic upgrade head
 
 else
@@ -230,6 +219,7 @@ echo -e "  🌐 Панель:   ${BOLD}${CYAN}${PANEL_URL}${RESET}"
 echo -e "  👤 Логин:    ${BOLD}${WEB_USER}${RESET}"
 echo -e "  🔑 Пароль:   ${BOLD}${WEB_PASS}${RESET}"
 echo ""
-echo -e "  Логи:    ${YELLOW}docker compose logs -f app${RESET}"
-echo -e "  Стоп:    ${YELLOW}docker compose down${RESET}"
+echo -e "  Логи:    ${YELLOW}docker compose -f docker-compose.prod.yml logs -f app${RESET}"
+echo -e "  Стоп:    ${YELLOW}docker compose -f docker-compose.prod.yml down${RESET}"
+echo -e "  Обновить: ${YELLOW}git pull && docker compose -f docker-compose.prod.yml build app && docker compose -f docker-compose.prod.yml up -d app${RESET}"
 echo ""
