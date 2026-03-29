@@ -136,6 +136,12 @@ if [[ "$MODE" == "1" ]]; then
         info "Настраиваю nginx для ${DOMAIN}..."
         sed -i "s/YOUR_DOMAIN/${DOMAIN}/g" nginx/nginx.conf
         success "nginx/nginx.conf обновлён"
+    elif [[ -f "nginx/nginx.conf.template" ]]; then
+        info "Настраиваю nginx для ${DOMAIN} из шаблона..."
+        sed "s/YOUR_DOMAIN/${DOMAIN}/g" nginx/nginx.conf.template > nginx/nginx.conf
+        success "nginx/nginx.conf создан из шаблона"
+    else
+        info "nginx.conf уже настроен (домен: ${DOMAIN})"
     fi
 
     # Останавливаем старые контейнеры
