@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="icon/dashboard.png" alt="Logo" width="80" height="80" style="border-radius:16px"/>
+<img src="icon/dash_logo.png" alt="Logo" width="80" height="80" style="border-radius:16px"/>
 
 # VPN Dashboard
 
