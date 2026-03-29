@@ -279,6 +279,12 @@ docker compose exec app bash
 ```
 
 ---
+<div align="center">
+<h1>
+<a href='https://t.me/scorbium_dashboard'>Telegram Channel</a>
+</h1>
+</div>
+---
 
 ## 📄 Лицензия
 
