@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Рефералка — VPN Panel{% endblock %}
+{% block page_title %}<i class="bi bi-diagram-3 me-2" style="color:var(--accent)"></i>Реферальная система{% endblock %}
+
+{% block content %}
+
+<!-- Статистика -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(108,99,255,.15)">
+        <i class="bi bi-people" style="color:#6c63ff"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ stats.total_referrals }}</div>
+        <div class="stat-label">Всего рефералов</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(34,197,94,.15)">
+        <i class="bi bi-check-circle" style="color:#22c55e"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ stats.paid_referrals }}</div>
+        <div class="stat-label">Оплачено бонусов</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(59,130,246,.15)">
+        <i class="bi bi-calendar-plus" style="color:#3b82f6"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ stats.total_bonus_days }}</div>
+        <div class="stat-label">Всего бонусных дней</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Топ рефереров -->
+<div class="card">
+  <div class="card-header px-3 py-2">
+    <i class="bi bi-trophy me-2" style="color:#eab308"></i>Топ рефереров
+  </div>
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Пользователь</th>
+          <th>ID</th>
+          <th>Приглашено</th>
+          <th>Бонусных дней</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in top %}
+        {% set i = loop.index0 %}
+        <tr>
+          <td>
+            {% if i == 0 %}<span style="color:#eab308">🥇</span>
+            {% elif i == 1 %}<span style="color:#9ca3af">🥈</span>
+            {% elif i == 2 %}<span style="color:#b45309">🥉</span>
+            {% else %}<span style="color:#8892a4">{{ i + 1 }}</span>{% endif %}
+          </td>
+          <td>
+            <div style="font-size:.875rem;color:#fff">{{ row.full_name }}</div>
+            {% if row.username %}<div style="font-size:.75rem;color:#8892a4">@{{ row.username }}</div>{% endif %}
+          </td>
+          <td><code style="color:#6c63ff;font-size:.8rem">{{ row.referrer_id }}</code></td>
+          <td><b>{{ row.count }}</b></td>
+          <td><span class="badge badge-custom" style="background:rgba(59,130,246,.15);color:#3b82f6">{{ row.bonus_days }} дн.</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center py-4" style="color:#8892a4">Рефералов пока нет</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Jinja2 не имеет enumerate — добавляем через JS если нужно
+// Но мы используем loop.index0 в шаблоне
+</script>
+{% endblock %}

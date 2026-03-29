@@ -1,0 +1,409 @@
+
+{% extends "base.html" %}
+{% block title %}Редактор клавиатуры — {{ app_name }}{% endblock %}
+{% block page_title %}Редактор клавиатуры бота{% endblock %}
+
+{% block head %}
+<style>
+/* ── Telegram preview ─────────────────────────────────────────────── */
+.tg-phone {
+  width: 280px; min-height: 480px; flex-shrink: 0;
+  background: #17212b;
+  border-radius: 24px;
+  border: 2px solid rgba(255,255,255,.08);
+  padding: 16px 12px;
+  display: flex; flex-direction: column; gap: 8px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+.tg-topbar {
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,.06);
+  margin-bottom: 4px;
+}
+.tg-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: linear-gradient(135deg,#6c63ff,#a78bfa);
+  display: flex; align-items: center; justify-content: center;
+  font-size: .75rem; color: #fff; font-weight: 700;
+}
+.tg-botname { font-size: .8rem; font-weight: 600; color: #fff; }
+.tg-online { font-size: .65rem; color: #22c55e; }
+.tg-bubble {
+  background: #2b5278;
+  border-radius: 12px 12px 12px 2px;
+  padding: 8px 12px;
+  font-size: .78rem; color: #e8f4fd;
+  max-width: 220px;
+  line-height: 1.4;
+}
+.tg-kb { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.tg-row { display: flex; gap: 4px; }
+.tg-btn {
+  flex: 1; padding: 6px 4px;
+  border-radius: 6px; font-size: .68rem; font-weight: 500;
+  text-align: center; cursor: default;
+  border: none; transition: all .15s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tg-btn-default { background: rgba(255,255,255,.08); color: #e8f4fd; }
+.tg-btn-primary  { background: rgba(59,130,246,.35); color: #93c5fd; }
+.tg-btn-success  { background: rgba(34,197,94,.3);  color: #86efac; }
+.tg-btn-danger   { background: rgba(239,68,68,.3);  color: #fca5a5; }
+
+/* ── Editor ───────────────────────────────────────────────────────── */
+.editor-area { flex: 1; min-width: 0; }
+.btn-palette {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 12px; background: rgba(255,255,255,.03);
+  border-radius: 10px; border: 1px solid var(--border);
+  min-height: 60px;
+}
+.palette-btn {
+  padding: 5px 10px; border-radius: 6px; font-size: .75rem;
+  background: rgba(108,99,255,.15); border: 1px solid rgba(108,99,255,.3);
+  color: #a78bfa; cursor: grab; user-select: none;
+  transition: all .15s;
+}
+.palette-btn:hover { background: rgba(108,99,255,.3); }
+.palette-btn.used { opacity: .35; cursor: not-allowed; }
+
+.kb-rows { display: flex; flex-direction: column; gap: 6px; }
+.kb-row {
+  display: flex; gap: 6px; align-items: center;
+  background: rgba(255,255,255,.03); border-radius: 8px;
+  padding: 6px 8px; border: 1px dashed rgba(255,255,255,.1);
+  min-height: 44px;
+}
+.kb-row.drag-over { border-color: var(--accent); background: rgba(108,99,255,.08); }
+.kb-row-btns { display: flex; gap: 6px; flex: 1; flex-wrap: wrap; }
+.kb-item {
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 8px; border-radius: 6px; font-size: .75rem;
+  background: rgba(108,99,255,.2); border: 1px solid rgba(108,99,255,.4);
+  color: #c4b5fd; cursor: grab; user-select: none;
+}
+.kb-item .remove-btn {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: rgba(239,68,68,.4); border: none; color: #fca5a5;
+  font-size: .6rem; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+}
+.kb-item .remove-btn:hover { background: rgba(239,68,68,.7); }
+.row-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.row-actions button {
+  width: 24px; height: 24px; border-radius: 4px; border: none;
+  background: rgba(255,255,255,.06); color: var(--muted);
+  font-size: .7rem; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+}
+.row-actions button:hover { background: rgba(255,255,255,.12); color: #fff; }
+.add-row-btn {
+  padding: 6px; border-radius: 8px; border: 1px dashed rgba(255,255,255,.15);
+  background: transparent; color: var(--muted); font-size: .75rem;
+  cursor: pointer; text-align: center; transition: all .15s;
+}
+.add-row-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Style selector */
+.style-select {
+  font-size: .65rem; padding: 1px 4px; border-radius: 4px;
+  background: rgba(255,255,255,.06); border: 1px solid var(--border);
+  color: var(--text); cursor: pointer;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex gap-4 align-items-start flex-wrap">
+
+  <!-- ── Telegram Preview ─────────────────────────────────────────── -->
+  <div class="tg-phone">
+    <div class="tg-topbar">
+      <div class="tg-avatar">B</div>
+      <div>
+        <div class="tg-botname">{{ bot_info.first_name if bot_info else 'VPN Bot' }}</div>
+        <div class="tg-online">● online</div>
+      </div>
+    </div>
+    <div class="tg-bubble" id="preview-text">{{ welcome_text }}</div>
+    <div class="tg-kb" id="tg-preview"></div>
+  </div>
+
+  <!-- ── Editor ──────────────────────────────────────────────────── -->
+  <div class="editor-area">
+
+    <!-- Palette -->
+    <div class="card p-3 mb-3">
+      <div class="fw-semibold text-white mb-2" style="font-size:.82rem">
+        <i class="bi bi-grid me-2 text-muted"></i>Доступные кнопки
+        <span style="font-size:.7rem;color:#8892a4;font-weight:400;margin-left:.5rem">Перетащи на ряд ↓</span>
+      </div>
+      <div class="btn-palette" id="palette" ondragover="event.preventDefault()" ondrop="dropToPalette(event)">
+        {% for b in all_buttons %}
+        <div class="palette-btn {% if b.id in used_ids %}used{% endif %}"
+          id="pb_{{ b.id }}"
+          draggable="true"
+          ondragstart="dragStart(event, '{{ b.id }}')"
+          title="{{ b.callback }}">
+          {{ b.label }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Rows editor -->
+    <div class="card p-3 mb-3">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="fw-semibold text-white" style="font-size:.82rem">
+          <i class="bi bi-layout-three-columns me-2 text-muted"></i>Раскладка клавиатуры
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="resetLayout()">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Сброс
+          </button>
+          <button class="btn btn-sm btn-accent" onclick="saveLayout()">
+            <i class="bi bi-floppy me-1"></i>Сохранить
+          </button>
+        </div>
+      </div>
+
+      <div class="kb-rows" id="kb-rows"></div>
+      <button class="add-row-btn w-100 mt-2" onclick="addRow()">
+        <i class="bi bi-plus me-1"></i>Добавить ряд
+      </button>
+    </div>
+
+    <!-- Style editor -->
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-3" style="font-size:.82rem">
+        <i class="bi bi-palette2 me-2 text-muted"></i>Стили кнопок
+      </div>
+      <div class="row g-2" id="style-editor">
+        {% for b in all_buttons %}
+        <div class="col-md-6">
+          <div style="background:rgba(255,255,255,.03);border-radius:8px;padding:.5rem .75rem">
+            <div style="font-size:.75rem;color:#c8d0e0;margin-bottom:.3rem">{{ b.label }}</div>
+            <div class="d-flex gap-2">
+              <select class="style-select flex-grow-1" id="style_{{ b.id }}"
+                onchange="updatePreview()" data-btn="{{ b.id }}">
+                <option value="" {% if not bot_settings.get('btn_style_'~b.id) %}selected{% endif %}>⚪ Стандарт</option>
+                <option value="primary" {% if bot_settings.get('btn_style_'~b.id)=='primary' %}selected{% endif %}>🔵 primary</option>
+                <option value="success" {% if bot_settings.get('btn_style_'~b.id)=='success' %}selected{% endif %}>🟢 success</option>
+                <option value="danger"  {% if bot_settings.get('btn_style_'~b.id)=='danger'  %}selected{% endif %}>🔴 danger</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <button class="btn btn-accent btn-sm w-100 mt-3" onclick="saveStyles()">
+        <i class="bi bi-floppy me-1"></i>Сохранить стили
+      </button>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────────
+const ALL_BUTTONS = {{ all_buttons | tojson }};
+const SAVED_LAYOUT = {{ layout | tojson }};
+
+// layout = [[{id, label, callback, style}], ...]  — array of rows
+let layout = JSON.parse(JSON.stringify(SAVED_LAYOUT));
+let dragId = null;
+let dragFromRow = null;
+let dragFromIdx = null;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  renderRows();
+  updatePreview();
+  updatePalette();
+});
+
+// ── Drag from palette ─────────────────────────────────────────────────────────
+function dragStart(e, id) {
+  dragId = id;
+  dragFromRow = null;
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function dragStartItem(e, rowIdx, itemIdx) {
+  dragId = layout[rowIdx][itemIdx].id;
+  dragFromRow = rowIdx;
+  dragFromIdx = itemIdx;
+  e.dataTransfer.effectAllowed = 'move';
+  e.stopPropagation();
+}
+
+function dropToPalette(e) {
+  e.preventDefault();
+  if (dragFromRow !== null) {
+    layout[dragFromRow].splice(dragFromIdx, 1);
+    if (layout[dragFromRow].length === 0) layout.splice(dragFromRow, 1);
+    dragFromRow = null;
+    renderRows(); updatePreview(); updatePalette();
+  }
+}
+
+// ── Drop to row ───────────────────────────────────────────────────────────────
+function dropToRow(e, rowIdx) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!dragId) return;
+
+  const btn = ALL_BUTTONS.find(b => b.id === dragId);
+  if (!btn) return;
+
+  // Remove from source if dragging within layout
+  if (dragFromRow !== null) {
+    layout[dragFromRow].splice(dragFromIdx, 1);
+    if (layout[dragFromRow].length === 0) layout.splice(dragFromRow, 1);
+    // Adjust rowIdx if needed
+    if (dragFromRow < rowIdx) rowIdx = Math.max(0, rowIdx - 1);
+  }
+
+  // Don't add duplicates
+  const alreadyIn = layout.some(row => row.some(b => b.id === dragId));
+  if (!alreadyIn) {
+    if (!layout[rowIdx]) layout[rowIdx] = [];
+    layout[rowIdx].push({ id: btn.id, label: btn.label, callback: btn.callback });
+  }
+
+  dragId = null; dragFromRow = null;
+  renderRows(); updatePreview(); updatePalette();
+}
+
+// ── Render rows ───────────────────────────────────────────────────────────────
+function renderRows() {
+  const container = document.getElementById('kb-rows');
+  container.innerHTML = '';
+
+  layout.forEach((row, ri) => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'kb-row';
+    rowEl.ondragover = e => { e.preventDefault(); rowEl.classList.add('drag-over'); };
+    rowEl.ondragleave = () => rowEl.classList.remove('drag-over');
+    rowEl.ondrop = e => dropToRow(e, ri);
+
+    const btnsEl = document.createElement('div');
+    btnsEl.className = 'kb-row-btns';
+
+    row.forEach((btn, bi) => {
+      const item = document.createElement('div');
+      item.className = 'kb-item';
+      item.draggable = true;
+      item.ondragstart = e => dragStartItem(e, ri, bi);
+      item.innerHTML = `<span>${btn.label}</span>
+        <button class="remove-btn" onclick="removeBtn(${ri},${bi})" title="Убрать">×</button>`;
+      btnsEl.appendChild(item);
+    });
+
+    const actions = document.createElement('div');
+    actions.className = 'row-actions';
+    actions.innerHTML = `
+      <button onclick="moveRow(${ri},-1)" title="Вверх"><i class="bi bi-chevron-up"></i></button>
+      <button onclick="moveRow(${ri},1)" title="Вниз"><i class="bi bi-chevron-down"></i></button>
+      <button onclick="deleteRow(${ri})" title="Удалить ряд" style="color:#ef4444"><i class="bi bi-trash"></i></button>`;
+
+    rowEl.appendChild(btnsEl);
+    rowEl.appendChild(actions);
+    container.appendChild(rowEl);
+  });
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+function addRow() {
+  layout.push([]);
+  renderRows(); updatePreview();
+}
+
+function removeBtn(ri, bi) {
+  layout[ri].splice(bi, 1);
+  if (layout[ri].length === 0) layout.splice(ri, 1);
+  renderRows(); updatePreview(); updatePalette();
+}
+
+function deleteRow(ri) {
+  layout.splice(ri, 1);
+  renderRows(); updatePreview(); updatePalette();
+}
+
+function moveRow(ri, dir) {
+  const ni = ri + dir;
+  if (ni < 0 || ni >= layout.length) return;
+  [layout[ri], layout[ni]] = [layout[ni], layout[ri]];
+  renderRows(); updatePreview();
+}
+
+function resetLayout() {
+  layout = JSON.parse(JSON.stringify(SAVED_LAYOUT));
+  renderRows(); updatePreview(); updatePalette();
+}
+
+function updatePalette() {
+  const usedIds = new Set(layout.flatMap(r => r.map(b => b.id)));
+  ALL_BUTTONS.forEach(b => {
+    const el = document.getElementById('pb_' + b.id);
+    if (el) el.classList.toggle('used', usedIds.has(b.id));
+  });
+}
+
+// ── Preview ───────────────────────────────────────────────────────────────────
+function updatePreview() {
+  const preview = document.getElementById('tg-preview');
+  preview.innerHTML = '';
+
+  const styleMap = {};
+  ALL_BUTTONS.forEach(b => {
+    const sel = document.getElementById('style_' + b.id);
+    styleMap[b.id] = sel ? sel.value : '';
+  });
+
+  layout.forEach(row => {
+    if (row.length === 0) return;
+    const rowEl = document.createElement('div');
+    rowEl.className = 'tg-row';
+    row.forEach(btn => {
+      const style = styleMap[btn.id] || '';
+      const cls = style ? `tg-btn tg-btn-${style}` : 'tg-btn tg-btn-default';
+      const el = document.createElement('div');
+      el.className = cls;
+      el.textContent = btn.label;
+      rowEl.appendChild(el);
+    });
+    preview.appendChild(rowEl);
+  });
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+async function saveLayout() {
+  const resp = await fetch('/panel/keyboard/save', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ layout }),
+  });
+  const d = await resp.json();
+  showToast(d.ok ? '✅ Раскладка сохранена' : '❌ Ошибка', d.ok ? 'success' : 'error');
+}
+
+async function saveStyles() {
+  const styles = {};
+  ALL_BUTTONS.forEach(b => {
+    const sel = document.getElementById('style_' + b.id);
+    if (sel) styles[b.id] = sel.value;
+  });
+  const resp = await fetch('/panel/keyboard/styles', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ styles }),
+  });
+  const d = await resp.json();
+  showToast(d.ok ? '✅ Стили сохранены' : '❌ Ошибка', d.ok ? 'success' : 'error');
+  updatePreview();
+}
+</script>
+{% endblock %}

@@ -1,22 +1,23 @@
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, DateTime, func
-from typing import Any
+from sqlalchemy import BigInteger, Boolean, Column, Numeric, String
+from sqlalchemy.orm import relationship
 
-Base = declarative_base()
+from app.models.base import Base
 
 
-class BaseModel(Base):
-    __tablename__ = "base_model"
-    
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
-    
-    def dict(self) -> dict[str, Any]:
-        """Преобразует модель в словарь"""
-        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
-    
-    def update(self, **kwargs) -> None:
-        """Обновляет поля модели"""
-        for key, value in kwargs.items():
-            if hasattr(self, key) and value is not None:
-                setattr(self, key, value)
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(BigInteger, primary_key=True)
+    username = Column(String(64), nullable=True)
+    full_name = Column(String(256), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_banned = Column(Boolean, default=False, nullable=False)
+    balance = Column(Numeric(10, 2), default=0, nullable=False)
+    referral_code = Column(String(32), nullable=True, unique=True, index=True)
+
+    payments = relationship("Payment", back_populates="user", lazy="selectin")
+    vpn_keys = relationship("VpnKey", back_populates="user", lazy="selectin")
+    tickets = relationship("SupportTicket", back_populates="user", lazy="noload")
+
+    def __repr__(self) -> str:
+        return f"<User id={self.id} username={self.username}>"

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Платежи — VPN Panel{% endblock %}
+{% block page_title %}Платежи{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between px-3 py-2">
+    <span><i class="bi bi-credit-card me-2 text-muted"></i>История платежей</span>
+    <div class="d-flex gap-2">
+      <select class="form-select form-select-sm" style="width:140px"
+        hx-get="/panel/payments" hx-target="#payments-tbody" hx-include="this" name="status">
+        <option value="">Все статусы</option>
+        <option value="succeeded">Успешные</option>
+        <option value="pending">Ожидание</option>
+        <option value="failed">Ошибка</option>
+        <option value="refunded">Возврат</option>
+      </select>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th>#</th><th>Пользователь</th><th>Провайдер</th>
+          <th>Сумма</th><th>Статус</th><th>Дата</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="payments-tbody">
+        {% for p in payments %}
+        <tr>
+          <td><code style="color:#6c63ff">#{{ p.id }}</code></td>
+          <td><a href="/panel/users/{{ p.user_id }}" style="color:#6c63ff">{{ p.user_id }}</a></td>
+          <td><span style="color:#8892a4;font-size:.8rem">{{ p.provider }}</span></td>
+          <td><b>{{ p.amount }}</b> {{ p.currency }}</td>
+          <td>
+            {% if p.status == 'succeeded' %}
+              <span class="badge badge-custom badge-active">Успешно</span>
+            {% elif p.status == 'pending' %}
+              <span class="badge badge-custom badge-pending">Ожидание</span>
+            {% elif p.status == 'refunded' %}
+              <span class="badge badge-custom badge-open">Возврат</span>
+            {% else %}
+              <span class="badge badge-custom badge-expired">{{ p.status }}</span>
+            {% endif %}
+          </td>
+          <td style="color:#8892a4;font-size:.8rem">{{ p.created_at.strftime('%d.%m.%Y %H:%M') if p.created_at else '—' }}</td>
+          <td>
+            {% if p.status == 'succeeded' %}
+            <button class="btn btn-sm btn-outline-warning py-0 px-2"
+              hx-post="/panel/payments/{{ p.id }}/refund"
+              hx-target="closest tr" hx-swap="outerHTML"
+              hx-confirm="Сделать возврат платежа #{{ p.id }}?"
+              title="Возврат">
+              <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center py-4" style="color:#8892a4">Платежей нет</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

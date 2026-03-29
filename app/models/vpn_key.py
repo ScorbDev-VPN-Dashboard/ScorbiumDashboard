@@ -1,0 +1,39 @@
+import enum
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy.orm import relationship
+
+from app.models.base import Base
+
+
+class VpnKeyStatus(str, enum.Enum):
+    ACTIVE = "active"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+
+
+class VpnKey(Base):
+    """
+    VPN-подписка пользователя.
+    Одна запись = одна подписка = один VPN-ключ в Marzban.
+    """
+    __tablename__ = "vpn_keys"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    plan_id = Column(Integer, ForeignKey("plans.id", ondelete="SET NULL"), nullable=True)
+    pasarguard_key_id = Column(String(128), nullable=True, unique=True)
+    access_url = Column(Text, nullable=False)
+    name = Column(String(128), nullable=True)
+    price = Column(Numeric(10, 2), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    status = Column(
+        String(16),
+        default=VpnKeyStatus.ACTIVE.value,
+        nullable=False,
+    )
+
+    user = relationship("User", back_populates="vpn_keys")
+    plan = relationship("Plan", lazy="selectin")
+
+    def __repr__(self) -> str:
+        return f"<VpnKey id={self.id} user_id={self.user_id} status={self.status}>"

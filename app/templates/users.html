@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Пользователи — VPN Panel{% endblock %}
+{% block page_title %}<i class="bi bi-people me-2" style="color:var(--accent)"></i>Пользователи{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between px-3 py-2 flex-wrap gap-2">
+    <span>Все пользователи</span>
+    <input type="search" placeholder="Поиск по имени / username..."
+      class="form-control form-control-sm" style="width:240px"
+      hx-get="/panel/users/search" hx-trigger="keyup changed delay:400ms"
+      hx-target="#users-tbody" hx-include="this" name="q" />
+  </div>
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th>Telegram ID</th><th>Имя</th><th>Username</th>
+          <th>Подписок</th><th>Платежей</th><th>Статус / Баланс</th><th>Действия</th>
+        </tr>
+      </thead>
+      <tbody id="users-tbody">
+        {% include "partials/users_rows.html" %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Message Modal ── -->
+<div class="modal fade" id="msgModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="background:#1a1f2e;border:1px solid rgba(255,255,255,.08)">
+      <div class="modal-header border-0">
+        <h6 class="modal-title text-white"><i class="bi bi-chat me-2"></i>Отправить сообщение</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="msg-user-id" />
+        <label class="form-label">Текст (HTML)</label>
+        <textarea id="msg-text" class="form-control" rows="4" placeholder="Привет, <b>имя</b>!"></textarea>
+      </div>
+      <div class="modal-footer border-0">
+        <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button class="btn btn-sm btn-accent" onclick="sendMsg()"><i class="bi bi-send me-1"></i>Отправить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Balance Modal ── -->
+<div class="modal fade" id="balanceModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content" style="background:#1a1f2e;border:1px solid rgba(255,255,255,.08)">
+      <div class="modal-header border-0">
+        <h6 class="modal-title text-white"><i class="bi bi-currency-ruble me-2"></i>Управление балансом</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p style="color:#8892a4;font-size:.85rem">Текущий баланс: <b id="bal-current" class="text-white"></b> ₽</p>
+        <label class="form-label">Сумма (₽)</label>
+        <input type="number" id="bal-amount" class="form-control" placeholder="100" min="0.01" step="0.01" />
+      </div>
+      <div class="modal-footer border-0 gap-2">
+        <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="changeBalance('deduct')">
+          <i class="bi bi-dash-circle me-1"></i>Снять
+        </button>
+        <button class="btn btn-sm btn-accent" onclick="changeBalance('add')">
+          <i class="bi bi-plus-circle me-1"></i>Пополнить
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Gift Subscription Modal ── -->
+<div class="modal fade" id="giftModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content" style="background:#1a1f2e;border:1px solid rgba(255,255,255,.08)">
+      <div class="modal-header border-0">
+        <h6 class="modal-title text-white"><i class="bi bi-gift me-2"></i>Подарить подписку</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="giftForm" hx-swap="none">
+        <div class="modal-body">
+          <label class="form-label">Тариф</label>
+          <select name="plan_id" class="form-select" required>
+            {% for plan in plans %}
+            <option value="{{ plan.id }}">{{ plan.name }} ({{ plan.duration_days }} дн.)</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-sm btn-accent"><i class="bi bi-gift me-1"></i>Подарить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _balUserId = null;
+
+function openMsgModal(userId) {
+  document.getElementById('msg-user-id').value = userId;
+  document.getElementById('msg-text').value = '';
+  new bootstrap.Modal(document.getElementById('msgModal')).show();
+}
+
+async function sendMsg() {
+  const uid = document.getElementById('msg-user-id').value;
+  const text = document.getElementById('msg-text').value.trim();
+  if (!text) return;
+  const fd = new FormData();
+  fd.append('chat_id', uid);
+  fd.append('text', text);
+  const r = await fetch('/panel/telegram/send', { method: 'POST', body: fd });
+  bootstrap.Modal.getInstance(document.getElementById('msgModal')).hide();
+  showToast(r.ok ? 'Сообщение отправлено' : 'Ошибка отправки', r.ok ? 'success' : 'error');
+}
+
+function openBalanceModal(userId, current) {
+  _balUserId = userId;
+  document.getElementById('bal-current').textContent = parseFloat(current).toFixed(2);
+  document.getElementById('bal-amount').value = '';
+  new bootstrap.Modal(document.getElementById('balanceModal')).show();
+}
+
+async function changeBalance(action) {
+  const amount = document.getElementById('bal-amount').value;
+  if (!amount || parseFloat(amount) <= 0) return;
+  const fd = new FormData();
+  fd.append('amount', amount);
+  const url = action === 'add'
+    ? `/panel/users/${_balUserId}/add-balance`
+    : `/panel/users/${_balUserId}/deduct-balance`;
+  const r = await fetch(url, { method: 'POST', body: fd });
+  bootstrap.Modal.getInstance(document.getElementById('balanceModal')).hide();
+  if (r.ok) {
+    showToast(action === 'add' ? `Баланс пополнен на ${amount} ₽` : `Снято ${amount} ₽`, 'success');
+    htmx.trigger('#users-tbody', 'refresh');
+  } else {
+    const txt = await r.text();
+    showToast('Ошибка: ' + txt, 'error');
+  }
+}
+
+function openGiftModal(userId) {
+  const form = document.getElementById('giftForm');
+  form.setAttribute('hx-post', `/panel/users/${userId}/gift-subscription`);
+  htmx.process(form);
+  new bootstrap.Modal(document.getElementById('giftModal')).show();
+}
+
+document.getElementById('giftForm').addEventListener('htmx:afterRequest', function(e) {
+  bootstrap.Modal.getInstance(document.getElementById('giftModal'))?.hide();
+});
+</script>
+{% endblock %}

@@ -43,6 +43,21 @@ class _TelegramConfig(BaseSettings):
         description="Protocol type (long/webhook)",
         validation_alias="TELEGRAM_TYPE_PROTOCOL",
     )
+    telegram_webhook_url: str = Field(
+        default="",
+        description="Full webhook URL, e.g. https://example.com/webhook/bot",
+        validation_alias="TELEGRAM_WEBHOOK_URL",
+    )
+    telegram_webhook_path: str = Field(
+        default="/webhook/bot",
+        description="Path for webhook handler",
+        validation_alias="TELEGRAM_WEBHOOK_PATH",
+    )
+    telegram_webhook_port: int = Field(
+        default=8080,
+        description="Port for aiohttp webhook server",
+        validation_alias="TELEGRAM_WEBHOOK_PORT",
+    )
 
     @field_validator("telegram_bot_token")
     @classmethod

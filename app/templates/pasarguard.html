@@ -1,0 +1,170 @@
+
+{% extends "base.html" %}
+{% block title %}PasarGuard — {{ app_name }}{% endblock %}
+{% block page_title %}PasarGuard / Marzban{% endblock %}
+
+{% block head %}
+<style>
+.tab-nav { display:flex; gap:.5rem; margin-bottom:1.25rem; flex-wrap:wrap; }
+.tab-btn { padding:.4rem .9rem; border-radius:8px; font-size:.78rem; font-weight:600; border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; transition:all .15s; }
+.tab-btn:hover { color:#fff; background:rgba(255,255,255,.05); }
+.tab-btn.active { background:rgba(108,99,255,.2); border-color:var(--accent); color:#fff; }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+.user-row:hover { background:rgba(255,255,255,.03); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('status')"><i class="bi bi-hdd-network me-1"></i>Статус</button>
+  <button class="tab-btn" onclick="switchTab('users')"><i class="bi bi-people me-1"></i>Пользователи</button>
+  <button class="tab-btn" onclick="switchTab('groups')"><i class="bi bi-diagram-3 me-1"></i>Группы</button>
+  <button class="tab-btn" onclick="switchTab('nodes')"><i class="bi bi-server me-1"></i>Ноды</button>
+</div>
+
+<!-- ══ СТАТУС ════════════════════════════════════════════════════════════════ -->
+<div id="tab-status" class="tab-pane active">
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card p-3 mb-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-hdd-network me-2 text-muted"></i>Подключение</div>
+      <div id="marzban-status" class="mb-3">
+        {% if marzban_ok %}
+        <div class="d-flex align-items-center gap-2 mb-3" style="color:#22c55e;font-size:.85rem">
+          <i class="bi bi-check-circle-fill"></i><span>Подключено</span>
+        </div>
+        {% if marzban_stats %}
+        <div class="row g-2">
+          {% set items = [
+            ('bi-wifi','rgba(34,197,94,.1)','#22c55e','Онлайн', marzban_stats.get('users_active',0)),
+            ('bi-people','rgba(108,99,255,.1)','#a78bfa','Всего юзеров', marzban_stats.get('total_user',0)),
+            ('bi-arrow-down-circle','rgba(59,130,246,.1)','#3b82f6','Входящий', ((marzban_stats.get('incoming_bandwidth',0)/1073741824)|round(2)|string)~' GB'),
+            ('bi-arrow-up-circle','rgba(239,68,68,.1)','#ef4444','Исходящий', ((marzban_stats.get('outgoing_bandwidth',0)/1073741824)|round(2)|string)~' GB'),
+            ('bi-memory','rgba(234,179,8,.1)','#eab308','RAM', ((marzban_stats.get('mem_used',0)//1048576)|string)~' MB'),
+            ('bi-cpu','rgba(108,99,255,.1)','#a78bfa','CPU', (marzban_stats.get('cpu_usage',0)|round(1)|string)~'%'),
+          ] %}
+          {% for icon,bg,color,label,val in items %}
+          <div class="col-6">
+            <div style="background:{{ bg }};border-radius:8px;padding:.5rem .75rem;font-size:.75rem">
+              <div style="color:#8892a4"><i class="bi {{ icon }} me-1" style="color:{{ color }}"></i>{{ label }}</div>
+              <div class="text-white fw-semibold">{{ val }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="d-flex align-items-center gap-2" style="color:#ef4444;font-size:.85rem">
+          <i class="bi bi-x-circle-fill"></i><span>Нет подключения</span>
+        </div>
+        {% endif %}
+      </div>
+      <button class="btn btn-sm btn-outline-secondary w-100"
+        hx-post="/panel/telegram/test-marzban" hx-target="#marzban-status" hx-swap="innerHTML">
+        <i class="bi bi-arrow-repeat me-1"></i>Проверить
+      </button>
+    </div>
+
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-2"><i class="bi bi-diagram-3 me-2 text-muted"></i>Группы для новых ключей</div>
+      <div style="font-size:.75rem;color:#8892a4;margin-bottom:.75rem">Группы назначаются при создании подписки</div>
+      <form hx-post="/panel/telegram/groups" hx-swap="none">
+        <div id="pg-groups-list" style="min-height:40px;font-size:.8rem;color:#8892a4">
+          <i class="bi bi-arrow-down-circle me-1"></i>Нажмите «Загрузить»
+        </div>
+        <div class="d-flex gap-2 mt-3">
+          <button type="button" class="btn btn-sm btn-outline-secondary"
+            hx-get="/panel/telegram/groups" hx-target="#pg-groups-list" hx-swap="innerHTML">
+            <i class="bi bi-arrow-repeat me-1"></i>Загрузить
+          </button>
+          <button type="submit" class="btn btn-sm btn-accent"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+        </div>
+        {% set sg = bot_settings.get('vpn_group_ids','') %}
+        {% if sg and sg != '[]' %}
+        <div class="mt-2" style="font-size:.72rem;color:#22c55e"><i class="bi bi-check-circle me-1"></i>Активно: <code>{{ sg }}</code></div>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-activity me-2 text-muted"></i>Быстрые действия</div>
+      <div class="row g-2">
+        <div class="col-6">
+          <button class="btn btn-outline-secondary w-100 text-start"
+            hx-post="/panel/vpn/sync" hx-swap="none">
+            <i class="bi bi-arrow-repeat me-2"></i>Синхронизировать ключи
+          </button>
+        </div>
+        <div class="col-6">
+          <button class="btn btn-outline-secondary w-100 text-start"
+            hx-post="/panel/subscriptions/expire-outdated" hx-swap="none">
+            <i class="bi bi-clock-history me-2"></i>Истечь просроченные
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ ПОЛЬЗОВАТЕЛИ ══════════════════════════════════════════════════════════ -->
+<div id="tab-users" class="tab-pane">
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-people me-2" style="color:var(--accent)"></i>VPN пользователи в Marzban</span>
+    <button class="btn btn-accent btn-sm" hx-get="/panel/pasarguard/users" hx-target="#pg-users-table" hx-swap="innerHTML">
+      <i class="bi bi-arrow-repeat me-1"></i>Загрузить
+    </button>
+  </div>
+  <div id="pg-users-table" class="p-3" style="color:#8892a4;font-size:.85rem">
+    Нажмите «Загрузить» для получения списка пользователей из Marzban.
+  </div>
+</div>
+</div>
+
+<!-- ══ ГРУППЫ ════════════════════════════════════════════════════════════════ -->
+<div id="tab-groups" class="tab-pane">
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-diagram-3 me-2" style="color:var(--accent)"></i>Группы Marzban</span>
+    <button class="btn btn-accent btn-sm" hx-get="/panel/pasarguard/groups" hx-target="#pg-groups-table" hx-swap="innerHTML">
+      <i class="bi bi-arrow-repeat me-1"></i>Загрузить
+    </button>
+  </div>
+  <div id="pg-groups-table" class="p-3" style="color:#8892a4;font-size:.85rem">
+    Нажмите «Загрузить» для получения групп.
+  </div>
+</div>
+</div>
+
+<!-- ══ НОДЫ ══════════════════════════════════════════════════════════════════ -->
+<div id="tab-nodes" class="tab-pane">
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-server me-2" style="color:var(--accent)"></i>Ноды Marzban</span>
+    <button class="btn btn-accent btn-sm" hx-get="/panel/pasarguard/nodes" hx-target="#pg-nodes-table" hx-swap="innerHTML">
+      <i class="bi bi-arrow-repeat me-1"></i>Загрузить
+    </button>
+  </div>
+  <div id="pg-nodes-table" class="p-3" style="color:#8892a4;font-size:.85rem">
+    Нажмите «Загрузить» для получения нод.
+  </div>
+</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+</script>
+{% endblock %}

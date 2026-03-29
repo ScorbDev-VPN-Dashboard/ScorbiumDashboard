@@ -1,22 +1,54 @@
 services:
   db:
-    image: postgres:15
-    container_name: vpn_dashboard_db
+    image: postgres:15-alpine
+    container_name: vpn_db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-mydb}
+      POSTGRES_DB: ${DB_NAME:-vpnbot}
     ports:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
-      - networkName
+      - vpn_net
+
+  app:
+    build: .
+    container_name: vpn_app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - vpn_net
+
+  nginx:
+    image: nginx:alpine
+    container_name: vpn_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.local.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app
+    networks:
+      - vpn_net
 
 networks:
-  networkName:
+  vpn_net:
     driver: bridge
 
 volumes:
   db_data:
-  

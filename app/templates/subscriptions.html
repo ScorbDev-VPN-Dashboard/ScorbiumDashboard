@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Подписки — VPN Panel{% endblock %}
+{% block page_title %}<i class="bi bi-calendar-check me-2" style="color:var(--accent)"></i>Подписки{% endblock %}
+
+{% block content %}
+
+<div class="card p-3 mb-3">
+  <div class="fw-semibold text-white mb-3"><i class="bi bi-plus-circle me-2 text-muted"></i>Создать подписку</div>
+  <form hx-post="/panel/subscriptions/create" hx-swap="none" class="row g-2 align-items-end">
+    <div class="col-sm-4">
+      <label class="form-label">Telegram ID пользователя</label>
+      <input type="number" name="user_id" class="form-control" placeholder="123456789" required />
+    </div>
+    <div class="col-sm-4">
+      <label class="form-label">Тариф</label>
+      <select name="plan_id" class="form-select" required>
+        {% for plan in plans %}
+        <option value="{{ plan.id }}">{{ plan.name }} — {{ plan.duration_days }} дн.</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-sm-4">
+      <button type="submit" class="btn btn-accent w-100">
+        <i class="bi bi-plus-circle me-1"></i>Создать
+      </button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between px-3 py-2">
+    <span>Все подписки</span>
+    <span class="badge badge-custom badge-active">{{ subscriptions|length }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Пользователь</th>
+          <th>Тариф</th>
+          <th>Статус</th>
+          <th>Цена</th>
+          <th>Истекает</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sub in subscriptions %}
+        <tr id="sub-row-{{ sub.id }}">
+          <td><code style="color:#6c63ff">#{{ sub.id }}</code></td>
+          <td><a href="/panel/users/{{ sub.user_id }}" style="color:#6c63ff">{{ sub.user_id }}</a></td>
+          <td>
+            {% if sub.plan %}
+              <span class="badge badge-custom" style="background:rgba(108,99,255,.15);color:#6c63ff">{{ sub.plan.name }}</span>
+            {% else %}
+              <span style="color:#8892a4">{{ sub.name or '—' }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if sub.status.value == 'active' %}
+              <span class="badge badge-custom badge-active">Активна</span>
+            {% elif sub.status.value == 'expired' %}
+              <span class="badge badge-custom badge-expired">Истекла</span>
+            {% else %}
+              <span class="badge badge-custom badge-closed">Отозвана</span>
+            {% endif %}
+          </td>
+          <td><b>{{ sub.price or '—' }}</b>{% if sub.price %} ₽{% endif %}</td>
+          <td style="color:#8892a4;font-size:.8rem">
+            {{ sub.expires_at.strftime('%d.%m.%Y') if sub.expires_at else '—' }}
+          </td>
+          <td>
+            <div class="d-flex gap-1 flex-wrap">
+              <button class="btn btn-xs btn-outline-secondary"
+                title="Продлить"
+                data-bs-toggle="modal"
+                data-bs-target="#extendModal"
+                data-sub-id="{{ sub.id }}">
+                <i class="bi bi-calendar-plus"></i>
+              </button>
+              {% if sub.status.value == 'active' %}
+              <button class="btn btn-xs btn-outline-danger"
+                title="Отозвать"
+                hx-post="/panel/subscriptions/{{ sub.id }}/cancel"
+                hx-swap="none"
+                onclick="return confirm('Отозвать подписку #{{ sub.id }}?')">
+                <i class="bi bi-x-circle"></i>
+              </button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center py-4" style="color:#8892a4">Подписок нет</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal fade" id="extendModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content" style="background:#1a1f2e;border:1px solid rgba(255,255,255,.08)">
+      <div class="modal-header border-0">
+        <h6 class="modal-title text-white">Продлить подписку</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="extendForm" hx-swap="none">
+        <div class="modal-body">
+          <p style="color:#8892a4;font-size:.85rem">Подписка #<span id="extendSubId"></span></p>
+          <label class="form-label">Количество дней</label>
+          <input type="number" name="days" class="form-control" value="30" min="1" max="3650" required />
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-sm btn-accent">Продлить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>.btn-xs { padding: .2rem .45rem; font-size: .75rem; }</style>
+
+<script>
+document.getElementById('extendModal').addEventListener('show.bs.modal', function(e) {
+  const subId = e.relatedTarget.getAttribute('data-sub-id');
+  document.getElementById('extendSubId').textContent = subId;
+  document.getElementById('extendForm').setAttribute('hx-post', '/panel/subscriptions/' + subId + '/extend');
+  htmx.process(document.getElementById('extendForm'));
+});
+document.getElementById('extendForm').addEventListener('submit', function() {
+  bootstrap.Modal.getInstance(document.getElementById('extendModal'))?.hide();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}Дашборд — VPN Panel{% endblock %}
+{% block page_title %}Дашборд{% endblock %}
+
+{% block head %}
+<style>
+  .gradient-card { position: relative; overflow: hidden; }
+  .gradient-card::before {
+    content: ''; position: absolute; inset: 0; opacity: .06;
+    background: radial-gradient(circle at top right, #fff, transparent 70%);
+    pointer-events: none;
+  }
+  .activity-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- KPI row -->
+<div class="row g-3 mb-3">
+  <div class="col-6 col-xl-3">
+    <div class="stat-card gradient-card" style="border-color:rgba(108,99,255,.25)">
+      <div class="stat-icon" style="background:rgba(108,99,255,.18);color:#a78bfa">
+        <i class="bi bi-people-fill"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ stats.total_users }}</div>
+        <div class="stat-label">Пользователей</div>
+        <div class="stat-trend" style="color:#22c55e">+{{ stats.new_users_today }} сегодня</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat-card gradient-card" style="border-color:rgba(34,197,94,.2)">
+      <div class="stat-icon" style="background:rgba(34,197,94,.15);color:#22c55e">
+        <i class="bi bi-calendar-check-fill"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ stats.active_subscriptions }}</div>
+        <div class="stat-label">Активных подписок</div>
+        <div class="stat-trend" style="color:#ef4444">{{ stats.expired_keys }} истекших</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat-card gradient-card" style="border-color:rgba(234,179,8,.2)">
+      <div class="stat-icon" style="background:rgba(234,179,8,.15);color:#eab308">
+        <i class="bi bi-currency-ruble"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ stats.total_revenue | int }}</div>
+        <div class="stat-label">Выручка (₽)</div>
+        <div class="stat-trend" style="color:#22c55e">+{{ stats.revenue_today | int }} сегодня</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat-card gradient-card" style="border-color:rgba(59,130,246,.2)">
+      <div class="stat-icon" style="background:rgba(59,130,246,.15);color:#3b82f6">
+        <i class="bi bi-headset"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ stats.open_tickets }}</div>
+        <div class="stat-label">Открытых тикетов</div>
+        <div class="stat-trend" style="color:#eab308">{{ stats.pending_payments }} ожид. оплат</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Revenue chart (last 7 days) -->
+<div class="card p-3 mb-3">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div style="font-size:.82rem;font-weight:600;color:#fff">
+      <i class="bi bi-bar-chart-fill me-2" style="color:var(--accent)"></i>Выручка за 7 дней
+    </div>
+    <span style="font-size:.75rem;color:#8892a4">{{ stats.total_revenue | int }} ₽ всего</span>
+  </div>
+  <canvas id="revenueChart" height="80"></canvas>
+</div>
+
+<!-- Marzban VPN stats -->
+{% if marzban_stats %}
+<div class="card mb-3 p-3" style="border-color:rgba(108,99,255,.2)">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div style="font-size:.82rem;font-weight:600;color:#fff">
+      <i class="bi bi-hdd-network-fill me-2" style="color:var(--accent)"></i>Marzban VPN Panel
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span style="width:7px;height:7px;border-radius:50%;background:#22c55e;display:inline-block;box-shadow:0 0 6px #22c55e"></span>
+      <span style="font-size:.72rem;color:#22c55e;font-weight:600">Подключено</span>
+    </div>
+  </div>
+  <div class="row g-2">
+    {% set mz_items = [
+      ('bi-wifi', 'rgba(34,197,94,.1)', '#22c55e', 'Онлайн', marzban_stats.get('users_active', 0)),
+      ('bi-people', 'rgba(108,99,255,.1)', '#a78bfa', 'Всего юзеров', marzban_stats.get('total_user', 0)),
+      ('bi-arrow-down-circle', 'rgba(59,130,246,.1)', '#3b82f6', 'Входящий', (marzban_stats.get('incoming_bandwidth', 0) / 1073741824) | round(1)|string + ' GB'),
+      ('bi-arrow-up-circle', 'rgba(239,68,68,.1)', '#ef4444', 'Исходящий', (marzban_stats.get('outgoing_bandwidth', 0) / 1073741824) | round(1)|string + ' GB'),
+    ] %}
+    {% for icon, bg, color, label, val in mz_items %}
+    <div class="col-6 col-md-3">
+      <div style="background:{{ bg }};border-radius:10px;padding:.65rem .9rem">
+        <div style="font-size:.68rem;color:var(--muted);margin-bottom:.2rem">
+          <i class="bi {{ icon }} me-1" style="color:{{ color }}"></i>{{ label }}
+        </div>
+        <div style="font-size:1.1rem;font-weight:700;color:#fff">{{ val }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Main content -->
+<div class="row g-3">
+
+  <!-- Recent users -->
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span><i class="bi bi-people me-2" style="color:var(--accent)"></i>Последние пользователи</span>
+        <a href="/panel/users" class="btn btn-accent btn-sm px-3">Все</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead>
+            <tr><th>ID</th><th>Имя</th><th class="d-none d-sm-table-cell">Username</th><th>Статус</th></tr>
+          </thead>
+          <tbody>
+            {% for u in recent_users %}
+            <tr>
+              <td><code style="color:var(--accent);font-size:.78rem">{{ u.id }}</code></td>
+              <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ u.full_name }}</td>
+              <td class="d-none d-sm-table-cell" style="color:var(--muted)">
+                {% if u.username %}@{{ u.username }}{% else %}—{% endif %}
+              </td>
+              <td>
+                {% if u.is_banned %}
+                  <span class="badge badge-custom badge-expired">Забанен</span>
+                {% else %}
+                  <span class="badge badge-custom badge-active">Активен</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-center py-4" style="color:var(--muted)">Нет пользователей</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right column -->
+  <div class="col-lg-5 d-flex flex-column gap-3">
+
+    <!-- Recent payments -->
+    <div class="card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span><i class="bi bi-credit-card me-2" style="color:#eab308"></i>Последние платежи</span>
+        <a href="/panel/payments" class="btn btn-accent btn-sm px-3">Все</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead><tr><th>ID</th><th>Сумма</th><th>Статус</th></tr></thead>
+          <tbody>
+            {% for p in recent_payments %}
+            <tr>
+              <td><code style="color:var(--accent);font-size:.78rem">#{{ p.id }}</code></td>
+              <td style="font-weight:600;color:#fff">{{ p.amount }} <span style="color:var(--muted);font-size:.75rem">{{ p.currency }}</span></td>
+              <td>
+                {% set st = p.status.value if p.status.value is defined else p.status %}
+                {% if st == 'succeeded' %}<span class="badge badge-custom badge-active">✓ Успешно</span>
+                {% elif st == 'pending' %}<span class="badge badge-custom badge-pending">⏳ Ожидание</span>
+                {% elif st == 'failed' %}<span class="badge badge-custom badge-expired">✗ Ошибка</span>
+                {% else %}<span class="badge badge-custom badge-closed">{{ st }}</span>{% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="text-center py-3" style="color:var(--muted)">Нет платежей</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="card p-3">
+      <div style="font-size:.78rem;font-weight:600;color:#fff;margin-bottom:.75rem">
+        <i class="bi bi-lightning-fill me-2" style="color:#eab308"></i>Быстрые действия
+      </div>
+      <div class="d-flex flex-column gap-2">
+        <a href="/panel/support" class="btn btn-sm w-100 text-start d-flex align-items-center gap-2"
+          style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:#3b82f6;font-size:.78rem">
+          <i class="bi bi-headset"></i>
+          Открытые тикеты
+          {% if stats.open_tickets %}<span class="ms-auto badge" style="background:#ef4444;color:#fff">{{ stats.open_tickets }}</span>{% endif %}
+        </a>
+        <a href="/panel/broadcasts" class="btn btn-sm w-100 text-start d-flex align-items-center gap-2"
+          style="background:rgba(108,99,255,.1);border:1px solid rgba(108,99,255,.2);color:#a78bfa;font-size:.78rem">
+          <i class="bi bi-megaphone"></i> Создать рассылку
+        </a>
+        <a href="/panel/promos" class="btn btn-sm w-100 text-start d-flex align-items-center gap-2"
+          style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);color:#22c55e;font-size:.78rem">
+          <i class="bi bi-ticket-perforated"></i> Промокоды
+        </a>
+        <a href="/panel/vpn" class="btn btn-sm w-100 text-start d-flex align-items-center gap-2"
+          style="background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.2);color:#eab308;font-size:.78rem">
+          <i class="bi bi-key"></i> VPN ключи
+        </a>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  const revCtx = document.getElementById('revenueChart').getContext('2d');
+  const revData = {{ rev_week | tojson }};
+  const revLabels = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    revLabels.push(d.toLocaleDateString('ru-RU', {day:'numeric', month:'short'}));
+  }
+  new Chart(revCtx, {
+    type: 'bar',
+    data: {
+      labels: revLabels,
+      datasets: [{
+        label: 'Выручка ₽',
+        data: revData,
+        backgroundColor: 'rgba(108,99,255,.45)',
+        borderColor: '#6c63ff',
+        borderWidth: 1,
+        borderRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#8892a4', font: { size: 11 } } },
+        y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#8892a4', font: { size: 11 } }, beginAtZero: true }
+      }
+    }
+  });
+</script>
+{% endblock %}

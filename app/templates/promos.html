@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Промокоды — VPN Panel{% endblock %}
+{% block page_title %}<i class="bi bi-ticket-perforated me-2" style="color:var(--accent)"></i>Промокоды{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+
+  <!-- Форма создания -->
+  <div class="col-lg-4">
+    <div class="card p-3">
+      <div class="fw-bold text-white mb-3" style="font-size:.9rem">
+        <i class="bi bi-plus-circle me-2" style="color:var(--accent)"></i>Новый промокод
+      </div>
+      <form hx-post="/panel/promos" hx-target="#promos-table" hx-swap="outerHTML">
+        <div class="mb-2">
+          <label class="form-label">Код</label>
+          <input type="text" name="code" class="form-control" placeholder="SUMMER25" required style="text-transform:uppercase">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Тип</label>
+          <select name="promo_type" class="form-select" id="promo-type-select" onchange="updatePromoHint(this.value)">
+            <option value="discount">Скидка (%)</option>
+            <option value="balance">Баланс (₽)</option>
+            <option value="days">Дни VPN</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label" id="promo-value-label">Значение (%)</label>
+          <input type="number" name="value" class="form-control" placeholder="10" step="0.01" min="0" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Тариф (опционально)</label>
+          <select name="plan_id" class="form-select">
+            <option value="">— Любой тариф —</option>
+            {% for plan in plans %}
+            <option value="{{ plan.id }}">{{ plan.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Макс. использований (0 = ∞)</label>
+          <input type="number" name="max_uses" class="form-control" value="0" min="0">
+        </div>
+        <button type="submit" class="btn btn-accent w-100">
+          <span class="htmx-indicator spinner-border spinner-border-sm me-1"></span>
+          Создать
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Таблица промокодов -->
+  <div class="col-lg-8">
+    {% include "partials/promos_table.html" %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updatePromoHint(type) {
+  const labels = { discount: 'Значение (%)', balance: 'Значение (₽)', days: 'Количество дней' };
+  document.getElementById('promo-value-label').textContent = labels[type] || 'Значение';
+}
+</script>
+{% endblock %}

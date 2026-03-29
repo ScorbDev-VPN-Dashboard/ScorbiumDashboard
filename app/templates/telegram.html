@@ -1,0 +1,650 @@
+
+{% extends "base.html" %}
+{% block title %}Telegram — {{ app_name }}{% endblock %}
+{% block page_title %}Telegram{% endblock %}
+
+{% block head %}
+<style>
+.tab-nav { display:flex; gap:.5rem; margin-bottom:1.25rem; flex-wrap:wrap; }
+.tab-btn {
+  padding:.4rem .9rem; border-radius:8px; font-size:.78rem; font-weight:600;
+  border:1px solid var(--border); background:transparent; color:var(--muted);
+  cursor:pointer; transition:all .15s;
+}
+.tab-btn:hover { color:#fff; background:rgba(255,255,255,.05); }
+.tab-btn.active { background:rgba(108,99,255,.2); border-color:var(--accent); color:#fff; }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Tab navigation -->
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('bot')"><i class="bi bi-robot me-1"></i>Бот</button>
+  <button class="tab-btn" onclick="switchTab('customize')"><i class="bi bi-palette me-1"></i>Кастомизация</button>
+  <button class="tab-btn" onclick="switchTab('buttons')"><i class="bi bi-grid me-1"></i>Кнопки</button>
+  <button class="tab-btn" onclick="switchTab('photos')"><i class="bi bi-image me-1"></i>Фото</button>
+  <button class="tab-btn" onclick="switchTab('miniapp')"><i class="bi bi-grid-3x3-gap me-1"></i>Mini App</button>
+  <button class="tab-btn" onclick="switchTab('channel')"><i class="bi bi-broadcast me-1"></i>Канал</button>
+</div>
+
+<!-- ══ TAB: БОТ ══════════════════════════════════════════════════════════════ -->
+<div id="tab-bot" class="tab-pane active">
+<div class="row g-3">
+  <div class="col-lg-5">
+
+    <!-- Bot info -->
+    <div class="card p-3 mb-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-robot me-2 text-muted"></i>Информация о боте</div>
+      {% if bot_info %}
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <div style="width:48px;height:48px;background:rgba(108,99,255,.15);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:#6c63ff"><i class="bi bi-robot"></i></div>
+        <div>
+          <div class="text-white fw-semibold">{{ bot_info.first_name }}</div>
+          <div style="color:#8892a4;font-size:.8rem">@{{ bot_info.username }}</div>
+        </div>
+        <span class="badge badge-custom badge-active ms-auto">Online</span>
+      </div>
+      <div style="font-size:.8rem;color:#8892a4">
+        <div class="mb-1"><i class="bi bi-hash me-1"></i>ID: <code>{{ bot_info.id }}</code></div>
+      </div>
+      {% else %}
+      <div class="text-center py-3" style="color:#ef4444"><i class="bi bi-exclamation-triangle me-1"></i>Нет подключения к боту</div>
+      {% endif %}
+    </div>
+
+    <!-- Toggle -->
+    <div class="card p-3 mb-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-power me-2 text-muted"></i>Управление</div>
+      {% set bot_on = bot_settings.get('bot_enabled','1') == '1' %}
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <div style="font-size:.85rem;color:#c8d0e0">Статус</div>
+          <div style="font-size:.75rem;color:{% if bot_on %}#22c55e{% else %}#ef4444{% endif %}">{% if bot_on %}✅ Включён{% else %}❌ Отключён{% endif %}</div>
+        </div>
+        <button class="btn btn-sm {% if bot_on %}btn-outline-danger{% else %}btn-outline-success{% endif %}"
+          hx-post="/panel/telegram/bot-toggle" hx-swap="none" hx-on::after-request="location.reload()">
+          {% if bot_on %}<i class="bi bi-pause-circle me-1"></i>Отключить{% else %}<i class="bi bi-play-circle me-1"></i>Включить{% endif %}
+        </button>
+      </div>
+    </div>
+
+    <!-- Direct message -->
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-chat-dots me-2 text-muted"></i>Прямое сообщение</div>
+      <form hx-post="/panel/telegram/send" hx-swap="none">
+        <div class="mb-2"><label class="form-label">Telegram ID</label>
+          <input type="number" name="chat_id" class="form-control" placeholder="123456789" required /></div>
+        <div class="mb-2"><label class="form-label">Текст (HTML)</label>
+          <textarea name="text" class="form-control" rows="3" required></textarea></div>
+        <button type="submit" class="btn btn-accent w-100"><i class="bi bi-send me-1"></i>Отправить</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <!-- Admins -->
+    <div class="card p-3 mb-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-shield-lock me-2 text-muted"></i>Администраторы</div>
+      {% for admin_id in admin_ids %}
+      <div class="d-flex align-items-center gap-3 p-2 mb-2" style="background:rgba(255,255,255,.03);border-radius:8px">
+        <div style="width:36px;height:36px;background:rgba(108,99,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#6c63ff"><i class="bi bi-person-badge"></i></div>
+        <code style="color:#c8d0e0">{{ admin_id }}</code>
+        <span class="badge badge-custom badge-active ms-auto">Admin</span>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Referral -->
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-diagram-3 me-2 text-muted"></i>Реферальная программа</div>
+      <form hx-post="/panel/telegram/bot-settings" hx-swap="none">
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label">Тип бонуса</label>
+            <select name="referral_bonus_type" class="form-select">
+              <option value="days" {% if bot_settings.get('referral_bonus_type','days')=='days' %}selected{% endif %}>📅 Дни</option>
+              <option value="balance" {% if bot_settings.get('referral_bonus_type')=='balance' %}selected{% endif %}>💰 Рубли</option>
+              <option value="percent" {% if bot_settings.get('referral_bonus_type')=='percent' %}selected{% endif %}>🏷 Процент</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Значение</label>
+            <input type="number" name="referral_bonus_value" class="form-control" min="0" step="0.01"
+              value="{{ bot_settings.get('referral_bonus_value','3') }}" />
+          </div>
+        </div>
+        <button type="submit" class="btn btn-accent btn-sm w-100 mt-3"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+      </form>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ TAB: КАСТОМИЗАЦИЯ ═════════════════════════════════════════════════════ -->
+<div id="tab-customize" class="tab-pane">
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card p-3 mb-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-chat-text me-2 text-muted"></i>Тексты бота</div>
+      <form hx-post="/panel/telegram/bot-settings" hx-swap="none">
+        <div class="mb-3">
+          <label class="form-label">Приветствие (/start)</label>
+          <textarea name="welcome_message" class="form-control" rows="3" placeholder="👋 Привет, {name}!">{{ bot_settings.get('welcome_message','') }}</textarea>
+          <div style="font-size:.7rem;color:#8892a4;margin-top:.25rem">Переменная: <code>{name}</code></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Текст «О проекте»</label>
+          <textarea name="about_text" class="form-control" rows="4" placeholder="🌐 О нашем VPN...">{{ bot_settings.get('about_text','') }}</textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Сообщение после оплаты</label>
+          <textarea name="payment_success_message" class="form-control" rows="2">{{ bot_settings.get('payment_success_message','') }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-accent w-100"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+      </form>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-exclamation-circle me-2 text-muted"></i>Системные сообщения</div>
+      <form hx-post="/panel/telegram/bot-settings" hx-swap="none">
+        <div class="mb-2">
+          <label class="form-label">При бане</label>
+          <textarea name="ban_message" class="form-control" rows="2" placeholder="🚫 Аккаунт заблокирован.">{{ bot_settings.get('ban_message','') }}</textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Бот отключён</label>
+          <textarea name="bot_disabled_message" class="form-control" rows="2" placeholder="🔧 Бот временно отключён.">{{ bot_settings.get('bot_disabled_message','') }}</textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Выдача ключа</label>
+          <textarea name="subscription_issued_message" class="form-control" rows="2" placeholder="🔑 Ваш VPN-ключ выдан!">{{ bot_settings.get('subscription_issued_message','') }}</textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Отмена подписки</label>
+          <textarea name="subscription_cancelled_message" class="form-control" rows="2" placeholder="❌ Подписка отменена.">{{ bot_settings.get('subscription_cancelled_message','') }}</textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Реферал зарегистрировался</label>
+          <textarea name="referral_welcome_message" class="form-control" rows="2" placeholder="🎉 По вашей ссылке зарегистрировался новый пользователь!">{{ bot_settings.get('referral_welcome_message','') }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-accent w-100 mt-2"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+      </form>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ TAB: КНОПКИ ══════════════════════════════════════════════════════════ -->
+<div id="tab-buttons" class="tab-pane">
+<div class="row g-3">
+
+  <!-- Telegram preview -->
+  <div class="col-lg-4">
+    <div style="position:sticky;top:80px">
+      <div style="font-size:.78rem;color:#8892a4;margin-bottom:.5rem;text-align:center">Превью в реальном времени</div>
+      <div style="
+        width:100%;max-width:280px;margin:0 auto;
+        background:#17212b;border-radius:20px;
+        border:2px solid rgba(255,255,255,.08);
+        padding:14px 10px;
+        box-shadow:0 20px 60px rgba(0,0,0,.5)">
+        <!-- Topbar -->
+        <div style="display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:8px">
+          <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#6c63ff,#a78bfa);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#fff;font-weight:700">B</div>
+          <div>
+            <div style="font-size:.75rem;font-weight:600;color:#fff">{{ bot_info.first_name if bot_info else 'VPN Bot' }}</div>
+            <div style="font-size:.6rem;color:#22c55e">● online</div>
+          </div>
+        </div>
+        <!-- Message bubble -->
+        <div style="background:#2b5278;border-radius:10px 10px 10px 2px;padding:8px 10px;font-size:.72rem;color:#e8f4fd;margin-bottom:6px;line-height:1.4">
+          {{ bot_settings.get('welcome_message','👋 Привет! Выбери действие:') | truncate(60) }}
+        </div>
+        <!-- Keyboard preview -->
+        <div id="tg-preview" style="display:flex;flex-direction:column;gap:3px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Editor -->
+  <div class="col-lg-8">
+
+    <!-- Palette -->
+    <div class="card p-3 mb-3">
+      <div class="fw-semibold text-white mb-2" style="font-size:.82rem">
+        <i class="bi bi-collection me-2 text-muted"></i>Доступные кнопки
+        <span style="font-size:.7rem;color:#8892a4;font-weight:400;margin-left:.5rem">Перетащи на ряд ↓ или нажми «+»</span>
+      </div>
+      <div id="palette" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px;background:rgba(255,255,255,.03);border-radius:8px;border:1px solid var(--border);min-height:50px"
+        ondragover="event.preventDefault()" ondrop="dropToPalette(event)">
+        {% for b in all_buttons %}
+        <div class="kb-palette-btn" id="pb_{{ b.id }}"
+          draggable="true"
+          ondragstart="kbDragStart(event,'{{ b.id }}')"
+          onclick="kbAddToLastRow('{{ b.id }}')"
+          title="Нажми чтобы добавить / перетащи на ряд">
+          {{ b.label }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Rows -->
+    <div class="card p-3 mb-3">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="fw-semibold text-white" style="font-size:.82rem">
+          <i class="bi bi-layout-three-columns me-2 text-muted"></i>Раскладка
+          <span style="font-size:.7rem;color:#8892a4;font-weight:400;margin-left:.5rem">макс. 3 кнопки в ряду</span>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="kbReset()"><i class="bi bi-arrow-counterclockwise me-1"></i>Сброс</button>
+          <button class="btn btn-sm btn-accent" onclick="kbSave()"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+        </div>
+      </div>
+      <div id="kb-rows" style="display:flex;flex-direction:column;gap:6px"></div>
+      <button onclick="kbAddRow()" style="margin-top:8px;padding:7px;border-radius:8px;border:1px dashed rgba(255,255,255,.15);background:transparent;color:var(--muted);font-size:.75rem;cursor:pointer;width:100%;transition:all .15s"
+        onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+        onmouseout="this.style.borderColor='rgba(255,255,255,.15)';this.style.color='var(--muted)'">
+        <i class="bi bi-plus me-1"></i>Добавить ряд
+      </button>
+    </div>
+
+    <!-- Styles -->
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-3" style="font-size:.82rem">
+        <i class="bi bi-palette2 me-2 text-muted"></i>Цвет кнопок
+      </div>
+      <div class="row g-2">
+        {% for b in all_buttons %}
+        <div class="col-6 col-md-4">
+          <div style="background:rgba(255,255,255,.03);border-radius:8px;padding:.5rem .75rem">
+            <div style="font-size:.72rem;color:#c8d0e0;margin-bottom:.3rem">{{ b.label }}</div>
+            <select class="form-select form-select-sm" id="style_{{ b.id }}" onchange="kbUpdatePreview()">
+              <option value="" {% if not bot_settings.get('btn_style_'~b.id) %}selected{% endif %}>⚪ Стандарт</option>
+              <option value="primary" {% if bot_settings.get('btn_style_'~b.id)=='primary' %}selected{% endif %}>🔵 primary</option>
+              <option value="success" {% if bot_settings.get('btn_style_'~b.id)=='success' %}selected{% endif %}>🟢 success</option>
+              <option value="danger"  {% if bot_settings.get('btn_style_'~b.id)=='danger'  %}selected{% endif %}>🔴 danger</option>
+            </select>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <button class="btn btn-accent btn-sm w-100 mt-3" onclick="kbSaveStyles()">
+        <i class="bi bi-floppy me-1"></i>Сохранить цвета
+      </button>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- ══ TAB: ФОТО ════════════════════════════════════════════════════════════ -->
+<div id="tab-photos" class="tab-pane">
+<div class="card p-3">
+  <div class="fw-semibold text-white mb-2"><i class="bi bi-image me-2 text-muted"></i>Фото для разделов бота</div>
+  <div style="font-size:.75rem;color:#8892a4;margin-bottom:1rem">
+    Загрузи фото — оно будет показываться в соответствующем разделе. Фото отправляется через бота и сохраняется как file_id.
+  </div>
+  {% set photo_fields = [
+    ('photo_welcome','👋 Приветствие (/start)'),
+    ('photo_buy','💳 Купить подписку'),
+    ('photo_my_keys','🔑 Мои подписки'),
+    ('photo_balance','💰 Баланс'),
+    ('photo_about','ℹ️ О проекте'),
+    ('photo_support','💬 Поддержка'),
+    ('photo_profile','👤 Мой профиль'),
+  ] %}
+  <div class="row g-3">
+    {% for key, label in photo_fields %}
+    <div class="col-md-6">
+      <div style="background:rgba(255,255,255,.03);border-radius:10px;padding:.75rem">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span style="font-size:.82rem;color:#c8d0e0">{{ label }}</span>
+          {% if bot_settings.get(key) %}
+          <span style="color:#22c55e;font-size:.7rem"><i class="bi bi-check-circle-fill me-1"></i>Задано</span>
+          {% endif %}
+        </div>
+        <div class="d-flex gap-2">
+          <input type="file" accept="image/*" id="file_{{ key }}" style="display:none" onchange="uploadPhoto('{{ key }}', this)" />
+          <button type="button" class="btn btn-sm btn-outline-secondary flex-grow-1" onclick="document.getElementById('file_{{ key }}').click()">
+            <i class="bi bi-upload me-1"></i>Загрузить
+          </button>
+          {% if bot_settings.get(key) %}
+          <button type="button" class="btn btn-sm btn-outline-danger"
+            hx-post="/panel/telegram/photo/clear" hx-vals='{"key":"{{ key }}"}' hx-swap="none" hx-on::after-request="location.reload()">
+            <i class="bi bi-trash"></i>
+          </button>
+          {% endif %}
+        </div>
+        <div id="status_{{ key }}" style="font-size:.72rem;color:#8892a4;margin-top:.3rem"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+</div>
+
+<!-- ══ TAB: MINI APP ════════════════════════════════════════════════════════ -->
+<div id="tab-miniapp" class="tab-pane">
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-2"><i class="bi bi-grid-3x3-gap-fill me-2 text-muted"></i>Mini App для администраторов</div>
+      <div style="font-size:.75rem;color:#8892a4;margin-bottom:.75rem">
+        Укажи HTTPS URL — в <code>/admin</code> появится кнопка <b>«🖥 Открыть панель»</b>.
+        Видна только администраторам. Требует HTTPS.
+      </div>
+      <form hx-post="/panel/telegram/miniapp" hx-swap="none">
+        <label class="form-label">HTTPS URL (без /panel/)</label>
+        <input type="url" name="panel_url" class="form-control mb-2"
+          placeholder="https://your-domain.com"
+          value="{{ bot_settings.get('panel_url','') }}" />
+        {% if bot_settings.get('panel_url') %}
+        <div class="mb-2" style="font-size:.75rem;color:#22c55e">
+          <i class="bi bi-check-circle-fill me-1"></i>Активно: <code>{{ bot_settings.get('panel_url') }}/panel/</code>
+        </div>
+        {% endif %}
+        <button type="submit" class="btn btn-accent w-100"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+      </form>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ TAB: КАНАЛ ════════════════════════════════════════════════════════════ -->
+<div id="tab-channel" class="tab-pane">
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-2"><i class="bi bi-broadcast me-2 text-muted"></i>Обязательная подписка на канал</div>
+      <div style="font-size:.75rem;color:#8892a4;margin-bottom:.75rem">
+        Бот доступен только подписчикам канала. Бот должен быть администратором канала.
+      </div>
+      <form hx-post="/panel/telegram/bot-settings" hx-swap="none">
+        <div class="row g-2 mb-2">
+          <div class="col-7">
+            <label class="form-label">ID канала</label>
+            <input type="text" name="required_channel_id" class="form-control"
+              placeholder="-1001234567890" value="{{ bot_settings.get('required_channel_id','') }}" />
+            <div style="font-size:.7rem;color:#8892a4;margin-top:.25rem">Пусто = отключено</div>
+          </div>
+          <div class="col-5">
+            <label class="form-label">Название</label>
+            <input type="text" name="required_channel_name" class="form-control"
+              placeholder="Наш канал" value="{{ bot_settings.get('required_channel_name','') }}" />
+          </div>
+        </div>
+        {% if bot_settings.get('required_channel_id') %}
+        <div class="mb-2" style="font-size:.75rem;color:#22c55e">
+          <i class="bi bi-check-circle me-1"></i>Активно: <code>{{ bot_settings.get('required_channel_id') }}</code>
+        </div>
+        {% endif %}
+        <button type="submit" class="btn btn-accent w-100"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+      </form>
+    </div>
+  </div>
+</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<style>
+.kb-palette-btn {
+  padding:5px 10px;border-radius:6px;font-size:.75rem;
+  background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.3);
+  color:#a78bfa;cursor:grab;user-select:none;transition:all .15s;
+}
+.kb-palette-btn:hover{background:rgba(108,99,255,.3);}
+.kb-palette-btn.used{opacity:.3;cursor:not-allowed;}
+.kb-row-wrap{
+  display:flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.03);border-radius:8px;
+  padding:6px 8px;border:1px dashed rgba(255,255,255,.1);min-height:42px;
+}
+.kb-row-wrap.drag-over{border-color:var(--accent);background:rgba(108,99,255,.08);}
+.kb-row-btns{display:flex;gap:5px;flex:1;flex-wrap:wrap;}
+.kb-chip{
+  display:flex;align-items:center;gap:4px;
+  padding:4px 8px;border-radius:6px;font-size:.73rem;
+  background:rgba(108,99,255,.2);border:1px solid rgba(108,99,255,.4);
+  color:#c4b5fd;cursor:grab;user-select:none;
+}
+.kb-chip .x{
+  width:13px;height:13px;border-radius:50%;
+  background:rgba(239,68,68,.4);border:none;color:#fca5a5;
+  font-size:.55rem;cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+.kb-chip .x:hover{background:rgba(239,68,68,.7);}
+.row-ctrl button{
+  width:22px;height:22px;border-radius:4px;border:none;
+  background:rgba(255,255,255,.06);color:var(--muted);
+  font-size:.65rem;cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+.row-ctrl button:hover{background:rgba(255,255,255,.12);color:#fff;}
+/* tg preview buttons */
+.tg-pb{
+  flex:1;padding:5px 3px;border-radius:5px;font-size:.65rem;font-weight:500;
+  text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.tg-pb-def{background:rgba(255,255,255,.08);color:#e8f4fd;}
+.tg-pb-primary{background:rgba(59,130,246,.35);color:#93c5fd;}
+.tg-pb-success{background:rgba(34,197,94,.3);color:#86efac;}
+.tg-pb-danger{background:rgba(239,68,68,.3);color:#fca5a5;}
+</style>
+<script>
+// ── Tab switcher ──────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'buttons') { kbRenderRows(); kbUpdatePreview(); }
+}
+
+// ── Photo upload ──────────────────────────────────────────────────────────────
+async function uploadPhoto(key, input) {
+  const file = input.files[0]; if (!file) return;
+  const el = document.getElementById('status_' + key);
+  el.textContent = '⏳ Загружаю...'; el.style.color = '#8892a4';
+  const fd = new FormData(); fd.append('key', key); fd.append('photo', file);
+  try {
+    const r = await fetch('/panel/telegram/photo/upload', {method:'POST', body:fd});
+    const d = await r.json();
+    if (r.ok && d.file_id) { el.textContent = '✅ Сохранено'; el.style.color = '#22c55e'; setTimeout(() => location.reload(), 700); }
+    else { el.textContent = '❌ ' + (d.detail||'Ошибка'); el.style.color = '#ef4444'; }
+  } catch(e) { el.textContent = '❌ Ошибка сети'; el.style.color = '#ef4444'; }
+  input.value = '';
+}
+
+// ── Keyboard editor ───────────────────────────────────────────────────────────
+const KB_ALL = {{ all_buttons | tojson }};
+const KB_DEFAULT = {{ default_layout | tojson }};
+const MAX_PER_ROW = 3;
+
+let kbLayout = JSON.parse(JSON.stringify({{ layout | tojson }}));
+let kbDragId = null, kbDragFromRow = null, kbDragFromIdx = null;
+
+// Init when tab opens
+document.addEventListener('DOMContentLoaded', () => {
+  kbRenderRows(); kbUpdatePreview(); kbUpdatePalette();
+});
+
+// ── Palette ───────────────────────────────────────────────────────────────────
+function kbDragStart(e, id) {
+  kbDragId = id; kbDragFromRow = null;
+  e.dataTransfer.effectAllowed = 'move';
+}
+function kbDragStartChip(e, ri, bi) {
+  kbDragId = kbLayout[ri][bi].id;
+  kbDragFromRow = ri; kbDragFromIdx = bi;
+  e.dataTransfer.effectAllowed = 'move';
+  e.stopPropagation();
+}
+function dropToPalette(e) {
+  e.preventDefault();
+  if (kbDragFromRow !== null) {
+    kbLayout[kbDragFromRow].splice(kbDragFromIdx, 1);
+    if (!kbLayout[kbDragFromRow].length) kbLayout.splice(kbDragFromRow, 1);
+    kbDragFromRow = null;
+    kbRenderRows(); kbUpdatePreview(); kbUpdatePalette();
+  }
+}
+
+// ── Add button to last row or new row ─────────────────────────────────────────
+function kbAddToLastRow(id) {
+  const btn = KB_ALL.find(b => b.id === id);
+  if (!btn) return;
+  const used = kbLayout.some(r => r.some(b => b.id === id));
+  if (used) { showToast('Кнопка уже добавлена', 'error'); return; }
+  // Find last row with space
+  let added = false;
+  for (let i = kbLayout.length - 1; i >= 0; i--) {
+    if (kbLayout[i].length < MAX_PER_ROW) {
+      kbLayout[i].push({id: btn.id, label: btn.label, callback: btn.callback});
+      added = true; break;
+    }
+  }
+  if (!added) {
+    kbLayout.push([{id: btn.id, label: btn.label, callback: btn.callback}]);
+  }
+  kbRenderRows(); kbUpdatePreview(); kbUpdatePalette();
+}
+
+// ── Drop to row ───────────────────────────────────────────────────────────────
+function kbDropToRow(e, ri) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!kbDragId) return;
+  const btn = KB_ALL.find(b => b.id === kbDragId);
+  if (!btn) return;
+
+  // Remove from source
+  if (kbDragFromRow !== null) {
+    kbLayout[kbDragFromRow].splice(kbDragFromIdx, 1);
+    if (!kbLayout[kbDragFromRow].length) kbLayout.splice(kbDragFromRow, 1);
+    if (kbDragFromRow < ri) ri = Math.max(0, ri - 1);
+  }
+
+  // Check duplicate
+  const alreadyIn = kbLayout.some(r => r.some(b => b.id === kbDragId));
+  if (alreadyIn) { kbDragId = null; kbDragFromRow = null; kbRenderRows(); kbUpdatePreview(); kbUpdatePalette(); return; }
+
+  // Check row limit
+  if (!kbLayout[ri]) kbLayout[ri] = [];
+  if (kbLayout[ri].length >= MAX_PER_ROW) {
+    showToast(`Максимум ${MAX_PER_ROW} кнопки в ряду`, 'error');
+    kbDragId = null; kbDragFromRow = null;
+    kbRenderRows(); kbUpdatePreview(); kbUpdatePalette(); return;
+  }
+
+  kbLayout[ri].push({id: btn.id, label: btn.label, callback: btn.callback});
+  kbDragId = null; kbDragFromRow = null;
+  kbRenderRows(); kbUpdatePreview(); kbUpdatePalette();
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function kbRenderRows() {
+  const c = document.getElementById('kb-rows'); c.innerHTML = '';
+  kbLayout.forEach((row, ri) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'kb-row-wrap';
+    wrap.ondragover = e => { e.preventDefault(); wrap.classList.add('drag-over'); };
+    wrap.ondragleave = () => wrap.classList.remove('drag-over');
+    wrap.ondrop = e => kbDropToRow(e, ri);
+
+    const btns = document.createElement('div'); btns.className = 'kb-row-btns';
+    row.forEach((b, bi) => {
+      const chip = document.createElement('div'); chip.className = 'kb-chip';
+      chip.draggable = true;
+      chip.ondragstart = e => kbDragStartChip(e, ri, bi);
+      chip.innerHTML = `<span>${b.label}</span><button class="x" onclick="kbRemoveBtn(${ri},${bi})">×</button>`;
+      btns.appendChild(chip);
+    });
+
+    // Row count badge
+    const badge = document.createElement('span');
+    badge.style.cssText = 'font-size:.65rem;color:#8892a4;white-space:nowrap;flex-shrink:0';
+    badge.textContent = `${row.length}/${MAX_PER_ROW}`;
+    if (row.length >= MAX_PER_ROW) badge.style.color = '#eab308';
+
+    const ctrl = document.createElement('div'); ctrl.className = 'row-ctrl d-flex gap-1 flex-shrink-0';
+    const splitBtn = row.length > 1 ? `<button onclick="kbSplitRow(${ri})" title="Разбить — каждая кнопка в отдельный ряд" style="color:#eab308"><i class="bi bi-layout-split"></i></button>` : '';
+    ctrl.innerHTML = `
+      <button onclick="kbMoveRow(${ri},-1)" title="Вверх"><i class="bi bi-chevron-up"></i></button>
+      <button onclick="kbMoveRow(${ri},1)" title="Вниз"><i class="bi bi-chevron-down"></i></button>
+      ${splitBtn}
+      <button onclick="kbDelRow(${ri})" title="Удалить" style="color:#ef4444"><i class="bi bi-trash"></i></button>`;
+
+    wrap.appendChild(btns); wrap.appendChild(badge); wrap.appendChild(ctrl);
+    c.appendChild(wrap);
+  });
+}
+
+function kbUpdatePalette() {
+  const used = new Set(kbLayout.flatMap(r => r.map(b => b.id)));
+  KB_ALL.forEach(b => {
+    const el = document.getElementById('pb_' + b.id);
+    if (el) el.classList.toggle('used', used.has(b.id));
+  });
+}
+
+function kbUpdatePreview() {
+  const p = document.getElementById('tg-preview'); p.innerHTML = '';
+  const styleMap = {};
+  KB_ALL.forEach(b => { const s = document.getElementById('style_'+b.id); styleMap[b.id] = s ? s.value : ''; });
+  kbLayout.forEach(row => {
+    if (!row.length) return;
+    const rowEl = document.createElement('div');
+    rowEl.style.cssText = 'display:flex;gap:3px;margin-bottom:3px';
+    row.forEach(b => {
+      const st = styleMap[b.id] || '';
+      const cls = st ? `tg-pb tg-pb-${st}` : 'tg-pb tg-pb-def';
+      const el = document.createElement('div'); el.className = cls; el.textContent = b.label;
+      rowEl.appendChild(el);
+    });
+    p.appendChild(rowEl);
+  });
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+function kbAddRow() { kbLayout.push([]); kbRenderRows(); kbUpdatePreview(); }
+function kbRemoveBtn(ri, bi) {
+  kbLayout[ri].splice(bi, 1);
+  if (!kbLayout[ri].length) kbLayout.splice(ri, 1);
+  kbRenderRows(); kbUpdatePreview(); kbUpdatePalette();
+}
+function kbDelRow(ri) { kbLayout.splice(ri, 1); kbRenderRows(); kbUpdatePreview(); kbUpdatePalette(); }
+function kbSplitRow(ri) {
+  // Split row into individual rows, each with one button
+  const row = kbLayout.splice(ri, 1)[0];
+  const newRows = row.map(b => [b]);
+  kbLayout.splice(ri, 0, ...newRows);
+  kbRenderRows(); kbUpdatePreview();
+}
+function kbMoveRow(ri, d) {
+  const ni = ri + d; if (ni < 0 || ni >= kbLayout.length) return;
+  [kbLayout[ri], kbLayout[ni]] = [kbLayout[ni], kbLayout[ri]];
+  kbRenderRows(); kbUpdatePreview();
+}
+function kbReset() { kbLayout = JSON.parse(JSON.stringify(KB_DEFAULT)); kbRenderRows(); kbUpdatePreview(); kbUpdatePalette(); }
+
+async function kbSave() {
+  const r = await fetch('/panel/keyboard/save', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({layout: kbLayout})});
+  const d = await r.json();
+  showToast(d.ok ? '✅ Раскладка сохранена' : '❌ Ошибка', d.ok ? 'success' : 'error');
+}
+async function kbSaveStyles() {
+  const styles = {};
+  KB_ALL.forEach(b => { const s = document.getElementById('style_'+b.id); if(s) styles[b.id] = s.value; });
+  const r = await fetch('/panel/keyboard/styles', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({styles})});
+  const d = await r.json();
+  showToast(d.ok ? '✅ Стили сохранены' : '❌ Ошибка', d.ok ? 'success' : 'error');
+  kbUpdatePreview();
+}
+</script>
+{% endblock %}

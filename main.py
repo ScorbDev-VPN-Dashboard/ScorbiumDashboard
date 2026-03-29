@@ -1,13 +1,23 @@
+import asyncio
 import uvicorn
-from app.core.server import Server
 
-server = Server()
-app = server.instance
+from app.core.config import config
+from app.core.server import create_app
+from app.utils.log import log
+
+
+async def main() -> None:
+    log.info("🚀 Starting VPN Dashboard...")
+    app = create_app()
+    cfg = uvicorn.Config(
+        app=app,
+        host=config.web.server_host,
+        port=config.web.server_port,
+        log_level="info",
+    )
+    server = uvicorn.Server(cfg)
+    await server.serve()
+
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-    )
+    asyncio.run(main())

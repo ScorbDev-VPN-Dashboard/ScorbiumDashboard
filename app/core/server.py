@@ -1,47 +1,184 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import asyncio
 from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from app.core.config import config
+from app.core.database import init_db, close_db
 from app.api.v1 import get_router
+from app.api.panel import get_panel_router
+from app.api.middleware import RateLimitMiddleware
+from app.utils.log import log
+
+# Bot globals — set during lifespan
+_bot = None
+_dp = None
 
 
-class Server:
-    def __init__(self) -> None:
-        self.app = self._create_app()
+def get_bot():
+    return _bot
 
-    def _create_app(self) -> FastAPI:
-        app = FastAPI(
-            title=config.web.app_name,
-            version=config.web.app_version,
-            lifespan=self._lifespan,
+
+def get_dp():
+    return _dp
+
+
+def _make_dp():
+    """
+    Build a fresh Dispatcher every time.
+    Routers are module-level singletons in aiogram 3 — once attached they
+    cannot be re-attached to a new Dispatcher.  The only safe approach is to
+    re-import the handler modules so Python re-executes them and creates brand
+    new Router objects.
+    """
+    import importlib
+    import sys
+    from aiogram import Dispatcher
+    from app.bot.middlewares import BanCheckMiddleware
+    from app.bot.middlewares.throttle import ThrottleMiddleware
+    from app.bot.middlewares.channel_check import ChannelCheckMiddleware
+
+    handler_modules = [
+        "app.bot.handlers.start",
+        "app.bot.handlers.buy",
+        "app.bot.handlers.my_keys",
+        "app.bot.handlers.payments",
+        "app.bot.handlers.admin",
+        "app.bot.handlers.profile",
+        "app.bot.handlers.features",
+    ]
+
+    # Force-reload each handler module so we get fresh Router instances
+    for mod_name in handler_modules:
+        if mod_name in sys.modules:
+            importlib.reload(sys.modules[mod_name])
+
+    # Now import fresh references
+    import app.bot.handlers.start as _start
+    import app.bot.handlers.buy as _buy
+    import app.bot.handlers.my_keys as _my_keys
+    import app.bot.handlers.payments as _payments
+    import app.bot.handlers.admin as _admin
+    import app.bot.handlers.profile as _profile
+    import app.bot.handlers.features as _features
+
+    dp = Dispatcher()
+    dp.update.outer_middleware(BanCheckMiddleware())
+    dp.update.outer_middleware(ThrottleMiddleware())
+    dp.update.outer_middleware(ChannelCheckMiddleware())
+    dp.include_router(_start.router)
+    dp.include_router(_buy.router)
+    dp.include_router(_my_keys.router)
+    dp.include_router(_payments.router)
+    dp.include_router(_admin.router)
+    dp.include_router(_profile.router)
+    dp.include_router(_features.router)
+    return dp
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    global _bot, _dp
+
+    log.info("🚀 Starting VPN Dashboard API...")
+    await init_db()
+
+    from aiogram import Bot
+    from aiogram.enums import ParseMode
+    from aiogram.client.default import DefaultBotProperties
+    from app.tasks.payment_tasks import payment_polling_loop
+    from app.tasks.vpn_tasks import expire_loop, sync_loop
+
+    token = config.telegram.telegram_bot_token.get_secret_value()
+    _bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    _dp = _make_dp()
+
+    mode = config.telegram.telegram_type_protocol
+
+    if mode == "webhook":
+        await _bot.set_webhook(
+            url=config.telegram.telegram_webhook_url,
+            allowed_updates=_dp.resolve_used_update_types(),
+            drop_pending_updates=True,
         )
+        log.info(f"🤖 Bot webhook → {config.telegram.telegram_webhook_url}")
+    else:
+        await _bot.delete_webhook(drop_pending_updates=True)
+        asyncio.create_task(
+            _dp.start_polling(_bot, allowed_updates=_dp.resolve_used_update_types())
+        )
+        log.info("🤖 Bot polling started")
 
-        # self._register_middlewares(app)
-        self._register_routes(app)
+    asyncio.create_task(payment_polling_loop())
+    asyncio.create_task(expire_loop())
+    asyncio.create_task(sync_loop())
 
-        return app
+    log.info("✅ Application ready")
+    yield
 
-    @staticmethod
-    @asynccontextmanager
-    async def _lifespan(app: FastAPI):
-        print("Starting application...")
+    log.info("🛑 Shutting down...")
+    try:
+        if mode == "webhook":
+            await _bot.delete_webhook()
+        else:
+            await _dp.stop_polling()
+    except Exception:
+        pass
+    try:
+        await _bot.session.close()
+    except Exception:
+        pass
+    await close_db()
 
-        yield
-        print("Shutting down application...")
 
-    # def _register_middlewares(self, app: FastAPI) -> None:
-    #     app.add_middleware(
-    #         CORSMiddleware,
-    #         allow_origins=config.web.cors_origins,
-    #         allow_credentials=True,
-    #         allow_methods=["GET", "POST", "PUT", "DELETE"],
-    #         allow_headers=["*"],
-    #     )
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title=config.web.app_name,
+        version=config.web.app_version,
+        lifespan=_lifespan,
+        docs_url="/docs",
+        redoc_url="/redoc",
+    )
 
-    def _register_routes(self, app: FastAPI) -> None:
-        app.include_router(get_router())
-        
-    @property
-    def instance(self) -> FastAPI:
-        return self.app
+    origins = [str(o) for o in config.web.allowed_origins] or ["*"]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.add_middleware(RateLimitMiddleware)
+
+    @app.exception_handler(Exception)
+    async def _global_exc(request: Request, exc: Exception) -> JSONResponse:
+        log.error(f"Unhandled exception on {request.url}: {exc}")
+        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+    app.include_router(get_router())
+    app.include_router(get_panel_router())
+
+    # Static files
+    static_path = Path(__file__).resolve().parent.parent / "static"
+    static_path.mkdir(exist_ok=True)
+    app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+
+    @app.post(config.telegram.telegram_webhook_path, include_in_schema=False)
+    async def telegram_webhook(request: Request):
+        from aiogram.types import Update
+        bot, dp = get_bot(), get_dp()
+        if bot is None or dp is None:
+            return JSONResponse({"ok": False}, status_code=503)
+        update = Update.model_validate(await request.json())
+        await dp.feed_update(bot, update)
+        return JSONResponse({"ok": True})
+
+    @app.get("/", include_in_schema=False)
+    async def root():
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/panel/")
+
+    return app

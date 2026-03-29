@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Рассылки — VPN Panel{% endblock %}
+{% block page_title %}Рассылки{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <!-- Create form -->
+  <div class="col-lg-5">
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-megaphone me-2 text-muted"></i>Новая рассылка</div>
+      <form hx-post="/panel/broadcasts" hx-target="#broadcasts-list" hx-swap="outerHTML">
+        <div class="mb-3">
+          <label class="form-label">Заголовок</label>
+          <input type="text" name="title" class="form-control" placeholder="Акция на подписку" required />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Текст (HTML)</label>
+          <textarea name="text" class="form-control" rows="5"
+            placeholder="🎉 <b>Скидка 20%</b> на все тарифы до конца недели!" required></textarea>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label">Аудитория</label>
+            <select name="target" class="form-select">
+              <option value="all">Все пользователи</option>
+              <option value="active">Активные подписки</option>
+              <option value="expired">Истёкшие подписки</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Формат</label>
+            <select name="parse_mode" class="form-select">
+              <option value="HTML">HTML</option>
+              <option value="Markdown">Markdown</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-accent w-100">
+          <i class="bi bi-plus-lg me-1"></i>Создать черновик
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Broadcasts list -->
+  <div class="col-lg-7">
+    <div id="broadcasts-list">
+      {% include "partials/broadcasts_list.html" %}
+    </div>
+  </div>
+</div>
+{% endblock %}

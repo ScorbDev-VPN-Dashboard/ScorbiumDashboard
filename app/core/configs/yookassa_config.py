@@ -63,8 +63,7 @@ class _YookassaConfig(BaseSettings):
     @property
     def get_auth(self) -> Optional[dict]:
         if self.yookassa_shop_id and self.yookassa_secret_key:
-            log.info("✅ Successful using Yookassa Payment")
-            
+
             return {
                 "shop_id": self.yookassa_shop_id,
                 "secret_key": self.yookassa_secret_key.get_secret_value()
