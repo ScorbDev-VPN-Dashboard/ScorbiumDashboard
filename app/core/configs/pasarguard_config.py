@@ -120,12 +120,19 @@ class _PasarGuardConfig(BaseSettings):
     @property
     def has_password_auth(self) -> bool:
         """Check if password authentication is available"""
-        return bool(self.pasarguard_admin_login and self.pasarguard_admin_password)
+        return bool(
+            self.pasarguard_admin_login and
+            self.pasarguard_admin_password and
+            self.pasarguard_admin_password.get_secret_value().strip()
+        )
 
     @property
     def has_api_key(self) -> bool:
         """Check if API key authentication is available"""
-        return bool(self.pasarguard_api_key)
+        return bool(
+            self.pasarguard_api_key and
+            self.pasarguard_api_key.get_secret_value().strip()
+        )
 
     def assert_login_credentials(self) -> Tuple[str, SecretStr]:
         if self.pasarguard_admin_login is None or self.pasarguard_admin_password is None:
