@@ -13,7 +13,7 @@
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docker.com)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-[Возможности](#-возможности) · [Стек](#-стек) · [Быстрый старт](#-быстрый-старт) · [Деплой](#-деплой-на-сервер) · [Конфигурация](#-конфигурация) · <a href='https://t.me/scorbium_dashboard'>[Telegram Channel]</a>
+[Возможности](#-возможности) · [Стек](#-стек) · [Быстрый старт](#-быстрый-старт) · [Деплой](#-деплой-на-сервер) · [Конфигурация](#-конфигурация) · <a href='https://t.me/scorbium_dashboard'>Telegram Channel</a>
 
 </div>
 
