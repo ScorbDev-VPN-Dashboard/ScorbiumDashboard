@@ -294,6 +294,6 @@ docker compose exec app bash
 
 <div align="center">
 
-Сделано с ❤️ для VPN-сервисов
+Сделано с ❤️ от Scorbium
 
 </div>
