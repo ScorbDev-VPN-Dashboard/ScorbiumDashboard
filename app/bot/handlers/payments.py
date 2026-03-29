@@ -3,6 +3,7 @@ from aiogram.types import CallbackQuery, Message, PreCheckoutQuery, InlineKeyboa
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.bot.keyboards.payments import plans_kb, payment_methods_kb
+from app.bot.keyboards.main import back_kb
 from app.bot.utils.menu import get_main_menu_kb as _get_menu_kb
 from app.core.database import AsyncSessionFactory
 from app.models.payment import PaymentProvider
