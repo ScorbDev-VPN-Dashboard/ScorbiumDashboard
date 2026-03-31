@@ -14,11 +14,14 @@ class PaymentStatus(str, enum.Enum):
 
 
 class PaymentProvider(str, enum.Enum):
+    # TODO: ADD PROVIDERS 
+    # FREEKASSA = "freekassa"
+    # AIKASSA = "ai_kassa"
+
     YOOKASSA = "yookassa"
     CRYPTOBOT = "cryptobot"
     TELEGRAM_STARS = "telegram_stars"
     BALANCE = "balance"
-
 
 class Payment(Base):
     __tablename__ = "payments"

@@ -13,9 +13,9 @@ warn()    { echo -e "${YELLOW}[WARN]${RESET} $*"; }
 error()   { echo -e "${RED}[ERR]${RESET}  $*"; exit 1; }
 
 echo -e "${BOLD}${CYAN}"
-echo "╔══════════════════════════════════════════════════╗"
-echo "║        VPN Dashboard — Setup & Deploy            ║"
-echo "╚══════════════════════════════════════════════════╝"
+echo "╔═══════════════════════════════════════════════════════════╗"
+echo "║       Scorbium Dashboard VPN  — Setup & Deploy            ║"
+echo "╚═══════════════════════════════════════════════════════════╝"
 echo -e "${RESET}"
 
 # ── Зависимости ───────────────────────────────────────────────────────────────
@@ -35,8 +35,8 @@ MODE=${MODE:-2}
 # ── Ввод данных ───────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}── Основные ────────────────────────────────────────${RESET}"
-read -rp "Название панели [VPN Dashboard]: " APP_NAME
-APP_NAME=${APP_NAME:-"VPN Dashboard"}
+read -rp "Название панели По умолчание(Scorbium Dashboard VPN): " APP_NAME
+APP_NAME=${APP_NAME:-"Scorbium Dashboard VPN"}
 
 read -rp "Telegram Bot Token: " BOT_TOKEN
 [[ -z "$BOT_TOKEN" ]] && error "Bot Token обязателен"

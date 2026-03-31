@@ -29,7 +29,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._blocked: dict[str, float] = {}  # ip -> unblock_time
 
     def _get_ip(self, request: Request) -> str:
-        # Respect X-Forwarded-For from reverse proxy
         forwarded = request.headers.get("X-Forwarded-For")
         if forwarded:
             return forwarded.split(",")[0].strip()
@@ -38,7 +37,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def _is_rate_limited(self, ip: str, path: str) -> bool:
         now = time.monotonic()
 
-        # Check block
         if ip in self._blocked:
             if now < self._blocked[ip]:
                 return True
@@ -66,7 +64,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         path = request.url.path
 
-        # Skip whitelist
         if any(path.startswith(p) for p in _WHITELIST_PREFIXES):
             return await call_next(request)
 
@@ -79,7 +76,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     status_code=429,
                     headers={"Retry-After": str(BLOCK_DURATION)},
                 )
-            # Panel — return minimal HTML
             return Response(
                 content=(
                     "<html><body style='background:#080812;color:#ef4444;"

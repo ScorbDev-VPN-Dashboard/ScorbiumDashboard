@@ -1,7 +1,3 @@
-"""
-Standalone bot entry point — used when running bot separately from API.
-For combined mode, the bot is started inside server.py lifespan.
-"""
 import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode

@@ -12,6 +12,8 @@ from app.services.plan import PlanService
 from app.services.vpn_key import VpnKeyService
 from app.services.bot_settings import BotSettingsService
 from app.services.telegram_stars import TelegramStarsService
+from app.services.cryptobot import CryptoBotService
+from app.services.i18n import t, get_lang
 from app.utils.log import log
 
 router = Router()

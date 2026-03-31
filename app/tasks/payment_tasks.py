@@ -1,6 +1,3 @@
-"""
-Background task: периодически проверяет pending YooKassa платежи.
-"""
 import asyncio
 import json
 from datetime import datetime, timezone, timedelta
@@ -37,7 +34,7 @@ async def check_pending_yookassa_payments() -> None:
             )
         )
         payments = list(result.scalars().all())
-        # detach to use outside session
+
         payment_data = [
             {"id": p.id, "external_id": p.external_id, "user_id": p.user_id, "meta": p.meta}
             for p in payments

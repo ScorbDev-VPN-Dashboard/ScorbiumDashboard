@@ -7,7 +7,7 @@ from app.utils.log import log
 
 
 async def main() -> None:
-    log.info("🚀 Starting VPN Dashboard...")
+    log.info("🚀 Starting Scorbium Dashboard VPN...")
     app = create_app()
     cfg = uvicorn.Config(
         app=app,
