@@ -1080,6 +1080,26 @@ async def save_bot_settings(request: Request, db: AsyncSession = Depends(get_db)
     return resp
 
 
+@router.post("/telegram/lang-strings")
+async def save_lang_strings(request: Request, db: AsyncSession = Depends(get_db)):
+    """Save i18n string overrides for a specific language."""
+    _require_auth(request)
+    form = await request.form()
+    lang = form.get("lang", "ru")
+    if lang not in ("ru", "en", "fa"):
+        return Response(status_code=400)
+    svc = BotSettingsService(db)
+    for key, value in form.items():
+        if key == "lang":
+            continue
+        # Store as i18n_{lang}_{key}
+        await svc.set(f"i18n_{lang}_{key}", str(value).strip())
+    await db.commit()
+    resp = Response(status_code=200)
+    _toast(resp, f"Строки языка сохранены")
+    return resp
+
+
 @router.post("/telegram/bot-toggle")
 async def bot_toggle(request: Request, db: AsyncSession = Depends(get_db)):
     _require_auth(request)

@@ -26,6 +26,7 @@
   <button class="tab-btn" onclick="switchTab('customize')"><i class="bi bi-palette me-1"></i>Кастомизация</button>
   <button class="tab-btn" onclick="switchTab('buttons')"><i class="bi bi-grid me-1"></i>Кнопки</button>
   <button class="tab-btn" onclick="switchTab('photos')"><i class="bi bi-image me-1"></i>Фото</button>
+  <button class="tab-btn" onclick="switchTab('languages')"><i class="bi bi-translate me-1"></i>Языки</button>
   <button class="tab-btn" onclick="switchTab('miniapp')"><i class="bi bi-grid-3x3-gap me-1"></i>Mini App</button>
   <button class="tab-btn" onclick="switchTab('channel')"><i class="bi bi-broadcast me-1"></i>Канал</button>
 </div>
@@ -374,6 +375,114 @@
 </div>
 </div>
 
+<!-- ══ TAB: ЯЗЫКИ ════════════════════════════════════════════════════════════ -->
+<div id="tab-languages" class="tab-pane">
+<div class="row g-3">
+
+  <!-- Default language + info -->
+  <div class="col-12">
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-translate me-2 text-muted"></i>Язык бота по умолчанию</div>
+      <form hx-post="/panel/telegram/bot-settings" hx-swap="none" hx-on::after-request="showToast('Сохранено', 'success')">
+        <div class="d-flex gap-3 flex-wrap align-items-end">
+          <div>
+            <label class="form-label">Язык по умолчанию</label>
+            <select name="bot_language" class="form-select" id="lang-selector" style="min-width:200px" onchange="switchLangTab(this.value)">
+              <option value="ru" {% if bot_settings.get('bot_language','ru')=='ru' %}selected{% endif %}>🇷🇺 Русский</option>
+              <option value="en" {% if bot_settings.get('bot_language')=='en' %}selected{% endif %}>🇬🇧 English</option>
+              <option value="fa" {% if bot_settings.get('bot_language')=='fa' %}selected{% endif %}>🇮🇷 فارسی (Persian)</option>
+            </select>
+            <div style="font-size:.7rem;color:#8892a4;margin-top:.25rem">Применяется для новых пользователей. Каждый пользователь может сменить язык кнопкой «🌐 Язык» в боте.</div>
+          </div>
+          <button type="submit" class="btn btn-accent"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Language string editor -->
+  <div class="col-12">
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-pencil-square me-2 text-muted"></i>Редактор строк</div>
+      <div style="font-size:.75rem;color:#8892a4;margin-bottom:1rem">
+        Переопределите любые строки бота для каждого языка. Пустое поле = используется значение по умолчанию.
+      </div>
+
+      <!-- Lang tabs -->
+      <div class="d-flex gap-2 mb-3">
+        <button class="btn btn-sm btn-accent" id="ltab-ru" onclick="switchLangTab('ru')">🇷🇺 Русский</button>
+        <button class="btn btn-sm btn-outline-secondary" id="ltab-en" onclick="switchLangTab('en')">🇬🇧 English</button>
+        <button class="btn btn-sm btn-outline-secondary" id="ltab-fa" onclick="switchLangTab('fa')">🇮🇷 فارسی</button>
+      </div>
+
+      {% for lang_code, lang_name, lang_strings in [
+        ('ru', 'Русский', {
+          'welcome': ('Приветствие (/start)', '👋 Привет, {name}!\n\nЭто VPN-бот. Выбери действие:'),
+          'welcome_back': ('Возвращение', 'С возвращением, {name}!'),
+          'btn_my_keys': ('Кнопка: Мои подписки', '🔑 Мои подписки'),
+          'btn_buy': ('Кнопка: Купить', '💳 Купить'),
+          'btn_balance': ('Кнопка: Баланс', '💰 Баланс'),
+          'btn_promo': ('Кнопка: Промокод', '🎁 Промокод'),
+          'btn_support': ('Кнопка: Поддержка', '💬 Поддержка'),
+          'btn_language': ('Кнопка: Язык', '🌐 Язык'),
+          'choose_plan': ('Выбор тарифа', '💳 Выбери план подписки:'),
+          'payment_success': ('Успешная оплата', '✅ Оплата прошла успешно!'),
+          'no_keys': ('Нет подписок', '📦 У тебя пока нет подписок.'),
+        }),
+        ('en', 'English', {
+          'welcome': ('Welcome (/start)', '👋 Hello, {name}!\n\nThis is a VPN bot. Choose an action:'),
+          'welcome_back': ('Welcome back', 'Welcome back, {name}!'),
+          'btn_my_keys': ('Button: My subscriptions', '🔑 My subscriptions'),
+          'btn_buy': ('Button: Buy', '💳 Buy'),
+          'btn_balance': ('Button: Balance', '💰 Balance'),
+          'btn_promo': ('Button: Promo code', '🎁 Promo code'),
+          'btn_support': ('Button: Support', '💬 Support'),
+          'btn_language': ('Button: Language', '🌐 Language'),
+          'choose_plan': ('Choose plan', '💳 Choose a subscription plan:'),
+          'payment_success': ('Payment success', '✅ Payment successful!'),
+          'no_keys': ('No subscriptions', '📦 You have no subscriptions yet.'),
+        }),
+        ('fa', 'فارسی', {
+          'welcome': ('خوش‌آمدگویی (/start)', '👋 سلام، {name}!\n\nاین یک ربات VPN است.'),
+          'welcome_back': ('بازگشت', 'خوش برگشتی، {name}!'),
+          'btn_my_keys': ('دکمه: اشتراک‌ها', '🔑 اشتراک‌های من'),
+          'btn_buy': ('دکمه: خرید', '💳 خرید'),
+          'btn_balance': ('دکمه: موجودی', '💰 موجودی'),
+          'btn_promo': ('دکمه: کد تخفیف', '🎁 کد تخفیف'),
+          'btn_support': ('دکمه: پشتیبانی', '💬 پشتیبانی'),
+          'btn_language': ('دکمه: زبان', '🌐 زبان'),
+          'choose_plan': ('انتخاب طرح', '💳 یک طرح اشتراک انتخاب کنید:'),
+          'payment_success': ('پرداخت موفق', '✅ پرداخت موفق بود!'),
+          'no_keys': ('بدون اشتراک', '📦 هنوز اشتراکی ندارید.'),
+        }),
+      ] %}
+      <div id="lang-pane-{{ lang_code }}" style="display:{% if lang_code == 'ru' %}block{% else %}none{% endif %}">
+        <form hx-post="/panel/telegram/lang-strings" hx-swap="none" hx-on::after-request="showToast('Сохранено', 'success')">
+          <input type="hidden" name="lang" value="{{ lang_code }}" />
+          <div class="row g-2">
+            {% for key, (label, default) in lang_strings.items() %}
+            <div class="col-md-6">
+              <label class="form-label" style="font-size:.75rem">{{ label }}
+                <span style="color:#8892a4;font-size:.65rem"> ({{ key }})</span>
+              </label>
+              <input type="text" name="{{ key }}" class="form-control form-control-sm"
+                placeholder="{{ default }}"
+                value="{{ bot_settings.get('i18n_' ~ lang_code ~ '_' ~ key, '') }}" />
+            </div>
+            {% endfor %}
+          </div>
+          <button type="submit" class="btn btn-accent btn-sm mt-3 w-100">
+            <i class="bi bi-floppy me-1"></i>Сохранить строки ({{ lang_name }})
+          </button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+</div>
+
 <!-- ══ TAB: MINI APP ════════════════════════════════════════════════════════ -->
 <div id="tab-miniapp" class="tab-pane">
 <div class="row g-3">
@@ -490,6 +599,19 @@ function switchTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   event.currentTarget.classList.add('active');
   if (name === 'buttons') { kbRenderRows(); kbUpdatePreview(); }
+}
+
+// ── Language tab switcher ─────────────────────────────────────────────────────
+function switchLangTab(lang) {
+  ['ru','en','fa'].forEach(l => {
+    const pane = document.getElementById('lang-pane-' + l);
+    const btn = document.getElementById('ltab-' + l);
+    if (pane) pane.style.display = l === lang ? 'block' : 'none';
+    if (btn) btn.className = l === lang ? 'btn btn-sm btn-accent' : 'btn btn-sm btn-outline-secondary';
+  });
+  // sync the default lang selector if it exists
+  const sel = document.getElementById('lang-selector');
+  if (sel) sel.value = lang;
 }
 
 // ── Photo upload ──────────────────────────────────────────────────────────────

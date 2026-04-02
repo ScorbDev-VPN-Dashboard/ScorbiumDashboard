@@ -72,16 +72,14 @@ async def cmd_start(message: Message) -> None:
         settings_svc = BotSettingsService(session)
         settings = await settings_svc.get_all()
         welcome_tpl = settings.get("welcome_message")
-        kb = await _get_menu_kb(session)
 
     from app.services.i18n import t, get_lang
     async with AsyncSessionFactory() as session:
         _user = await UserService(session).get_by_id(message.from_user.id)
+        _settings = await BotSettingsService(session).get_all()
         user_lang = _user.language if _user and _user.language else None
-    from app.services.bot_settings import BotSettingsService as _BSS
-    async with AsyncSessionFactory() as session:
-        _settings = await _BSS(session).get_all()
-    lang = get_lang(_settings, user_lang)
+        lang = get_lang(_settings, user_lang)
+        kb = await _get_menu_kb(session, lang=lang)
 
     if welcome_tpl:
         welcome = welcome_tpl.format(name=message.from_user.first_name)
@@ -100,13 +98,14 @@ async def cmd_start(message: Message) -> None:
 async def back_to_main(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     async with AsyncSessionFactory() as session:
-        kb = await _get_menu_kb(session)
-        photo = await BotSettingsService(session).get("photo_welcome")
         settings = await BotSettingsService(session).get_all()
         user = await UserService(session).get_by_id(callback.from_user.id)
+        photo = settings.get("photo_welcome")
     from app.services.i18n import t, get_lang
     user_lang = user.language if user and user.language else None
     lang = get_lang(settings, user_lang)
+    async with AsyncSessionFactory() as session:
+        kb = await _get_menu_kb(session, lang=lang)
     from app.bot.utils.media import edit_with_photo
     await edit_with_photo(callback, t("main_menu", lang), reply_markup=kb, photo=photo or None)
     await callback.answer()
@@ -181,7 +180,7 @@ async def process_promo(message: Message, state: FSMContext) -> None:
         else:
             result_text = t("promo_invalid", lang)
 
-        kb = await _get_menu_kb(session)
+        kb = await _get_menu_kb(session, lang=lang)
 
     await state.clear()
     await message.answer(result_text, reply_markup=kb, parse_mode="HTML")

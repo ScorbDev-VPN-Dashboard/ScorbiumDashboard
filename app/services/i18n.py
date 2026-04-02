@@ -399,6 +399,18 @@ def t(key: str, lang: str = "ru", **kwargs) -> str:
     return template
 
 
+def t_custom(key: str, lang: str, settings: dict, **kwargs) -> str:
+    """Translate with optional admin override from bot_settings (i18n_{lang}_{key})."""
+    override = settings.get(f"i18n_{lang}_{key}", "").strip()
+    template = override if override else STRINGS.get(lang, STRINGS["ru"]).get(key, STRINGS["ru"].get(key, key))
+    if kwargs:
+        try:
+            return template.format(**kwargs)
+        except (KeyError, ValueError):
+            return template
+    return template
+
+
 def get_lang(settings: dict, user_lang: str | None = None) -> str:
     if user_lang and user_lang in STRINGS:
         return user_lang
