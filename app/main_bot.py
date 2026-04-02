@@ -35,6 +35,18 @@ async def start_bot() -> None:
     log.info("🤖 Bot started (standalone long polling)")
     try:
         await bot.delete_webhook(drop_pending_updates=True)
+
+        from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats
+        user_commands = [
+            BotCommand(command="start",   description="🏠 Главное меню"),
+            BotCommand(command="profile", description="👤 Мой профиль"),
+            BotCommand(command="keys",    description="🔑 Мои подписки"),
+            BotCommand(command="status",  description="📊 Статус подписок"),
+            BotCommand(command="top",     description="🏆 Топ рефереров"),
+            BotCommand(command="id",      description="🆔 Мой Telegram ID"),
+        ]
+        await bot.set_my_commands(user_commands, scope=BotCommandScopeAllPrivateChats())
+
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         await bot.session.close()

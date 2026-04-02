@@ -133,6 +133,22 @@ async def _lifespan(app: FastAPI):
                 log.info("✅ CryptoBot token seeded from .env")
 
     log.info("✅ Application ready")
+
+    # Set bot commands menu
+    from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeAllPrivateChats
+    user_commands = [
+        BotCommand(command="start",      description="🏠 Главное меню"),
+        BotCommand(command="profile",    description="👤 Мой профиль"),
+        BotCommand(command="keys",       description="🔑 Мои подписки"),
+        BotCommand(command="status",     description="📊 Статус подписок"),
+        BotCommand(command="top",        description="🏆 Топ рефереров"),
+        BotCommand(command="id",         description="🆔 Мой Telegram ID"),
+    ]
+    try:
+        await _bot.set_my_commands(user_commands, scope=BotCommandScopeAllPrivateChats())
+        log.info("✅ Bot commands set")
+    except Exception as e:
+        log.warning(f"Failed to set bot commands: {e}")
     yield
 
     log.info("🛑 Shutting down...")

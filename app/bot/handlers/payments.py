@@ -36,7 +36,6 @@ async def _provision_and_notify(user_id: int, payment_id: int, plan_id: int, bot
 
         key = await VpnKeyService(session).provision(user_id=user_id, plan=plan)
 
-        # Привязываем платёж к ключу
         payment = await PaymentService(session).get_by_id(payment_id)
         if payment and key:
             payment.vpn_key_id = key.id
@@ -44,18 +43,19 @@ async def _provision_and_notify(user_id: int, payment_id: int, plan_id: int, bot
         await session.commit()
 
         settings = await BotSettingsService(session).get_all()
-        success_msg = settings.get("payment_success_message") or "✅ Оплата прошла успешно!"
+        user = await UserService(session).get_by_id(user_id)
+        user_lang = user.language if user and user.language else None
+        lang = get_lang(settings, user_lang)
+
+        success_msg = settings.get("payment_success_message") or t("payment_success", lang)
 
         if key and key.access_url:
             text = (
                 f"{success_msg}\n\n"
-                f"🔑 <b>Ссылка подписки:</b>\n"
-                f"<code>{key.access_url}</code>\n\n"
-                f"📅 Действует <b>{plan.duration_days} дней</b>\n\n"
-                f"💡 Скопируй ссылку и вставь в VPN-клиент"
+                + t("subscription_url", lang, url=key.access_url, days=plan.duration_days)
             )
         else:
-            text = f"{success_msg}\n\n⚠️ Не удалось создать ключ. Обратитесь в поддержку."
+            text = f"{success_msg}\n\n" + t("key_error", lang)
 
         try:
             await bot.send_message(user_id, text, parse_mode="HTML")
@@ -166,7 +166,7 @@ async def handle_yookassa_payment(callback: CallbackQuery, bot: Bot) -> None:
         except Exception as e:
             log.error(f"Yookassa error for user {callback.from_user.id}: {e}")
             async with AsyncSessionFactory() as s2:
-                kb = await _get_menu_kb(s2)
+                kb = await _get_menu_kb(s2, lang=lang)
             try:
                 await callback.message.edit_text(t("payment_error", lang), reply_markup=kb)
             except Exception:
@@ -249,12 +249,12 @@ async def handle_stars_payment(callback: CallbackQuery, bot: Bot) -> None:
         if ok:
             await callback.message.edit_text(
                 t("pay_stars", lang, stars=stars),
-                reply_markup=back_kb(),
+                reply_markup=back_kb(lang),
                 parse_mode="HTML",
             )
         else:
             async with AsyncSessionFactory() as s2:
-                kb = await _get_menu_kb(s2)
+                kb = await _get_menu_kb(s2, lang=lang)
             await callback.message.edit_text(t("payment_error", lang), reply_markup=kb)
     except Exception:
         pass
@@ -354,7 +354,7 @@ async def handle_crypto_payment(callback: CallbackQuery, bot: Bot) -> None:
         except Exception as e:
             log.error(f"CryptoBot error for user {callback.from_user.id}: {e}")
             async with AsyncSessionFactory() as s2:
-                kb = await _get_menu_kb(s2)
+                kb = await _get_menu_kb(s2, lang=lang)
             await callback.message.edit_text(t("payment_error", lang), reply_markup=kb)
 
     await callback.answer()

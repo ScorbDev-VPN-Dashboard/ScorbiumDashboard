@@ -1088,15 +1088,33 @@ async def save_lang_strings(request: Request, db: AsyncSession = Depends(get_db)
     lang = form.get("lang", "ru")
     if lang not in ("ru", "en", "fa"):
         return Response(status_code=400)
+    # Whitelist of allowed i18n keys
+    allowed_i18n_keys = {
+        "welcome", "welcome_back", "btn_my_keys", "btn_buy", "btn_balance",
+        "btn_promo", "btn_support", "btn_language", "choose_plan",
+        "payment_success", "no_keys", "choose_language", "language_set",
+        "main_menu", "enter_promo", "support_title", "support_no_tickets",
+        "support_tickets", "new_ticket", "ticket_subject", "ticket_message",
+        "ticket_created", "ticket_closed", "ticket_reply_sent", "ticket_not_found",
+        "write_reply", "close_ticket", "payment_error", "payment_pending",
+        "payment_failed", "payment_go", "payment_check", "pay_card",
+        "pay_stars", "pay_crypto", "pay_balance", "no_plans", "key_error",
+        "subscription_url", "balance_title", "referrals_count", "referral_bonus",
+        "referral_link", "promo_balance", "promo_days", "promo_discount", "promo_invalid",
+    }
     svc = BotSettingsService(db)
     for key, value in form.items():
         if key == "lang":
             continue
-        # Store as i18n_{lang}_{key}
-        await svc.set(f"i18n_{lang}_{key}", str(value).strip())
+        if key not in allowed_i18n_keys:
+            continue
+        val = str(value).strip()
+        if val:
+            await svc.set(f"i18n_{lang}_{key}", val)
+        # If empty, delete override (reset to default) — just don't save empty strings
     await db.commit()
     resp = Response(status_code=200)
-    _toast(resp, f"Строки языка сохранены")
+    _toast(resp, "Строки языка сохранены")
     return resp
 
 

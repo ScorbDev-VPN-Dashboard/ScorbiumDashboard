@@ -1,12 +1,12 @@
 import secrets
 from aiogram import Router, F
 from aiogram.filters import CommandStart
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from app.bot.keyboards.main import main_menu_kb, back_kb
+from app.bot.keyboards.main import back_kb
 from app.bot.utils.menu import get_main_menu_kb as _get_menu_kb
 from app.core.database import AsyncSessionFactory
 from app.schemas.user import UserCreate
@@ -16,6 +16,7 @@ from app.services.promo import PromoService
 from app.services.bot_settings import BotSettingsService
 from app.services.support import SupportService
 from app.services.telegram_notify import TelegramNotifyService
+from app.services.i18n import t, get_lang
 from app.core.config import config
 
 router = Router()
@@ -28,7 +29,14 @@ class PromoState(StatesGroup):
 class SupportState(StatesGroup):
     waiting_subject = State()
     waiting_message = State()
-    replying_ticket = State() 
+    replying_ticket = State()
+
+
+async def _get_lang_from_session(user_id: int, session) -> str:
+    user = await UserService(session).get_by_id(user_id)
+    settings = await BotSettingsService(session).get_all()
+    user_lang = user.language if user and user.language else None
+    return get_lang(settings, user_lang)
 
 
 @router.message(CommandStart())
@@ -69,28 +77,21 @@ async def cmd_start(message: Message) -> None:
 
         await session.commit()
 
-        settings_svc = BotSettingsService(session)
-        settings = await settings_svc.get_all()
+        settings = await BotSettingsService(session).get_all()
         welcome_tpl = settings.get("welcome_message")
-
-    from app.services.i18n import t, get_lang
-    async with AsyncSessionFactory() as session:
-        _user = await UserService(session).get_by_id(message.from_user.id)
-        _settings = await BotSettingsService(session).get_all()
-        user_lang = _user.language if _user and _user.language else None
-        lang = get_lang(_settings, user_lang)
+        user_lang = user.language if user and user.language else None
+        lang = get_lang(settings, user_lang)
         kb = await _get_menu_kb(session, lang=lang)
+        photo = settings.get("photo_welcome")
 
     if welcome_tpl:
         welcome = welcome_tpl.format(name=message.from_user.first_name)
         if not created:
-            welcome = welcome.replace("Привет", "С возвращением").replace("Добро пожаловать", "С возвращением")
+            welcome = t("welcome_back", lang, name=message.from_user.first_name)
     else:
         welcome = t("welcome" if created else "welcome_back", lang, name=message.from_user.first_name)
 
     from app.bot.utils.media import answer_with_photo
-    async with AsyncSessionFactory() as session:
-        photo = await BotSettingsService(session).get("photo_welcome")
     await answer_with_photo(message, welcome, reply_markup=kb, photo=photo or None)
 
 
@@ -98,14 +99,9 @@ async def cmd_start(message: Message) -> None:
 async def back_to_main(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     async with AsyncSessionFactory() as session:
-        settings = await BotSettingsService(session).get_all()
-        user = await UserService(session).get_by_id(callback.from_user.id)
-        photo = settings.get("photo_welcome")
-    from app.services.i18n import t, get_lang
-    user_lang = user.language if user and user.language else None
-    lang = get_lang(settings, user_lang)
-    async with AsyncSessionFactory() as session:
+        lang = await _get_lang_from_session(callback.from_user.id, session)
         kb = await _get_menu_kb(session, lang=lang)
+        photo = await BotSettingsService(session).get("photo_welcome")
     from app.bot.utils.media import edit_with_photo
     await edit_with_photo(callback, t("main_menu", lang), reply_markup=kb, photo=photo or None)
     await callback.answer()
@@ -113,7 +109,6 @@ async def back_to_main(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "balance")
 async def show_balance(callback: CallbackQuery) -> None:
-    from app.services.i18n import t, get_lang
     async with AsyncSessionFactory() as session:
         user = await UserService(session).get_by_id(callback.from_user.id)
         ref_count = await ReferralService(session).count_referrals(callback.from_user.id)
@@ -121,16 +116,19 @@ async def show_balance(callback: CallbackQuery) -> None:
         balance = float(user.balance or 0) if user else 0.0
         referral_code = user.referral_code if user else None
         photo = settings.get("photo_balance") or None
-
-    user_lang = user.language if user and user.language else None
-    lang = get_lang(settings, user_lang)
+        user_lang = user.language if user and user.language else None
+        lang = get_lang(settings, user_lang)
 
     bot_username = await _get_bot_username()
     ref_link = f"https://t.me/{bot_username}?start={referral_code}" if referral_code and bot_username else "—"
 
     bonus_type = settings.get("referral_bonus_type", "days")
     bonus_value = settings.get("referral_bonus_value", "3")
-    bonus_labels = {"days": f"+{bonus_value} {'дней' if lang=='ru' else 'days'}", "balance": f"+{bonus_value} ₽", "percent": f"{bonus_value}%"}
+    bonus_labels = {
+        "days": f"+{bonus_value} {'дней' if lang == 'ru' else ('روز' if lang == 'fa' else 'days')}",
+        "balance": f"+{bonus_value} ₽",
+        "percent": f"{bonus_value}%",
+    }
     bonus_text = bonus_labels.get(bonus_type, f"+{bonus_value}")
 
     text = (
@@ -140,32 +138,24 @@ async def show_balance(callback: CallbackQuery) -> None:
         t("referral_link", lang, link=ref_link)
     )
     from app.bot.utils.media import edit_with_photo
-    await edit_with_photo(callback, text, reply_markup=back_kb(), photo=photo)
+    await edit_with_photo(callback, text, reply_markup=back_kb(lang), photo=photo)
     await callback.answer()
 
 
 @router.callback_query(F.data == "enter_promo")
 async def ask_promo(callback: CallbackQuery, state: FSMContext) -> None:
-    from app.services.i18n import t, get_lang
     async with AsyncSessionFactory() as session:
-        user = await UserService(session).get_by_id(callback.from_user.id)
-        settings = await BotSettingsService(session).get_all()
-    user_lang = user.language if user and user.language else None
-    lang = get_lang(settings, user_lang)
+        lang = await _get_lang_from_session(callback.from_user.id, session)
     await state.set_state(PromoState.waiting_code)
-    await callback.message.edit_text(t("enter_promo", lang), reply_markup=back_kb())
+    await callback.message.edit_text(t("enter_promo", lang), reply_markup=back_kb(lang))
     await callback.answer()
 
 
 @router.message(PromoState.waiting_code)
 async def process_promo(message: Message, state: FSMContext) -> None:
-    from app.services.i18n import t, get_lang
     code = message.text.strip().upper()
     async with AsyncSessionFactory() as session:
-        user = await UserService(session).get_by_id(message.from_user.id)
-        settings = await BotSettingsService(session).get_all()
-        user_lang = user.language if user and user.language else None
-        lang = get_lang(settings, user_lang)
+        lang = await _get_lang_from_session(message.from_user.id, session)
         promo = await PromoService(session).apply(code)
         if promo:
             pt = str(promo.promo_type)
@@ -179,48 +169,46 @@ async def process_promo(message: Message, state: FSMContext) -> None:
             await session.commit()
         else:
             result_text = t("promo_invalid", lang)
-
         kb = await _get_menu_kb(session, lang=lang)
 
     await state.clear()
     await message.answer(result_text, reply_markup=kb, parse_mode="HTML")
 
 
-# ── Support FSM ───────────────────────────────────────────────────────────────
+# ── Support ───────────────────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "support")
 async def support_start(callback: CallbackQuery, state: FSMContext) -> None:
-    """Show user's tickets + option to create new."""
     async with AsyncSessionFactory() as session:
+        lang = await _get_lang_from_session(callback.from_user.id, session)
         tickets = await SupportService(session).get_for_user(callback.from_user.id)
-        # Extract data while session is open
         ticket_rows = [
             {
-                "id": t.id,
-                "subject": t.subject,
-                "status": t.status.value if hasattr(t.status, "value") else str(t.status),
+                "id": tk.id,
+                "subject": tk.subject,
+                "status": tk.status.value if hasattr(tk.status, "value") else str(tk.status),
             }
-            for t in tickets
+            for tk in tickets
         ]
+        photo = await BotSettingsService(session).get("photo_support")
 
     builder = InlineKeyboardBuilder()
     if ticket_rows:
-        for t in ticket_rows[:5]:
-            st_icon = {"open": "🔵", "in_progress": "🟡", "closed": "⚫"}.get(t["status"], "❓")
-            label = f"{st_icon} #{t['id']} — {t['subject'][:28]}"
-            builder.row(InlineKeyboardButton(text=label, callback_data=f"support:ticket:{t['id']}"))
+        for tk in ticket_rows[:5]:
+            st_icon = {"open": "🔵", "in_progress": "🟡", "closed": "⚫"}.get(tk["status"], "❓")
+            builder.row(InlineKeyboardButton(
+                text=f"{st_icon} #{tk['id']} — {tk['subject'][:28]}",
+                callback_data=f"support:ticket:{tk['id']}",
+            ))
 
-    builder.row(InlineKeyboardButton(text="➕ Новый тикет", callback_data="support:new"))
-    builder.row(InlineKeyboardButton(text="◀️ Главное меню", callback_data="back_main"))
+    builder.row(InlineKeyboardButton(text=t("new_ticket", lang), callback_data="support:new"))
+    builder.row(InlineKeyboardButton(text=t("back_main", lang), callback_data="back_main"))
 
-    text = "💬 <b>Поддержка</b>\n\n"
     if ticket_rows:
-        text += f"Ваши обращения ({len(ticket_rows)}):\n\nВыберите тикет для продолжения или создайте новый."
+        text = t("support_title", lang) + "\n\n" + t("support_tickets", lang, count=len(ticket_rows))
     else:
-        text += "У вас нет обращений. Создайте новый тикет."
+        text = t("support_title", lang) + "\n\n" + t("support_no_tickets", lang)
 
-    async with AsyncSessionFactory() as session:
-        photo = await BotSettingsService(session).get("photo_support")
     from app.bot.utils.media import edit_with_photo
     await edit_with_photo(callback, text, reply_markup=builder.as_markup(), photo=photo or None)
     await callback.answer()
@@ -228,10 +216,12 @@ async def support_start(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "support:new")
 async def support_new(callback: CallbackQuery, state: FSMContext) -> None:
+    async with AsyncSessionFactory() as session:
+        lang = await _get_lang_from_session(callback.from_user.id, session)
     await state.set_state(SupportState.waiting_subject)
     await callback.message.edit_text(
-        "💬 <b>Новое обращение</b>\n\nВведите тему обращения (кратко):",
-        reply_markup=back_kb(),
+        t("ticket_subject", lang),
+        reply_markup=back_kb(lang),
         parse_mode="HTML",
     )
     await callback.answer()
@@ -241,12 +231,11 @@ async def support_new(callback: CallbackQuery, state: FSMContext) -> None:
 async def support_open_ticket(callback: CallbackQuery, state: FSMContext) -> None:
     ticket_id = int(callback.data.split(":")[2])
     async with AsyncSessionFactory() as session:
+        lang = await _get_lang_from_session(callback.from_user.id, session)
         ticket = await SupportService(session).get_by_id(ticket_id)
         if not ticket or ticket.user_id != callback.from_user.id:
-            await callback.answer("Тикет не найден", show_alert=True)
+            await callback.answer(t("ticket_not_found", lang), show_alert=True)
             return
-
-        # Extract all data while session is open
         subject = ticket.subject
         st_val = ticket.status.value if hasattr(ticket.status, "value") else str(ticket.status)
         msgs = [
@@ -254,19 +243,27 @@ async def support_open_ticket(callback: CallbackQuery, state: FSMContext) -> Non
             for m in (ticket.messages[-5:] if ticket.messages else [])
         ]
 
-    text = f"💬 <b>Тикет #{ticket_id}</b>\n📌 {subject}\n\n"
+    who_support = "🛡 " + ("Поддержка" if lang == "ru" else ("Support" if lang == "en" else "پشتیبانی"))
+    who_user = "👤 " + ("Вы" if lang == "ru" else ("You" if lang == "en" else "شما"))
+
+    text = f"💬 <b>#{ticket_id} — {subject}</b>\n\n"
     for m in msgs:
-        who = "🛡 Поддержка" if m["is_admin"] else "👤 Вы"
+        who = who_support if m["is_admin"] else who_user
         text += f"<b>{who}:</b> {m['text'][:200]}\n\n"
 
-    status_label = {"open": "🔵 Открыт", "in_progress": "🟡 В работе", "closed": "⚫ Закрыт"}.get(st_val, st_val)
-    text += f"Статус: {status_label}"
+    status_labels = {
+        "ru": {"open": "🔵 Открыт", "in_progress": "🟡 В работе", "closed": "⚫ Закрыт"},
+        "en": {"open": "🔵 Open", "in_progress": "🟡 In progress", "closed": "⚫ Closed"},
+        "fa": {"open": "🔵 باز", "in_progress": "🟡 در حال بررسی", "closed": "⚫ بسته"},
+    }
+    status_label = status_labels.get(lang, status_labels["ru"]).get(st_val, st_val)
+    text += f"{'Статус' if lang == 'ru' else ('Status' if lang == 'en' else 'وضعیت')}: {status_label}"
 
     builder = InlineKeyboardBuilder()
     if st_val != "closed":
-        builder.row(InlineKeyboardButton(text="✏️ Написать ответ", callback_data=f"support:reply:{ticket_id}"))
-        builder.row(InlineKeyboardButton(text="🔒 Закрыть тикет", callback_data=f"support:close:{ticket_id}"))
-    builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="support"))
+        builder.row(InlineKeyboardButton(text=t("write_reply", lang), callback_data=f"support:reply:{ticket_id}"))
+        builder.row(InlineKeyboardButton(text=t("close_ticket", lang), callback_data=f"support:close:{ticket_id}"))
+    builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="support"))
 
     await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     await callback.answer()
@@ -275,11 +272,18 @@ async def support_open_ticket(callback: CallbackQuery, state: FSMContext) -> Non
 @router.callback_query(F.data.startswith("support:reply:"))
 async def support_reply_start(callback: CallbackQuery, state: FSMContext) -> None:
     ticket_id = int(callback.data.split(":")[2])
+    async with AsyncSessionFactory() as session:
+        lang = await _get_lang_from_session(callback.from_user.id, session)
     await state.set_state(SupportState.replying_ticket)
     await state.update_data(ticket_id=ticket_id)
+    reply_prompt = {
+        "ru": f"✏️ Введите ваш ответ по тикету #{ticket_id}:",
+        "en": f"✏️ Enter your reply for ticket #{ticket_id}:",
+        "fa": f"✏️ پاسخ خود را برای تیکت #{ticket_id} وارد کنید:",
+    }
     await callback.message.edit_text(
-        f"✏️ Введите ваш ответ по тикету #{ticket_id}:",
-        reply_markup=back_kb(),
+        reply_prompt.get(lang, reply_prompt["ru"]),
+        reply_markup=back_kb(lang),
         parse_mode="HTML",
     )
     await callback.answer()
@@ -289,21 +293,22 @@ async def support_reply_start(callback: CallbackQuery, state: FSMContext) -> Non
 async def support_close_ticket(callback: CallbackQuery) -> None:
     ticket_id = int(callback.data.split(":")[2])
     async with AsyncSessionFactory() as session:
+        lang = await _get_lang_from_session(callback.from_user.id, session)
         ticket = await SupportService(session).get_by_id(ticket_id)
         if not ticket or ticket.user_id != callback.from_user.id:
-            await callback.answer("Тикет не найден", show_alert=True)
+            await callback.answer(t("ticket_not_found", lang), show_alert=True)
             return
         from app.models.support import TicketStatus
         await SupportService(session).set_status(ticket_id, TicketStatus.CLOSED)
         await session.commit()
-        kb = await _get_menu_kb(session)
+        kb = await _get_menu_kb(session, lang=lang)
 
     await callback.message.edit_text(
-        f"✅ <b>Тикет #{ticket_id} закрыт.</b>\n\nСпасибо за обращение!",
+        t("ticket_closed", lang, id=ticket_id),
         reply_markup=kb,
         parse_mode="HTML",
     )
-    await callback.answer("Тикет закрыт")
+    await callback.answer()
 
 
 @router.message(SupportState.replying_ticket)
@@ -313,6 +318,7 @@ async def support_reply_message(message: Message, state: FSMContext) -> None:
     text = message.text.strip()
 
     async with AsyncSessionFactory() as session:
+        lang = await _get_lang_from_session(message.from_user.id, session)
         msg = await SupportService(session).add_message(
             ticket_id=ticket_id,
             sender_id=message.from_user.id,
@@ -320,17 +326,16 @@ async def support_reply_message(message: Message, state: FSMContext) -> None:
             is_admin=False,
         )
         await session.commit()
-        kb = await _get_menu_kb(session)
+        kb = await _get_menu_kb(session, lang=lang)
 
     await state.clear()
 
     if msg:
         await message.answer(
-            f"✅ Ответ по тикету #{ticket_id} отправлен!\n\nМы ответим вам в ближайшее время.",
+            t("ticket_reply_sent", lang, id=ticket_id),
             reply_markup=kb,
             parse_mode="HTML",
         )
-        # Notify admins
         notify = TelegramNotifyService()
         uname = f"@{message.from_user.username}" if message.from_user.username else f"id:{message.from_user.id}"
         for admin_id in config.telegram.telegram_admin_ids:
@@ -339,20 +344,23 @@ async def support_reply_message(message: Message, state: FSMContext) -> None:
                 f"💬 <b>Ответ в тикете #{ticket_id}</b>\n\n👤 {uname}:\n{text[:300]}",
             )
     else:
-        await message.answer("❌ Тикет не найден.", reply_markup=kb)
+        await message.answer(t("ticket_not_found", lang), reply_markup=kb)
 
 
 @router.message(SupportState.waiting_subject)
 async def support_subject(message: Message, state: FSMContext) -> None:
+    async with AsyncSessionFactory() as session:
+        lang = await _get_lang_from_session(message.from_user.id, session)
     subject = message.text.strip()
+    too_short = {"ru": "Тема слишком короткая. Введите ещё раз:", "en": "Subject too short. Try again:", "fa": "موضوع خیلی کوتاه است. دوباره وارد کنید:"}
     if len(subject) < 3:
-        await message.answer("Тема слишком короткая. Введите ещё раз:")
+        await message.answer(too_short.get(lang, too_short["ru"]))
         return
     await state.update_data(subject=subject)
     await state.set_state(SupportState.waiting_message)
     await message.answer(
-        f"📝 Тема: <b>{subject}</b>\n\nТеперь опишите вашу проблему подробнее:",
-        reply_markup=back_kb(),
+        t("ticket_message", lang, subject=subject),
+        reply_markup=back_kb(lang),
         parse_mode="HTML",
     )
 
@@ -360,10 +368,11 @@ async def support_subject(message: Message, state: FSMContext) -> None:
 @router.message(SupportState.waiting_message)
 async def support_message(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
-    subject = data.get("subject", "Без темы")
+    subject = data.get("subject", "—")
     text = message.text.strip()
 
     async with AsyncSessionFactory() as session:
+        lang = await _get_lang_from_session(message.from_user.id, session)
         ticket = await SupportService(session).create_ticket(
             user_id=message.from_user.id,
             subject=subject,
@@ -371,33 +380,26 @@ async def support_message(message: Message, state: FSMContext) -> None:
         )
         await session.commit()
         ticket_id = ticket.id
-        kb = await _get_menu_kb(session)
+        kb = await _get_menu_kb(session, lang=lang)
 
     await state.clear()
     await message.answer(
-        f"✅ <b>Тикет #{ticket_id} создан!</b>\n\n"
-        f"Тема: <b>{subject}</b>\n\n"
-        "Мы ответим вам в ближайшее время.",
+        t("ticket_created", lang, id=ticket_id, subject=subject),
         reply_markup=kb,
         parse_mode="HTML",
     )
 
-    # Уведомляем всех администраторов
     notify = TelegramNotifyService()
     uname = f"@{message.from_user.username}" if message.from_user.username else f"id:{message.from_user.id}"
-    admin_text = (
-        f"🆕 <b>Новый тикет #{ticket_id}</b>\n\n"
-        f"👤 Пользователь: {uname}\n"
-        f"📌 Тема: <b>{subject}</b>\n\n"
-        f"💬 {text[:300]}"
-    )
     for admin_id in config.telegram.telegram_admin_ids:
-        await notify.send_message(admin_id, admin_text)
+        await notify.send_message(
+            admin_id,
+            f"🆕 <b>Новый тикет #{ticket_id}</b>\n\n👤 {uname}\n📌 {subject}\n\n💬 {text[:300]}",
+        )
 
 
 async def _get_bot_username() -> str:
     try:
-        from app.core.config import config
         from aiogram import Bot
         from aiogram.client.default import DefaultBotProperties
         from aiogram.enums import ParseMode
