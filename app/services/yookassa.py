@@ -32,23 +32,40 @@ class YookassaService:
         return_url: str,
         currency: str = "RUB",
         metadata: Optional[dict] = None,
+        payment_method: Optional[str] = None,
     ) -> PaymentResponse:
         try:
-            payment = YKPayment.create(
-                {
-                    "amount": {"value": str(amount), "currency": currency},
-                    "confirmation": {"type": "redirect", "return_url": return_url},
-                    "capture": True,
-                    "description": description,
-                    "metadata": metadata or {},
-                },
-                idempotency_key=str(uuid.uuid4()),
-            )
+            data: dict = {
+                "amount": {"value": str(amount), "currency": currency},
+                "confirmation": {"type": "redirect", "return_url": return_url},
+                "capture": True,
+                "description": description,
+                "metadata": metadata or {},
+            }
+            if payment_method:
+                data["payment_method_data"] = {"type": payment_method}
+            payment = YKPayment.create(data, idempotency_key=str(uuid.uuid4()))
             log.info(f"Yookassa payment created: {payment.id}")
             return payment
         except Exception as e:
             log.error(f"Yookassa payment creation failed: {e}")
             raise YookassaPaymentError(str(e))
+
+    def create_sbp_payment(
+        self,
+        amount: Decimal,
+        description: str,
+        return_url: str,
+        metadata: Optional[dict] = None,
+    ) -> PaymentResponse:
+        """Создать платёж через СБП (Система Быстрых Платежей)."""
+        return self.create_payment(
+            amount=amount,
+            description=description,
+            return_url=return_url,
+            metadata=metadata,
+            payment_method="sbp",
+        )
 
     def get_payment(self, payment_id: str) -> PaymentResponse:
         try:

@@ -57,6 +57,19 @@ class PaymentService:
         provider: PaymentProvider,
         currency: str = "RUB",
     ) -> Payment:
+        # Отменяем старые pending платежи этого юзера по тому же провайдеру
+        from datetime import datetime, timezone, timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+        old_result = await self.session.execute(
+            select(Payment).where(
+                Payment.user_id == user_id,
+                Payment.status == PaymentStatus.PENDING.value,
+                Payment.provider == provider.value,
+            )
+        )
+        for old in old_result.scalars().all():
+            old.status = PaymentStatus.FAILED.value
+
         payment = Payment(
             user_id=user_id,
             provider=provider.value,
@@ -67,6 +80,25 @@ class PaymentService:
         self.session.add(payment)
         await self.session.flush()
         return payment
+
+    async def expire_old_pending(self, max_age_minutes: int = 15) -> int:
+        """Отменяет pending платежи старше max_age_minutes минут. Возвращает кол-во отменённых."""
+        from datetime import datetime, timezone, timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)
+        result = await self.session.execute(
+            select(Payment).where(
+                Payment.status == PaymentStatus.PENDING.value,
+                Payment.created_at <= cutoff,
+            )
+        )
+        payments = result.scalars().all()
+        count = 0
+        for p in payments:
+            p.status = PaymentStatus.FAILED.value
+            count += 1
+        if count:
+            await self.session.flush()
+        return count
 
     async def confirm(self, payment_id: int, external_id: str) -> Optional[Payment]:
         payment = await self.get_by_id(payment_id)

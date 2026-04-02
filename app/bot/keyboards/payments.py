@@ -24,30 +24,44 @@ def payment_methods_kb(
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
-    # ЮКасса
-    card_text = "💳 Банковская карта (ЮКасса)" if lang == "ru" else "💳 Bank card (YooKassa)"
-    builder.row(InlineKeyboardButton(text=card_text, callback_data=f"pay:yookassa:{plan_id}"))
+    # ЮКасса — карта
+    card_labels = {"ru": "💳 Банковская карта", "en": "💳 Bank card", "fa": "💳 کارت بانکی"}
+    builder.row(InlineKeyboardButton(
+        text=card_labels.get(lang, card_labels["ru"]),
+        callback_data=f"pay:yookassa:{plan_id}",
+    ))
+
+    # СБП
+    sbp_labels = {"ru": "🏦 СБП (Система быстрых платежей)", "en": "🏦 SBP (Fast Payment)", "fa": "🏦 پرداخت سریع"}
+    builder.row(InlineKeyboardButton(
+        text=sbp_labels.get(lang, sbp_labels["ru"]),
+        callback_data=f"pay:sbp:{plan_id}",
+    ))
 
     # Telegram Stars
-    stars_label = (
-        f"⭐ Telegram Stars ({stars_amount} ⭐)" if stars_amount
-        else "⭐ Telegram Stars"
-    )
+    stars_label = f"⭐ Telegram Stars ({stars_amount} ⭐)" if stars_amount else "⭐ Telegram Stars"
     builder.row(InlineKeyboardButton(text=stars_label, callback_data=f"pay:stars:{plan_id}"))
 
     # CryptoBot
     if has_cryptobot:
-        crypto_text = "₿ Криптовалюта (CryptoBot)" if lang == "ru" else "₿ Cryptocurrency (CryptoBot)"
-        builder.row(InlineKeyboardButton(text=crypto_text, callback_data=f"pay:crypto:{plan_id}"))
+        crypto_labels = {"ru": "₿ Криптовалюта (CryptoBot)", "en": "₿ Cryptocurrency (CryptoBot)", "fa": "₿ ارز دیجیتال"}
+        builder.row(InlineKeyboardButton(
+            text=crypto_labels.get(lang, crypto_labels["ru"]),
+            callback_data=f"pay:crypto:{plan_id}",
+        ))
 
     # Баланс
     if user_balance >= plan_price and plan_price > 0:
-        bal_text = (
-            f"💰 Оплатить с баланса ({user_balance:.0f} ₽)" if lang == "ru"
-            else f"💰 Pay from balance ({user_balance:.0f} ₽)"
-        )
-        builder.row(InlineKeyboardButton(text=bal_text, callback_data=f"pay:balance:{plan_id}"))
+        bal_labels = {
+            "ru": f"💰 Оплатить с баланса ({user_balance:.0f} ₽)",
+            "en": f"💰 Pay from balance ({user_balance:.0f} ₽)",
+            "fa": f"💰 پرداخت از موجودی ({user_balance:.0f} ₽)",
+        }
+        builder.row(InlineKeyboardButton(
+            text=bal_labels.get(lang, bal_labels["ru"]),
+            callback_data=f"pay:balance:{plan_id}",
+        ))
 
-    back_text = "◀️ Назад" if lang == "ru" else "◀️ Back"
-    builder.row(InlineKeyboardButton(text=back_text, callback_data="buy"))
+    back_labels = {"ru": "◀️ Назад", "en": "◀️ Back", "fa": "◀️ بازگشت"}
+    builder.row(InlineKeyboardButton(text=back_labels.get(lang, "◀️ Назад"), callback_data="buy"))
     return builder.as_markup()

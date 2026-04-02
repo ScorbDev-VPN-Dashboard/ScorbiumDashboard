@@ -14,11 +14,8 @@ class PaymentStatus(str, enum.Enum):
 
 
 class PaymentProvider(str, enum.Enum):
-    # TODO: ADD PROVIDERS 
-    # FREEKASSA = "freekassa"
-    # AIKASSA = "ai_kassa"
-
     YOOKASSA = "yookassa"
+    YOOKASSA_SBP = "yookassa_sbp"
     CRYPTOBOT = "cryptobot"
     TELEGRAM_STARS = "telegram_stars"
     BALANCE = "balance"

@@ -10,6 +10,7 @@ from app.bot.handlers import language as language_handler
 from app.bot.middlewares import BanCheckMiddleware
 from app.bot.middlewares.throttle import ThrottleMiddleware
 from app.bot.middlewares.channel_check import ChannelCheckMiddleware
+from app.bot.middlewares.user_notify import UserNotifyMiddleware
 from app.utils.log import log
 
 
@@ -24,6 +25,7 @@ async def start_bot() -> None:
     dp.update.outer_middleware(BanCheckMiddleware())
     dp.update.outer_middleware(ThrottleMiddleware())
     dp.update.outer_middleware(ChannelCheckMiddleware())
+    dp.update.outer_middleware(UserNotifyMiddleware())
 
     dp.include_router(start.router)
     dp.include_router(buy.router)

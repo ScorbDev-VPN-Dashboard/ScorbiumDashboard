@@ -217,6 +217,76 @@ async def handle_yookassa_check(callback: CallbackQuery, bot: Bot) -> None:
             await callback.answer(t("payment_error", lang), show_alert=True)
 
 
+# ── СБП (ЮКасса) ─────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("pay:sbp:"))
+async def handle_sbp_payment(callback: CallbackQuery, bot: Bot) -> None:
+    plan_id = int(callback.data.split(":")[2])
+
+    async with AsyncSessionFactory() as session:
+        plan = await PlanService(session).get_by_id(plan_id)
+        lang = await _get_user_lang(callback.from_user.id, session)
+        if not plan or not plan.is_active:
+            await callback.answer(t("no_plans", lang), show_alert=True)
+            return
+
+        try:
+            from app.services.yookassa import YookassaService
+            yk = YookassaService()
+
+            payment = await PaymentService(session).create_pending(
+                user_id=callback.from_user.id,
+                plan=plan,
+                provider=PaymentProvider.YOOKASSA_SBP,
+            )
+            await session.flush()
+            payment_id = payment.id
+
+            me = await bot.get_me()
+            return_url = f"https://t.me/{me.username}"
+
+            yk_payment = yk.create_sbp_payment(
+                amount=plan.price,
+                description=f"VPN — {plan.name}",
+                return_url=return_url,
+                metadata={"payment_id": str(payment.id), "plan_id": str(plan.id)},
+            )
+            payment.external_id = yk_payment.id
+            await session.commit()
+
+            confirm_url = yk_payment.confirmation.confirmation_url
+            sbp_title = {"ru": "🏦 Оплата через СБП", "en": "🏦 SBP Payment", "fa": "🏦 پرداخت SBP"}
+            sbp_hint = {
+                "ru": "После оплаты нажмите «Проверить оплату».",
+                "en": "After payment press Check payment.",
+                "fa": "پس از پرداخت، بررسی پرداخت را فشار دهید.",
+            }
+            builder = InlineKeyboardBuilder()
+            builder.row(InlineKeyboardButton(text=t("payment_go", lang), url=confirm_url))
+            builder.row(InlineKeyboardButton(
+                text=t("payment_check", lang),
+                callback_data=f"yk:check:{payment_id}:{plan.id}",
+            ))
+            builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="back_main"))
+
+            from app.bot.utils.media import edit_with_photo
+            await edit_with_photo(
+                callback,
+                f"🏦 <b>{sbp_title.get(lang, sbp_title['ru'])}</b>\n\n"
+                f"{plan.name} — {plan.price} ₽\n\n"
+                f"{sbp_hint.get(lang, sbp_hint['ru'])}",
+                reply_markup=builder.as_markup(),
+            )
+        except Exception as e:
+            log.error(f"SBP error for user {callback.from_user.id}: {e}")
+            async with AsyncSessionFactory() as s2:
+                kb = await _get_menu_kb(s2, lang=lang)
+            from app.bot.utils.media import edit_with_photo
+            await edit_with_photo(callback, t("payment_error", lang), reply_markup=kb)
+
+    await callback.answer()
+
+
 # ── Telegram Stars ────────────────────────────────────────────────────────────
 
 @router.callback_query(F.data.startswith("pay:stars:"))

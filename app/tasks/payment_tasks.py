@@ -14,6 +14,7 @@ from app.utils.log import log
 
 CHECK_INTERVAL = 60
 MAX_PENDING_AGE = timedelta(hours=24)
+PAYMENT_EXPIRE_MINUTES = 15
 
 
 async def check_pending_yookassa_payments() -> None:
@@ -100,3 +101,18 @@ async def payment_polling_loop() -> None:
     while True:
         await asyncio.sleep(CHECK_INTERVAL)
         await check_pending_yookassa_payments()
+        await expire_old_pending_payments()
+
+
+async def expire_old_pending_payments() -> None:
+    """Отменяет pending платежи старше 15 минут и уведомляет пользователей."""
+    try:
+        async with AsyncSessionFactory() as session:
+            from app.services.payment import PaymentService
+            svc = PaymentService(session)
+            count = await svc.expire_old_pending(max_age_minutes=PAYMENT_EXPIRE_MINUTES)
+            if count:
+                await session.commit()
+                log.info(f"[payment_tasks] Expired {count} old pending payments")
+    except Exception as e:
+        log.error(f"[payment_tasks] expire_old_pending error: {e}")

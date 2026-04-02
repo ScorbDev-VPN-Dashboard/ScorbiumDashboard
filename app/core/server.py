@@ -40,6 +40,7 @@ def _make_dp():
     from app.bot.middlewares import BanCheckMiddleware
     from app.bot.middlewares.throttle import ThrottleMiddleware
     from app.bot.middlewares.channel_check import ChannelCheckMiddleware
+    from app.bot.middlewares.user_notify import UserNotifyMiddleware
 
     handler_modules = [
         "app.bot.handlers.start",
@@ -71,6 +72,7 @@ def _make_dp():
     dp.update.outer_middleware(BanCheckMiddleware())
     dp.update.outer_middleware(ThrottleMiddleware())
     dp.update.outer_middleware(ChannelCheckMiddleware())
+    dp.update.outer_middleware(UserNotifyMiddleware())
     dp.include_router(_start.router)
     dp.include_router(_buy.router)
     dp.include_router(_my_keys.router)

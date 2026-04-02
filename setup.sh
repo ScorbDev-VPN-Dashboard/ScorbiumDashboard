@@ -81,10 +81,21 @@ if [[ "$MODE" == "1" ]]; then
     echo -e "${YELLOW}⚠️  Домен должен уже указывать A-записью на IP этого сервера!${RESET}"
     read -rp "Домен (без https://): " DOMAIN; [[ -z "$DOMAIN" ]] && error "Обязателен"
     read -rp "Email для Let's Encrypt: " LE_EMAIL; [[ -z "$LE_EMAIL" ]] && error "Обязателен"
+    echo ""
+    echo "HTTPS порт:"
+    echo "  1) 443 (стандартный)"
+    echo "  2) 8443 (альтернативный, если 443 занят)"
+    read -rp "Выбор [1/2]: " PORT_CHOICE
+    if [[ "$PORT_CHOICE" == "2" ]]; then
+        HTTPS_PORT=8443
+    else
+        HTTPS_PORT=443
+    fi
     TG_PROTOCOL=webhook
     WEBHOOK_URL="https://${DOMAIN}/webhook/bot"
     ALLOWED_ORIGINS='["https://'"${DOMAIN}"'"]'
-    PANEL_URL="https://${DOMAIN}/panel/"
+    PANEL_URL="https://${DOMAIN}${HTTPS_PORT:+:${HTTPS_PORT}}/panel/"
+    [[ "$HTTPS_PORT" == "443" ]] && PANEL_URL="https://${DOMAIN}/panel/"
 else
     DOMAIN="localhost"
     TG_PROTOCOL=long
@@ -115,6 +126,7 @@ PASARGUARD_API_KEY=
 YOOKASSA_SHOP_ID=${YK_SHOP}
 YOOKASSA_SECRET_KEY=${YK_SECRET}
 CRYPTOBOT_TOKEN=${CRYPTOBOT_TOKEN}
+HTTPS_PORT=${HTTPS_PORT:-443}
 DB_ENGINE=postgresql
 DB_NAME=${DB_NAME}
 DB_HOST=db
