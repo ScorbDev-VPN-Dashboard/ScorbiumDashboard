@@ -1,7 +1,3 @@
-"""
-Утилиты для создания кнопок с поддержкой style и icon_custom_emoji_id.
-style: 'danger' | 'success' | 'primary' | None
-"""
 from typing import Optional
 from aiogram.types import InlineKeyboardButton
 
