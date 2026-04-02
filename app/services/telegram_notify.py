@@ -1,7 +1,3 @@
-"""
-Telegram notification service — sends messages to users from the dashboard.
-Uses httpx directly (no bot instance needed) via Bot API.
-"""
 from typing import Optional
 import httpx
 

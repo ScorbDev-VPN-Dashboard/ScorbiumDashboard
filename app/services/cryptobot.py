@@ -1,7 +1,3 @@
-"""
-CryptoBot (https://t.me/CryptoBot) payment integration.
-API docs: https://help.crypt.bot/crypto-pay-api
-"""
 import httpx
 from typing import Optional
 from app.utils.log import log
@@ -29,7 +25,6 @@ class CryptoBotService:
             return None
 
     async def get_me(self) -> Optional[dict]:
-        """Проверить подключение к CryptoBot."""
         return await self._request("GET", "getMe")
 
     async def create_invoice(

@@ -1,7 +1,3 @@
-"""
-VPN Key service — подписка = VPN ключ.
-Одна таблица vpn_keys хранит всё: статус, срок, цену, ссылку.
-"""
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy import func, select
@@ -23,8 +19,6 @@ class VpnKeyService:
         self.session = session
         self._marzban = PasarguardService()
 
-    # ── Queries ─────────────────────────────────────────────────────────────
-
     async def get_by_id(self, key_id: int) -> Optional[VpnKey]:
         result = await self.session.execute(select(VpnKey).where(VpnKey.id == key_id))
         return result.scalar_one_or_none()
@@ -38,7 +32,6 @@ class VpnKeyService:
         )
         return list(result.scalars().all())
 
-    # kept for backward compat
     async def get_user_keys(self, user_id: int) -> list[VpnKey]:
         return await self.get_active_for_user(user_id)
 
@@ -61,14 +54,9 @@ class VpnKeyService:
         )
         return result.scalar_one()
 
-    # ── Provisioning ─────────────────────────────────────────────────────────
 
     async def provision(self, user_id: int, plan: Plan) -> Optional[VpnKey]:
-        """
-        Создаёт VPN-подписку: запись в БД + пользователь в Marzban.
-        Возвращает VpnKey с заполненным access_url.
-        """
-        # Сначала создаём запись чтобы получить id
+
         expires_at = datetime.now(timezone.utc) + timedelta(days=plan.duration_days)
         key = VpnKey(
             user_id=user_id,
@@ -80,12 +68,11 @@ class VpnKeyService:
             access_url="pending"
         )
         self.session.add(key)
-        await self.session.flush()  # получаем key.id
+        await self.session.flush()
 
         username = _marzban_username(user_id, key.id)
 
         try:
-            # Load group IDs from bot settings
             from app.services.bot_settings import BotSettingsService
             import json as _json
             group_ids: list[int] = []
@@ -103,7 +90,7 @@ class VpnKeyService:
                 group_ids=group_ids or None,
             )
         except Exception as e:
-            log.error(f"Marzban create_user failed for {username}: {e}")
+            log.error(f"Marzban/Pasarguard create_user failed for {username}: {e}")
             await self.session.delete(key)
             await self.session.flush()
             return None
@@ -124,7 +111,6 @@ class VpnKeyService:
         log.info(f"✅ VPN provisioned: user={user_id} key={key.id} marzban={username}")
         return key
 
-    # ── kept for backward compat (called from old panel route) ───────────────
     async def provision_for_subscription(self, user_id: int, subscription_id: int, plan: Plan) -> Optional[VpnKey]:
         return await self.provision(user_id, plan)
 

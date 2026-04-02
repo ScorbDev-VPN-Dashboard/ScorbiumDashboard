@@ -1344,6 +1344,7 @@ _ALL_BUTTONS = [
     {"id": "servers",       "label": "🌐 Серверы",          "callback": "servers"},
     {"id": "top_referrers", "label": "🏆 Топ рефереров",    "callback": "top_referrers"},
     {"id": "status",        "label": "📊 Статус",           "callback": "status_cmd"},
+    {"id": "language",      "label": "🌐 Язык",             "callback": "language"},
 ]
 
 _DEFAULT_LAYOUT = [

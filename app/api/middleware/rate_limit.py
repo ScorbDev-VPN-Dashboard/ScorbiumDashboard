@@ -1,8 +1,3 @@
-"""
-Simple in-memory rate limiter for the FastAPI panel.
-Limits requests per IP using a sliding window counter.
-No external dependencies needed.
-"""
 import time
 from collections import defaultdict, deque
 from fastapi import Request, Response
@@ -26,7 +21,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         self._panel_hits: dict[str, deque] = defaultdict(deque)
         self._api_hits: dict[str, deque] = defaultdict(deque)
-        self._blocked: dict[str, float] = {}  # ip -> unblock_time
+        self._blocked: dict[str, float] = {} 
 
     def _get_ip(self, request: Request) -> str:
         forwarded = request.headers.get("X-Forwarded-For")

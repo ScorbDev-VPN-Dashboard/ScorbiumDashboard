@@ -1,7 +1,3 @@
-"""
-Telegram Stars payment service.
-Stars — внутренняя валюта Telegram. Оплата через invoice.
-"""
 from typing import Optional
 from aiogram import Bot
 from aiogram.types import LabeledPrice
@@ -21,14 +17,13 @@ class TelegramStarsService:
         payload: str,
         stars_amount: int,
     ) -> bool:
-        """Отправляет инвойс для оплаты через Telegram Stars."""
         try:
             await self.bot.send_invoice(
                 chat_id=chat_id,
                 title=title,
                 description=description,
                 payload=payload,
-                currency="XTR",  # Telegram Stars currency code
+                currency="XTR", 
                 prices=[LabeledPrice(label=title, amount=stars_amount)],
             )
             return True

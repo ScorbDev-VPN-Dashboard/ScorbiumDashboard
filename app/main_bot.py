@@ -6,6 +6,7 @@ from aiogram.client.default import DefaultBotProperties
 from app.core.config import config
 from app.core.database import init_db, close_db
 from app.bot.handlers import start, buy, my_keys, payments, admin
+from app.bot.handlers import language as language_handler
 from app.bot.middlewares import BanCheckMiddleware
 from app.bot.middlewares.throttle import ThrottleMiddleware
 from app.bot.middlewares.channel_check import ChannelCheckMiddleware
@@ -29,6 +30,7 @@ async def start_bot() -> None:
     dp.include_router(my_keys.router)
     dp.include_router(payments.router)
     dp.include_router(admin.router)
+    dp.include_router(language_handler.router)
 
     log.info("🤖 Bot started (standalone long polling)")
     try:

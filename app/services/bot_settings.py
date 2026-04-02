@@ -37,7 +37,7 @@ DEFAULTS = {
     "photo_profile": "",
     "panel_url": "",
     "keyboard_layout": "",  # JSON раскладка главного меню
-    "bot_language": "ru",   # Язык бота: ru | en
+    "bot_language": "ru",   # Язык бота: ru | en | fa
     "cryptobot_token": "",  # CryptoBot API токен
     # ── Стили inline кнопок ───────────────────────────────────────────────────
     "btn_style_buy": "success",

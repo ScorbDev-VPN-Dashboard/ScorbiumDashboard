@@ -1,9 +1,3 @@
-"""
-Periodic VPN tasks:
-- Expire outdated VPN keys
-- Sync key statuses from Marzban
-Runs as a background asyncio loop.
-"""
 import asyncio
 from datetime import datetime, timezone
 
@@ -56,7 +50,6 @@ async def sync_loop() -> None:
 
 
 async def notify_expiring_soon() -> None:
-    """Уведомляет пользователей у которых подписка истекает через 3 дня."""
     from datetime import datetime, timezone, timedelta
     from sqlalchemy import select
     from app.models.vpn_key import VpnKey, VpnKeyStatus
@@ -94,10 +87,6 @@ async def notify_expiring_soon() -> None:
 
 
 async def auto_renew_keys() -> None:
-    """
-    Автопродление: при истечении подписки списывает стоимость с баланса
-    и продлевает ключ в Marzban.
-    """
     from datetime import datetime, timezone, timedelta
     from sqlalchemy import select
     from app.models.vpn_key import VpnKey, VpnKeyStatus

@@ -1,8 +1,3 @@
-"""
-Marzban VPN Panel API client.
-Docs: /docs на вашей панели (OpenAPI).
-Auth: OAuth2 password flow → Bearer token.
-"""
 import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Optional

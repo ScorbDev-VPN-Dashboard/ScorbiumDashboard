@@ -1,8 +1,3 @@
-"""
-Простая система локализации для бота.
-Язык хранится в bot_settings['bot_language'] (ru/en).
-Строки редактируются через панель управления.
-"""
 from typing import Optional
 
 # ── Строки по умолчанию ───────────────────────────────────────────────────────
@@ -211,12 +206,129 @@ STRINGS: dict[str, dict[str, str]] = {
         "profile_ref_code": "🎫 Ref code: <code>{code}</code>",
         "profile_expiry_warn": "⚠️ Nearest expiry: <b>{date}</b> (in {days} days)",
         "profile_expiry": "📅 Nearest expiry: <b>{date}</b>",
+        # Language selection
+        "choose_language": "🌐 Choose language:",
+        "language_set": "✅ Language changed to English",
+        "btn_language": "🌐 Language",
+    },
+
+    "fa": {
+        # منوی اصلی
+        "welcome": "👋 سلام، {name}!\n\nاین یک ربات VPN است. یک گزینه انتخاب کنید:",
+        "welcome_back": "خوش برگشتی، {name}!",
+        "main_menu": "منوی اصلی:",
+
+        # دکمه‌های منو
+        "btn_my_keys": "🔑 اشتراک‌های من",
+        "btn_buy": "💳 خرید اشتراک",
+        "btn_support": "💬 پشتیبانی",
+        "btn_balance": "💰 موجودی",
+        "btn_promo": "🎁 کد تخفیف",
+
+        # خرید
+        "choose_plan": "💳 <b>یک طرح اشتراک انتخاب کنید:</b>",
+        "no_plans": "😔 هیچ طرحی موجود نیست. بعداً دوباره امتحان کنید.",
+        "choose_payment": "💳 <b>{plan_name}</b> — {price} ₽\n\nروش پرداخت را انتخاب کنید:",
+        "pay_card": "💳 کارت بانکی (YooKassa)",
+        "pay_stars": "⭐ Telegram Stars ({stars} ⭐)",
+        "pay_crypto": "₿ ارز دیجیتال (CryptoBot)",
+        "pay_balance": "💰 موجودی ({balance:.0f} ₽)",
+        "pay_back": "◀️ بازگشت",
+
+        # پرداخت
+        "payment_success": "✅ پرداخت موفق بود!",
+        "payment_pending": "⏳ پرداخت هنوز دریافت نشده. بعداً دوباره امتحان کنید.",
+        "payment_failed": "❌ پرداخت لغو شد.",
+        "payment_error": "❌ خطا در ایجاد پرداخت. بعداً دوباره امتحان کنید.",
+        "payment_check": "🔄 بررسی پرداخت",
+        "payment_go": "💳 رفتن به پرداخت",
+        "subscription_url": "🔑 <b>لینک اشتراک:</b>\n<code>{url}</code>\n\n📅 معتبر برای <b>{days} روز</b>\n\n💡 لینک را کپی کرده و در کلاینت VPN وارد کنید",
+        "key_error": "⚠️ ایجاد کلید ناموفق بود. با پشتیبانی تماس بگیرید.",
+
+        # اشتراک‌ها
+        "my_keys_title": "📦 <b>اشتراک‌های من</b>",
+        "no_keys": "📦 هنوز اشتراکی ندارید.\n\nبرای دسترسی به VPN اشتراک بخرید.",
+        "active_count": "✅ فعال: <b>{count}</b>",
+        "archive_count": "🗂 آرشیو: <b>{count}</b>",
+        "no_active": "😔 اشتراک فعالی وجود ندارد",
+        "archive_btn": "🗂 آرشیو ({count})",
+        "archive_title": "🗂 <b>آرشیو اشتراک‌ها</b> ({count}):",
+        "archive_empty": "آرشیو خالی است",
+        "back_main": "◀️ منوی اصلی",
+        "back": "◀️ بازگشت",
+
+        # وضعیت‌ها
+        "status_active": "✅ فعال",
+        "status_expired": "⏰ منقضی شده",
+        "status_revoked": "❌ لغو شده",
+
+        # موجودی
+        "balance_title": "💰 <b>موجودی شما:</b> <b>{balance:.2f} ₽</b>",
+        "referrals_count": "👥 <b>معرفی‌ها:</b> {count}",
+        "referral_bonus": "🎁 <b>پاداش معرفی:</b> {bonus}",
+        "referral_link": "🔗 <b>لینک معرفی شما:</b>\n<code>{link}</code>",
+
+        # کد تخفیف
+        "enter_promo": "🎁 کد تخفیف را وارد کنید:",
+        "promo_balance": "✅ کد تخفیف اعمال شد!\n\n💰 <b>{value} ₽</b> به موجودی اضافه شد",
+        "promo_days": "✅ کد تخفیف اعمال شد!\n\n📅 <b>{value} روز</b> به اشتراک اضافه شد",
+        "promo_discount": "✅ کد تخفیف اعمال شد!\n\n🏷 تخفیف <b>{value}%</b> برای خرید بعدی",
+        "promo_invalid": "❌ کد تخفیف نامعتبر یا قبلاً استفاده شده",
+
+        # پشتیبانی
+        "support_title": "💬 <b>پشتیبانی</b>",
+        "support_no_tickets": "هیچ تیکتی ندارید. یک تیکت جدید ایجاد کنید.",
+        "support_tickets": "تیکت‌های شما ({count}):\n\nیک تیکت انتخاب کنید یا جدید ایجاد کنید.",
+        "new_ticket": "➕ تیکت جدید",
+        "ticket_subject": "💬 <b>تیکت جدید</b>\n\nموضوع را وارد کنید (به اختصار):",
+        "ticket_message": "📝 موضوع: <b>{subject}</b>\n\nاکنون مشکل خود را با جزئیات بیشتر توضیح دهید:",
+        "ticket_created": "✅ <b>تیکت #{id} ایجاد شد!</b>\n\nموضوع: <b>{subject}</b>\n\nبه زودی پاسخ می‌دهیم.",
+        "ticket_closed": "✅ <b>تیکت #{id} بسته شد.</b>\n\nممنون از تماس شما!",
+        "ticket_reply_sent": "✅ پاسخ به تیکت #{id} ارسال شد!\n\nبه زودی پاسخ می‌دهیم.",
+        "ticket_not_found": "❌ تیکت پیدا نشد.",
+        "write_reply": "✏️ نوشتن پاسخ",
+        "close_ticket": "🔒 بستن تیکت",
+
+        # سیستم
+        "banned": "🚫 حساب شما مسدود شده. با پشتیبانی تماس بگیرید.",
+        "bot_disabled": "🔧 ربات موقتاً غیرفعال است. بعداً دوباره امتحان کنید.",
+        "subscribe_channel": "📢 <b>برای استفاده از ربات باید در {channel} عضو شوید.</b>\n\nپس از عضویت، «عضو شدم» را فشار دهید.",
+        "subscribe_btn": "📢 عضویت",
+        "subscribed_btn": "✅ عضو شدم",
+        "not_subscribed": "❌ هنوز در کانال عضو نشده‌اید.",
+        "too_fast": "⏳ درخواست‌های زیادی. لطفاً صبر کنید.",
+
+        # پروفایل
+        "profile_title": "👤 <b>پروفایل من</b>",
+        "profile_id": "🆔 شناسه: <code>{id}</code>",
+        "profile_name": "📛 نام: <b>{name}</b>",
+        "profile_username": "🔗 نام کاربری: {username}",
+        "profile_reg": "📅 تاریخ ثبت‌نام: {date}",
+        "profile_balance": "💰 موجودی: <b>{balance:.2f} ₽</b>",
+        "profile_spent": "💳 هزینه شده: <b>{spent:.2f} ₽</b>",
+        "profile_active": "🔑 اشتراک‌های فعال: <b>{count}</b>",
+        "profile_archive": "🗂 آرشیو: <b>{count}</b>",
+        "profile_referrals": "👥 معرفی‌ها: <b>{count}</b>",
+        "profile_ref_link": "🔗 لینک معرفی:\n<code>{link}</code>",
+        "profile_ref_code": "🎫 کد معرفی: <code>{code}</code>",
+        "profile_expiry_warn": "⚠️ نزدیک‌ترین انقضا: <b>{date}</b> (در {days} روز)",
+        "profile_expiry": "📅 نزدیک‌ترین انقضا: <b>{date}</b>",
+        # انتخاب زبان
+        "choose_language": "🌐 زبان را انتخاب کنید:",
+        "language_set": "✅ زبان به فارسی تغییر یافت",
+        "btn_language": "🌐 زبان",
     },
 }
 
 
+STRINGS["ru"].update({
+    "choose_language": "🌐 Выберите язык:",
+    "language_set": "✅ Язык изменён на русский",
+    "btn_language": "🌐 Язык",
+})
+
+
 def t(key: str, lang: str = "ru", **kwargs) -> str:
-    """Translate a key to the given language with optional format args."""
     lang_strings = STRINGS.get(lang, STRINGS["ru"])
     template = lang_strings.get(key, STRINGS["ru"].get(key, key))
     if kwargs:
@@ -227,6 +339,7 @@ def t(key: str, lang: str = "ru", **kwargs) -> str:
     return template
 
 
-def get_lang(settings: dict) -> str:
-    """Get language from bot_settings dict."""
+def get_lang(settings: dict, user_lang: str | None = None) -> str:
+    if user_lang and user_lang in STRINGS:
+        return user_lang
     return settings.get("bot_language", "ru")

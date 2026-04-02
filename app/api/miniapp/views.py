@@ -1,7 +1,3 @@
-"""
-Mini App API — для пользователей Telegram.
-Авторизация через Telegram WebApp initData (HMAC-SHA256).
-"""
 import hashlib
 import hmac
 import json

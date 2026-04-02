@@ -126,6 +126,28 @@
 <!-- ══ TAB: КАСТОМИЗАЦИЯ ═════════════════════════════════════════════════════ -->
 <div id="tab-customize" class="tab-pane">
 <div class="row g-3">
+
+  <!-- Language selection -->
+  <div class="col-12">
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-translate me-2 text-muted"></i>Язык бота по умолчанию</div>
+      <form hx-post="/panel/telegram/bot-settings" hx-swap="none" hx-on::after-request="showToast('Сохранено', 'success')">
+        <div class="d-flex gap-3 flex-wrap align-items-end">
+          <div>
+            <label class="form-label">Язык по умолчанию</label>
+            <select name="bot_language" class="form-select" style="min-width:180px">
+              <option value="ru" {% if bot_settings.get('bot_language','ru')=='ru' %}selected{% endif %}>🇷🇺 Русский</option>
+              <option value="en" {% if bot_settings.get('bot_language')=='en' %}selected{% endif %}>🇬🇧 English</option>
+              <option value="fa" {% if bot_settings.get('bot_language')=='fa' %}selected{% endif %}>🇮🇷 فارسی (Persian)</option>
+            </select>
+            <div style="font-size:.7rem;color:#8892a4;margin-top:.25rem">Пользователи могут менять язык кнопкой «🌐 Язык» в боте</div>
+          </div>
+          <button type="submit" class="btn btn-accent"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="col-lg-6">
     <div class="card p-3 mb-3">
       <div class="fw-semibold text-white mb-3"><i class="bi bi-chat-text me-2 text-muted"></i>Тексты бота</div>

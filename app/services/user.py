@@ -29,7 +29,6 @@ class UserService:
         return user
 
     async def get_or_create(self, data: UserCreate) -> tuple[User, bool]:
-        """Returns (user, created). Used in bot on /start."""
         user = await self.get_by_id(data.id)
         if user:
             return user, False
@@ -66,7 +65,7 @@ class UserService:
             return None
         current = user.balance or Decimal("0")
         if current < Decimal(str(amount)):
-            return None  # insufficient
+            return None
         user.balance = current - Decimal(str(amount))
         await self.session.flush()
         return user
