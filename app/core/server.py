@@ -119,6 +119,19 @@ async def _lifespan(app: FastAPI):
     asyncio.create_task(expire_loop())
     asyncio.create_task(sync_loop())
 
+    # Seed CryptoBot token from .env into bot_settings if not already set
+    import os as _os
+    _env_cryptobot = _os.environ.get("CRYPTOBOT_TOKEN", "").strip()
+    if _env_cryptobot:
+        from app.core.database import AsyncSessionFactory as _ASF
+        from app.services.bot_settings import BotSettingsService as _BSS
+        async with _ASF() as _s:
+            _existing = await _BSS(_s).get("cryptobot_token")
+            if not _existing:
+                await _BSS(_s).set("cryptobot_token", _env_cryptobot)
+                await _s.commit()
+                log.info("✅ CryptoBot token seeded from .env")
+
     log.info("✅ Application ready")
     yield
 

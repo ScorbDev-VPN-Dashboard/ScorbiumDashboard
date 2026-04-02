@@ -46,12 +46,26 @@ DEFAULTS = {
     "btn_style_balance": "",
     "btn_style_promo": "",
     "btn_style_back": "",
+    "btn_style_profile": "",
+    "btn_style_connect": "",
+    "btn_style_about": "",
+    "btn_style_servers": "",
+    "btn_style_top_referrers": "",
+    "btn_style_status": "",
+    "btn_style_language": "",
     # ── Custom emoji ID для кнопок (Premium) ─────────────────────────────────
     "btn_emoji_buy": "",
     "btn_emoji_my_keys": "",
     "btn_emoji_support": "",
     "btn_emoji_balance": "",
     "btn_emoji_promo": "",
+    "btn_emoji_profile": "",
+    "btn_emoji_connect": "",
+    "btn_emoji_about": "",
+    "btn_emoji_servers": "",
+    "btn_emoji_top_referrers": "",
+    "btn_emoji_status": "",
+    "btn_emoji_language": "",
 }
 
 

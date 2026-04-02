@@ -4,6 +4,11 @@ from aiogram.types import InlineKeyboardMarkup
 from app.bot.keyboards.main import main_menu_kb, _DEFAULT_LAYOUT
 from app.services.bot_settings import BotSettingsService
 
+_BUTTON_IDS = [
+    "my_keys", "buy", "profile", "balance", "promo", "support",
+    "connect", "about", "servers", "top_referrers", "status", "language",
+]
+
 
 async def get_main_menu_kb(session) -> InlineKeyboardMarkup:
     s = await BotSettingsService(session).get_all()
@@ -15,23 +20,15 @@ async def get_main_menu_kb(session) -> InlineKeyboardMarkup:
     except Exception:
         layout = _DEFAULT_LAYOUT
 
-    # Load styles
-    styles = {
-        "my_keys":       s.get("btn_style_my_keys", "primary"),
-        "buy":           s.get("btn_style_buy", "success"),
-        "profile":       s.get("btn_style_profile", ""),
-        "balance":       s.get("btn_style_balance", ""),
-        "promo":         s.get("btn_style_promo", ""),
-        "support":       s.get("btn_style_support", ""),
-        "connect":       s.get("btn_style_connect", ""),
-        "about":         s.get("btn_style_about", ""),
-        "servers":       s.get("btn_style_servers", ""),
-        "top_referrers": s.get("btn_style_top_referrers", ""),
-        "status":        s.get("btn_style_status", ""),
-    }
+    # Load styles for all known buttons
+    styles = {bid: s.get(f"btn_style_{bid}", "") for bid in _BUTTON_IDS}
+
+    # Load custom emojis
+    emojis = {bid: s.get(f"btn_emoji_{bid}", "") for bid in _BUTTON_IDS}
 
     return main_menu_kb(
         support_url=s.get("support_url", ""),
         layout=layout,
         styles=styles,
+        emojis=emojis,
     )

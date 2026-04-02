@@ -11,12 +11,20 @@ from app.services.payment import PaymentService
 from app.services.plan import PlanService
 from app.services.vpn_key import VpnKeyService
 from app.services.bot_settings import BotSettingsService
+from app.services.user import UserService
 from app.services.telegram_stars import TelegramStarsService
 from app.services.cryptobot import CryptoBotService
 from app.services.i18n import t, get_lang
 from app.utils.log import log
 
 router = Router()
+
+
+async def _get_user_lang(user_id: int, session) -> str:
+    user = await UserService(session).get_by_id(user_id)
+    settings = await BotSettingsService(session).get_all()
+    user_lang = user.language if user and user.language else None
+    return get_lang(settings, user_lang)
 
 
 async def _provision_and_notify(user_id: int, payment_id: int, plan_id: int, bot: Bot) -> None:
@@ -63,24 +71,24 @@ async def handle_balance_payment(callback: CallbackQuery, bot: Bot) -> None:
 
     async with AsyncSessionFactory() as session:
         plan = await PlanService(session).get_by_id(plan_id)
+        lang = await _get_user_lang(callback.from_user.id, session)
         if not plan or not plan.is_active:
-            await callback.answer("Тариф недоступен", show_alert=True)
+            await callback.answer(t("no_plans", lang), show_alert=True)
             return
 
-        from app.services.user import UserService
         user = await UserService(session).get_by_id(callback.from_user.id)
         balance = float(user.balance or 0) if user else 0.0
 
         if balance < float(plan.price):
             await callback.answer(
-                f"❌ Недостаточно средств. Баланс: {balance:.2f} ₽, нужно: {plan.price} ₽",
+                f"❌ {'Недостаточно средств' if lang=='ru' else 'Insufficient funds'}. {balance:.2f} ₽ / {plan.price} ₽",
                 show_alert=True,
             )
             return
 
         updated = await UserService(session).deduct_balance(callback.from_user.id, plan.price)
         if not updated:
-            await callback.answer("❌ Ошибка списания баланса", show_alert=True)
+            await callback.answer(t("payment_error", lang), show_alert=True)
             return
 
         payment = await PaymentService(session).create_pending(
@@ -95,7 +103,7 @@ async def handle_balance_payment(callback: CallbackQuery, bot: Bot) -> None:
         plan_id_saved = plan.id
         await session.commit()
 
-    await callback.answer("⏳ Оформляем подписку...", show_alert=False)
+    await callback.answer("⏳", show_alert=False)
     await _provision_and_notify(callback.from_user.id, payment_id, plan_id_saved, bot)
 
 
@@ -107,8 +115,9 @@ async def handle_yookassa_payment(callback: CallbackQuery, bot: Bot) -> None:
 
     async with AsyncSessionFactory() as session:
         plan = await PlanService(session).get_by_id(plan_id)
+        lang = await _get_user_lang(callback.from_user.id, session)
         if not plan or not plan.is_active:
-            await callback.answer("Тариф недоступен", show_alert=True)
+            await callback.answer(t("no_plans", lang), show_alert=True)
             return
 
         try:
@@ -137,18 +146,18 @@ async def handle_yookassa_payment(callback: CallbackQuery, bot: Bot) -> None:
 
             confirm_url = yk_payment.confirmation.confirmation_url
             builder = InlineKeyboardBuilder()
-            builder.row(InlineKeyboardButton(text="💳 Перейти к оплате", url=confirm_url))
+            builder.row(InlineKeyboardButton(text=t("payment_go", lang), url=confirm_url))
             builder.row(InlineKeyboardButton(
-                text="🔄 Проверить оплату",
+                text=t("payment_check", lang),
                 callback_data=f"yk:check:{payment_id}:{plan.id}",
             ))
-            builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="back_main"))
+            builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="back_main"))
 
             try:
                 await callback.message.edit_text(
-                    f"💳 <b>Оплата через ЮКассу</b>\n\n"
-                    f"Тариф: <b>{plan.name}</b> — {plan.price} ₽\n\n"
-                    "После оплаты нажмите «Проверить оплату».",
+                    f"💳 <b>{t('pay_card', lang)}</b>\n\n"
+                    f"{plan.name} — {plan.price} ₽\n\n"
+                    f"{'После оплаты нажмите «Проверить оплату».' if lang=='ru' else 'After payment press Check payment.'}",
                     reply_markup=builder.as_markup(),
                     parse_mode="HTML",
                 )
@@ -159,7 +168,7 @@ async def handle_yookassa_payment(callback: CallbackQuery, bot: Bot) -> None:
             async with AsyncSessionFactory() as s2:
                 kb = await _get_menu_kb(s2)
             try:
-                await callback.message.edit_text("❌ Ошибка при создании платежа. Попробуй позже.", reply_markup=kb)
+                await callback.message.edit_text(t("payment_error", lang), reply_markup=kb)
             except Exception:
                 pass
 
@@ -173,17 +182,18 @@ async def handle_yookassa_check(callback: CallbackQuery, bot: Bot) -> None:
     plan_id = int(parts[3])
 
     async with AsyncSessionFactory() as session:
+        lang = await _get_user_lang(callback.from_user.id, session)
         payment = await PaymentService(session).get_by_id(payment_id)
         if not payment or payment.user_id != callback.from_user.id:
-            await callback.answer("Платёж не найден", show_alert=True)
+            await callback.answer("❌", show_alert=True)
             return
         if not payment.external_id:
-            await callback.answer("ID платежа не найден. Обратитесь в поддержку.", show_alert=True)
+            await callback.answer(t("payment_error", lang), show_alert=True)
             return
 
         from app.models.payment import PaymentStatus
         if payment.status == PaymentStatus.SUCCEEDED:
-            await callback.answer("✅ Оплата уже подтверждена!", show_alert=True)
+            await callback.answer(t("payment_success", lang), show_alert=True)
             return
 
         try:
@@ -192,17 +202,17 @@ async def handle_yookassa_check(callback: CallbackQuery, bot: Bot) -> None:
             if yk_payment.status == "succeeded":
                 payment.status = PaymentStatus.SUCCEEDED.value
                 await session.commit()
-                await callback.answer("✅ Оплата подтверждена!", show_alert=True)
+                await callback.answer(t("payment_success", lang), show_alert=True)
                 await _provision_and_notify(callback.from_user.id, payment_id, plan_id, bot)
             elif yk_payment.status == "canceled":
                 payment.status = PaymentStatus.FAILED.value
                 await session.commit()
-                await callback.answer("❌ Платёж отменён.", show_alert=True)
+                await callback.answer(t("payment_failed", lang), show_alert=True)
             else:
-                await callback.answer("⏳ Оплата ещё не поступила. Попробуйте позже.", show_alert=True)
+                await callback.answer(t("payment_pending", lang), show_alert=True)
         except Exception as e:
             log.error(f"YooKassa check error: {e}")
-            await callback.answer("❌ Ошибка проверки платежа.", show_alert=True)
+            await callback.answer(t("payment_error", lang), show_alert=True)
 
 
 # ── Telegram Stars ────────────────────────────────────────────────────────────
@@ -213,8 +223,9 @@ async def handle_stars_payment(callback: CallbackQuery, bot: Bot) -> None:
 
     async with AsyncSessionFactory() as session:
         plan = await PlanService(session).get_by_id(plan_id)
+        lang = await _get_user_lang(callback.from_user.id, session)
         if not plan or not plan.is_active:
-            await callback.answer("Тариф недоступен", show_alert=True)
+            await callback.answer(t("no_plans", lang), show_alert=True)
             return
 
         stars = TelegramStarsService.rub_to_stars(float(plan.price))
@@ -229,7 +240,7 @@ async def handle_stars_payment(callback: CallbackQuery, bot: Bot) -> None:
     ok = await TelegramStarsService(bot).send_invoice(
         chat_id=callback.from_user.id,
         title=f"VPN — {plan.name}",
-        description=f"Подписка на {plan.duration_days} дней",
+        description=f"{plan.duration_days} {'дней' if lang == 'ru' else 'days'}",
         payload=f"stars:{payment_id}:{plan_id}",
         stars_amount=stars,
     )
@@ -237,15 +248,14 @@ async def handle_stars_payment(callback: CallbackQuery, bot: Bot) -> None:
     try:
         if ok:
             await callback.message.edit_text(
-                f"⭐ <b>Оплата через Telegram Stars</b>\n\n"
-                f"Тариф: <b>{plan.name}</b>\nСтоимость: <b>{stars} ⭐</b>\n\nСчёт отправлен выше 👆",
+                t("pay_stars", lang, stars=stars),
                 reply_markup=back_kb(),
                 parse_mode="HTML",
             )
         else:
             async with AsyncSessionFactory() as s2:
                 kb = await _get_menu_kb(s2)
-            await callback.message.edit_text("❌ Ошибка при создании счёта.", reply_markup=kb)
+            await callback.message.edit_text(t("payment_error", lang), reply_markup=kb)
     except Exception:
         pass
 
@@ -280,6 +290,114 @@ async def successful_payment(message: Message, bot: Bot) -> None:
     await _provision_and_notify(message.from_user.id, payment_id, plan_id, bot)
 
 
+# ── CryptoBot ─────────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("pay:crypto:"))
+async def handle_crypto_payment(callback: CallbackQuery, bot: Bot) -> None:
+    plan_id = int(callback.data.split(":")[2])
+
+    async with AsyncSessionFactory() as session:
+        plan = await PlanService(session).get_by_id(plan_id)
+        settings = await BotSettingsService(session).get_all()
+        lang = await _get_user_lang(callback.from_user.id, session)
+
+        if not plan or not plan.is_active:
+            await callback.answer(t("no_plans", lang), show_alert=True)
+            return
+
+        crypto = CryptoBotService.from_settings(settings)
+        if not crypto:
+            await callback.answer(t("payment_error", lang), show_alert=True)
+            return
+
+        try:
+            usdt_amount = await crypto.rub_to_usdt(float(plan.price))
+            payment = await PaymentService(session).create_pending(
+                user_id=callback.from_user.id,
+                plan=plan,
+                provider=PaymentProvider.CRYPTOBOT,
+            )
+            await session.flush()
+            payment_id = payment.id
+
+            invoice = await crypto.create_invoice(
+                amount=usdt_amount,
+                currency="USDT",
+                description=f"VPN — {plan.name}",
+                payload=f"crypto:{payment_id}:{plan_id}",
+            )
+
+            if not invoice:
+                await session.rollback()
+                await callback.answer(t("payment_error", lang), show_alert=True)
+                return
+
+            payment.external_id = str(invoice["invoice_id"])
+            await session.commit()
+
+            pay_url = invoice.get("pay_url", "")
+            builder = InlineKeyboardBuilder()
+            builder.row(InlineKeyboardButton(text=t("payment_go", lang), url=pay_url))
+            builder.row(InlineKeyboardButton(
+                text=t("payment_check", lang),
+                callback_data=f"crypto:check:{payment_id}:{plan_id}",
+            ))
+            builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="back_main"))
+
+            await callback.message.edit_text(
+                f"₿ <b>{t('pay_crypto', lang)}</b>\n\n"
+                f"{plan.name} — {plan.price} ₽ (~{usdt_amount} USDT)\n\n"
+                f"{t('payment_check', lang)}.",
+                reply_markup=builder.as_markup(),
+                parse_mode="HTML",
+            )
+        except Exception as e:
+            log.error(f"CryptoBot error for user {callback.from_user.id}: {e}")
+            async with AsyncSessionFactory() as s2:
+                kb = await _get_menu_kb(s2)
+            await callback.message.edit_text(t("payment_error", lang), reply_markup=kb)
+
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("crypto:check:"))
+async def handle_crypto_check(callback: CallbackQuery, bot: Bot) -> None:
+    parts = callback.data.split(":")
+    payment_id = int(parts[2])
+    plan_id = int(parts[3])
+
+    async with AsyncSessionFactory() as session:
+        lang = await _get_user_lang(callback.from_user.id, session)
+        payment = await PaymentService(session).get_by_id(payment_id)
+        if not payment or payment.user_id != callback.from_user.id:
+            await callback.answer("❌", show_alert=True)
+            return
+
+        from app.models.payment import PaymentStatus
+        if payment.status == PaymentStatus.SUCCEEDED:
+            await callback.answer(t("payment_success", lang), show_alert=True)
+            return
+
+        settings = await BotSettingsService(session).get_all()
+        crypto = CryptoBotService.from_settings(settings)
+        if not crypto or not payment.external_id:
+            await callback.answer(t("payment_error", lang), show_alert=True)
+            return
+
+        try:
+            invoice = await crypto.get_invoice(int(payment.external_id))
+            if invoice and invoice.get("status") == "paid":
+                payment.status = PaymentStatus.SUCCEEDED.value
+                await session.commit()
+                await callback.answer(t("payment_success", lang), show_alert=True)
+                await _provision_and_notify(callback.from_user.id, payment_id, plan_id, bot)
+            else:
+                await callback.answer(t("payment_pending", lang), show_alert=True)
+        except Exception as e:
+            log.error(f"CryptoBot check error: {e}")
+            await callback.answer(t("payment_error", lang), show_alert=True)
+
+
 @router.callback_query(F.data.startswith("pay:"))
 async def handle_payment_fallback(callback: CallbackQuery) -> None:
-    await callback.answer("Неизвестный способ оплаты", show_alert=True)
+    await callback.answer("❌", show_alert=True)

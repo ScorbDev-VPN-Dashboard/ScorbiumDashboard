@@ -148,6 +148,30 @@
     </div>
   </div>
 
+  <!-- CryptoBot token -->
+  <div class="col-12">
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-currency-bitcoin me-2 text-muted"></i>CryptoBot (оплата криптовалютой)</div>
+      <form hx-post="/panel/telegram/bot-settings" hx-swap="none" hx-on::after-request="showToast('Сохранено', 'success')">
+        <div class="d-flex gap-3 flex-wrap align-items-end">
+          <div style="flex:1;min-width:260px">
+            <label class="form-label">API Token</label>
+            <input type="text" name="cryptobot_token" class="form-control font-monospace"
+              placeholder="Получить у @CryptoBot → /pay"
+              value="{{ bot_settings.get('cryptobot_token','') }}" />
+            <div style="font-size:.7rem;color:#8892a4;margin-top:.25rem">
+              Получить токен: <a href="https://t.me/CryptoBot" target="_blank" style="color:#6c63ff">@CryptoBot</a> → /pay → Create App
+              {% if bot_settings.get('cryptobot_token') %}
+              <span style="color:#22c55e;margin-left:.5rem"><i class="bi bi-check-circle-fill"></i> Активно</span>
+              {% endif %}
+            </div>
+          </div>
+          <button type="submit" class="btn btn-accent"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="col-lg-6">
     <div class="card p-3 mb-3">
       <div class="fw-semibold text-white mb-3"><i class="bi bi-chat-text me-2 text-muted"></i>Тексты бота</div>

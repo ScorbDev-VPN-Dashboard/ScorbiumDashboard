@@ -70,14 +70,25 @@ async def cmd_start(message: Message) -> None:
         await session.commit()
 
         settings_svc = BotSettingsService(session)
-        welcome_tpl = await settings_svc.get("welcome_message")
+        settings = await settings_svc.get_all()
+        welcome_tpl = settings.get("welcome_message")
         kb = await _get_menu_kb(session)
 
-    welcome = (welcome_tpl or "👋 Привет, {name}!\n\nЭто VPN-бот. Выбери действие:").format(
-        name=message.from_user.first_name
-    )
-    if not created:
-        welcome = welcome.replace("Привет", "С возвращением").replace("Добро пожаловать", "С возвращением")
+    from app.services.i18n import t, get_lang
+    async with AsyncSessionFactory() as session:
+        _user = await UserService(session).get_by_id(message.from_user.id)
+        user_lang = _user.language if _user and _user.language else None
+    from app.services.bot_settings import BotSettingsService as _BSS
+    async with AsyncSessionFactory() as session:
+        _settings = await _BSS(session).get_all()
+    lang = get_lang(_settings, user_lang)
+
+    if welcome_tpl:
+        welcome = welcome_tpl.format(name=message.from_user.first_name)
+        if not created:
+            welcome = welcome.replace("Привет", "С возвращением").replace("Добро пожаловать", "С возвращением")
+    else:
+        welcome = t("welcome" if created else "welcome_back", lang, name=message.from_user.first_name)
 
     from app.bot.utils.media import answer_with_photo
     async with AsyncSessionFactory() as session:
@@ -91,13 +102,19 @@ async def back_to_main(callback: CallbackQuery, state: FSMContext) -> None:
     async with AsyncSessionFactory() as session:
         kb = await _get_menu_kb(session)
         photo = await BotSettingsService(session).get("photo_welcome")
+        settings = await BotSettingsService(session).get_all()
+        user = await UserService(session).get_by_id(callback.from_user.id)
+    from app.services.i18n import t, get_lang
+    user_lang = user.language if user and user.language else None
+    lang = get_lang(settings, user_lang)
     from app.bot.utils.media import edit_with_photo
-    await edit_with_photo(callback, "Главное меню:", reply_markup=kb, photo=photo or None)
+    await edit_with_photo(callback, t("main_menu", lang), reply_markup=kb, photo=photo or None)
     await callback.answer()
 
 
 @router.callback_query(F.data == "balance")
 async def show_balance(callback: CallbackQuery) -> None:
+    from app.services.i18n import t, get_lang
     async with AsyncSessionFactory() as session:
         user = await UserService(session).get_by_id(callback.from_user.id)
         ref_count = await ReferralService(session).count_referrals(callback.from_user.id)
@@ -106,19 +123,22 @@ async def show_balance(callback: CallbackQuery) -> None:
         referral_code = user.referral_code if user else None
         photo = settings.get("photo_balance") or None
 
+    user_lang = user.language if user and user.language else None
+    lang = get_lang(settings, user_lang)
+
     bot_username = await _get_bot_username()
     ref_link = f"https://t.me/{bot_username}?start={referral_code}" if referral_code and bot_username else "—"
 
     bonus_type = settings.get("referral_bonus_type", "days")
     bonus_value = settings.get("referral_bonus_value", "3")
-    bonus_labels = {"days": f"+{bonus_value} дней", "balance": f"+{bonus_value} ₽", "percent": f"{bonus_value}% скидка"}
+    bonus_labels = {"days": f"+{bonus_value} {'дней' if lang=='ru' else 'days'}", "balance": f"+{bonus_value} ₽", "percent": f"{bonus_value}%"}
     bonus_text = bonus_labels.get(bonus_type, f"+{bonus_value}")
 
     text = (
-        f"💰 <b>Ваш баланс:</b> <b>{balance:.2f} ₽</b>\n\n"
-        f"👥 <b>Рефералов:</b> {ref_count}\n"
-        f"🎁 <b>Бонус за реферала:</b> {bonus_text}\n\n"
-        f"🔗 <b>Ваша реферальная ссылка:</b>\n<code>{ref_link}</code>"
+        t("balance_title", lang, balance=balance) + "\n\n" +
+        t("referrals_count", lang, count=ref_count) + "\n" +
+        t("referral_bonus", lang, bonus=bonus_text) + "\n\n" +
+        t("referral_link", lang, link=ref_link)
     )
     from app.bot.utils.media import edit_with_photo
     await edit_with_photo(callback, text, reply_markup=back_kb(), photo=photo)
@@ -127,28 +147,39 @@ async def show_balance(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data == "enter_promo")
 async def ask_promo(callback: CallbackQuery, state: FSMContext) -> None:
+    from app.services.i18n import t, get_lang
+    async with AsyncSessionFactory() as session:
+        user = await UserService(session).get_by_id(callback.from_user.id)
+        settings = await BotSettingsService(session).get_all()
+    user_lang = user.language if user and user.language else None
+    lang = get_lang(settings, user_lang)
     await state.set_state(PromoState.waiting_code)
-    await callback.message.edit_text("🎁 Введите промокод:", reply_markup=back_kb())
+    await callback.message.edit_text(t("enter_promo", lang), reply_markup=back_kb())
     await callback.answer()
 
 
 @router.message(PromoState.waiting_code)
 async def process_promo(message: Message, state: FSMContext) -> None:
+    from app.services.i18n import t, get_lang
     code = message.text.strip().upper()
     async with AsyncSessionFactory() as session:
+        user = await UserService(session).get_by_id(message.from_user.id)
+        settings = await BotSettingsService(session).get_all()
+        user_lang = user.language if user and user.language else None
+        lang = get_lang(settings, user_lang)
         promo = await PromoService(session).apply(code)
         if promo:
             pt = str(promo.promo_type)
             if pt == "balance":
                 await UserService(session).add_balance(message.from_user.id, promo.value)
-                result_text = f"✅ Промокод применён!\n\n💰 На баланс зачислено <b>{promo.value} ₽</b>"
+                result_text = t("promo_balance", lang, value=promo.value)
             elif pt == "days":
-                result_text = f"✅ Промокод применён!\n\n📅 Добавлено <b>{int(promo.value)} дней</b> к подписке"
+                result_text = t("promo_days", lang, value=int(promo.value))
             else:
-                result_text = f"✅ Промокод применён!\n\n🏷 Скидка <b>{promo.value}%</b> на следующую покупку"
+                result_text = t("promo_discount", lang, value=promo.value)
             await session.commit()
         else:
-            result_text = "❌ Промокод недействителен или уже использован"
+            result_text = t("promo_invalid", lang)
 
         kb = await _get_menu_kb(session)
 
