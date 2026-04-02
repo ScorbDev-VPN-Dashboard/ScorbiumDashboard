@@ -63,7 +63,9 @@ async def select_plan(callback: CallbackQuery) -> None:
     stars = TelegramStarsService.rub_to_stars(float(plan.price))
     user_balance = float(user.balance or 0) if user else 0.0
 
-    await callback.message.edit_text(
+    from app.bot.utils.media import edit_with_photo
+    await edit_with_photo(
+        callback,
         t("choose_payment", lang, plan_name=plan.name, price=plan.price),
         reply_markup=payment_methods_kb(
             plan_id,
@@ -73,7 +75,6 @@ async def select_plan(callback: CallbackQuery) -> None:
             has_cryptobot=has_cryptobot,
             lang=lang,
         ),
-        parse_mode="HTML",
     )
     await callback.answer()
 

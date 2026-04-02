@@ -1,9 +1,6 @@
 """
-Утилиты для отправки сообщений.
-
-Важно: Telegram поддерживает style (цвет кнопок) ТОЛЬКО при send_message,
-но НЕ при edit_message. Поэтому edit_with_photo всегда удаляет старое
-сообщение и отправляет новое — это единственный способ сохранить стили.
+Утилиты для отправки и редактирования сообщений.
+Корректно обрабатывает сообщения с фото (caption) и без (text).
 """
 from typing import Optional
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup
@@ -40,36 +37,64 @@ async def edit_with_photo(
     parse_mode: str = "HTML",
 ) -> None:
     """
-    Отправляет новое сообщение вместо редактирования.
-    Это необходимо чтобы style (цвет кнопок) применялся корректно —
-    Telegram игнорирует style при edit_message.
+    Редактирует текущее сообщение или отправляет новое.
+    - Если передано фото: удаляет старое, шлёт новое с фото.
+    - Если фото нет: пробует edit_text, при ошибке (сообщение с фото) — edit_caption,
+      при ошибке — удаляет и шлёт новое.
     """
     msg = callback.message
 
-    # Удаляем старое сообщение
-    try:
-        await msg.delete()
-    except Exception:
-        pass
-
-    # Отправляем новое
-    try:
-        if photo:
+    if photo:
+        # Нужно фото — удаляем старое и шлём новое
+        try:
+            await msg.delete()
+        except Exception:
+            pass
+        try:
             await msg.answer_photo(
                 photo=photo,
                 caption=text,
                 reply_markup=reply_markup,
                 parse_mode=parse_mode,
             )
-        else:
-            await msg.answer(
-                text=text,
-                reply_markup=reply_markup,
-                parse_mode=parse_mode,
-            )
-    except Exception:
-        # Fallback: попробуем edit если send не сработал
-        try:
-            await msg.edit_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
         except Exception:
-            pass
+            await msg.answer(text=text, reply_markup=reply_markup, parse_mode=parse_mode)
+        return
+
+    # Без фото — пробуем редактировать
+    # Сначала edit_text (для текстовых сообщений)
+    try:
+        await msg.edit_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
+        return
+    except TelegramBadRequest as e:
+        if "there is no text in the message" in str(e):
+            # Сообщение с фото — редактируем caption
+            try:
+                await msg.edit_caption(caption=text, reply_markup=reply_markup, parse_mode=parse_mode)
+                return
+            except Exception:
+                pass
+        elif "message is not modified" in str(e):
+            return  # Ничего не изменилось — ок
+    except Exception:
+        pass
+
+    # Fallback: удаляем и шлём новое
+    try:
+        await msg.delete()
+    except Exception:
+        pass
+    try:
+        await msg.answer(text=text, reply_markup=reply_markup, parse_mode=parse_mode)
+    except Exception:
+        pass
+
+
+async def safe_edit(
+    callback: CallbackQuery,
+    text: str,
+    reply_markup: Optional[InlineKeyboardMarkup] = None,
+    parse_mode: str = "HTML",
+) -> None:
+    """Безопасное редактирование без фото — обрабатывает caption и text."""
+    await edit_with_photo(callback, text, reply_markup=reply_markup, parse_mode=parse_mode)

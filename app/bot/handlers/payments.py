@@ -154,12 +154,13 @@ async def handle_yookassa_payment(callback: CallbackQuery, bot: Bot) -> None:
             builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="back_main"))
 
             try:
-                await callback.message.edit_text(
+                from app.bot.utils.media import edit_with_photo
+                await edit_with_photo(
+                    callback,
                     f"💳 <b>{t('pay_card', lang)}</b>\n\n"
                     f"{plan.name} — {plan.price} ₽\n\n"
                     f"{'После оплаты нажмите «Проверить оплату».' if lang=='ru' else 'After payment press Check payment.'}",
                     reply_markup=builder.as_markup(),
-                    parse_mode="HTML",
                 )
             except Exception:
                 pass
@@ -168,7 +169,8 @@ async def handle_yookassa_payment(callback: CallbackQuery, bot: Bot) -> None:
             async with AsyncSessionFactory() as s2:
                 kb = await _get_menu_kb(s2, lang=lang)
             try:
-                await callback.message.edit_text(t("payment_error", lang), reply_markup=kb)
+                from app.bot.utils.media import edit_with_photo
+                await edit_with_photo(callback, t("payment_error", lang), reply_markup=kb)
             except Exception:
                 pass
 
@@ -247,15 +249,17 @@ async def handle_stars_payment(callback: CallbackQuery, bot: Bot) -> None:
 
     try:
         if ok:
-            await callback.message.edit_text(
+            from app.bot.utils.media import edit_with_photo
+            await edit_with_photo(
+                callback,
                 t("pay_stars", lang, stars=stars),
                 reply_markup=back_kb(lang),
-                parse_mode="HTML",
             )
         else:
             async with AsyncSessionFactory() as s2:
                 kb = await _get_menu_kb(s2, lang=lang)
-            await callback.message.edit_text(t("payment_error", lang), reply_markup=kb)
+            from app.bot.utils.media import edit_with_photo
+            await edit_with_photo(callback, t("payment_error", lang), reply_markup=kb)
     except Exception:
         pass
 
@@ -344,18 +348,20 @@ async def handle_crypto_payment(callback: CallbackQuery, bot: Bot) -> None:
             ))
             builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="back_main"))
 
-            await callback.message.edit_text(
+            from app.bot.utils.media import edit_with_photo
+            await edit_with_photo(
+                callback,
                 f"₿ <b>{t('pay_crypto', lang)}</b>\n\n"
                 f"{plan.name} — {plan.price} ₽ (~{usdt_amount} USDT)\n\n"
                 f"{t('payment_check', lang)}.",
                 reply_markup=builder.as_markup(),
-                parse_mode="HTML",
             )
         except Exception as e:
             log.error(f"CryptoBot error for user {callback.from_user.id}: {e}")
             async with AsyncSessionFactory() as s2:
                 kb = await _get_menu_kb(s2, lang=lang)
-            await callback.message.edit_text(t("payment_error", lang), reply_markup=kb)
+            from app.bot.utils.media import edit_with_photo
+            await edit_with_photo(callback, t("payment_error", lang), reply_markup=kb)
 
     await callback.answer()
 

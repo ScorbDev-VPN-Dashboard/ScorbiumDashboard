@@ -38,10 +38,8 @@ async def show_language(callback: CallbackQuery) -> None:
     user_lang = user.language if user and user.language else None
     lang = get_lang(settings, user_lang)
 
-    await callback.message.edit_text(
-        t("choose_language", lang),
-        reply_markup=language_kb(lang),
-    )
+    from app.bot.utils.media import edit_with_photo
+    await edit_with_photo(callback, t("choose_language", lang), reply_markup=language_kb(lang))
     await callback.answer()
 
 
@@ -59,8 +57,6 @@ async def set_language(callback: CallbackQuery) -> None:
             user.language = new_lang
             await session.commit()
 
-    await callback.message.edit_text(
-        t("language_set", new_lang),
-        reply_markup=language_kb(new_lang),
-    )
+    from app.bot.utils.media import edit_with_photo
+    await edit_with_photo(callback, t("language_set", new_lang), reply_markup=language_kb(new_lang))
     await callback.answer(t("language_set", new_lang))

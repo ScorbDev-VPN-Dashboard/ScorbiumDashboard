@@ -147,7 +147,8 @@ async def ask_promo(callback: CallbackQuery, state: FSMContext) -> None:
     async with AsyncSessionFactory() as session:
         lang = await _get_lang_from_session(callback.from_user.id, session)
     await state.set_state(PromoState.waiting_code)
-    await callback.message.edit_text(t("enter_promo", lang), reply_markup=back_kb(lang))
+    from app.bot.utils.media import edit_with_photo
+    await edit_with_photo(callback, t("enter_promo", lang), reply_markup=back_kb(lang))
     await callback.answer()
 
 
@@ -219,10 +220,11 @@ async def support_new(callback: CallbackQuery, state: FSMContext) -> None:
     async with AsyncSessionFactory() as session:
         lang = await _get_lang_from_session(callback.from_user.id, session)
     await state.set_state(SupportState.waiting_subject)
-    await callback.message.edit_text(
+    from app.bot.utils.media import edit_with_photo
+    await edit_with_photo(
+        callback,
         t("ticket_subject", lang),
         reply_markup=back_kb(lang),
-        parse_mode="HTML",
     )
     await callback.answer()
 
@@ -281,10 +283,11 @@ async def support_reply_start(callback: CallbackQuery, state: FSMContext) -> Non
         "en": f"✏️ Enter your reply for ticket #{ticket_id}:",
         "fa": f"✏️ پاسخ خود را برای تیکت #{ticket_id} وارد کنید:",
     }
-    await callback.message.edit_text(
+    from app.bot.utils.media import edit_with_photo
+    await edit_with_photo(
+        callback,
         reply_prompt.get(lang, reply_prompt["ru"]),
         reply_markup=back_kb(lang),
-        parse_mode="HTML",
     )
     await callback.answer()
 
@@ -303,10 +306,11 @@ async def support_close_ticket(callback: CallbackQuery) -> None:
         await session.commit()
         kb = await _get_menu_kb(session, lang=lang)
 
-    await callback.message.edit_text(
+    from app.bot.utils.media import edit_with_photo
+    await edit_with_photo(
+        callback,
         t("ticket_closed", lang, id=ticket_id),
         reply_markup=kb,
-        parse_mode="HTML",
     )
     await callback.answer()
 

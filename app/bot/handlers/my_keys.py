@@ -181,10 +181,11 @@ async def show_archive(callback: CallbackQuery) -> None:
     builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="my_keys"))
 
     try:
-        await callback.message.edit_text(
+        from app.bot.utils.media import edit_with_photo
+        await edit_with_photo(
+            callback,
             t("archive_title", lang, count=len(archive_rows)),
             reply_markup=builder.as_markup(),
-            parse_mode="HTML",
         )
     except Exception:
         pass
@@ -237,7 +238,8 @@ async def show_key_detail(callback: CallbackQuery) -> None:
     builder.row(InlineKeyboardButton(text=t("back", lang), callback_data=back_cb))
 
     try:
-        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        from app.bot.utils.media import edit_with_photo
+        await edit_with_photo(callback, text, reply_markup=builder.as_markup())
     except Exception:
         pass
     await callback.answer()
@@ -296,11 +298,8 @@ async def connect_menu(callback: CallbackQuery) -> None:
     builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="my_keys"))
 
     try:
-        await callback.message.edit_text(
-            t("connect_title", lang),
-            reply_markup=builder.as_markup(),
-            parse_mode="HTML",
-        )
+        from app.bot.utils.media import edit_with_photo
+        await edit_with_photo(callback, t("connect_title", lang), reply_markup=builder.as_markup())
     except Exception:
         pass
     await callback.answer()
@@ -325,7 +324,8 @@ async def connect_guide(callback: CallbackQuery) -> None:
     builder.row(InlineKeyboardButton(text=t("btn_my_subs", lang), callback_data="my_keys"))
 
     try:
-        await callback.message.edit_text(guide, reply_markup=builder.as_markup(), parse_mode="HTML")
+        from app.bot.utils.media import edit_with_photo
+        await edit_with_photo(callback, guide, reply_markup=builder.as_markup())
     except Exception:
         pass
     await callback.answer()
