@@ -210,6 +210,26 @@ STRINGS: dict[str, dict[str, str]] = {
         "choose_language": "🌐 Choose language:",
         "language_set": "✅ Language changed to English",
         "btn_language": "🌐 Language",
+        # my_keys
+        "no_keys_buy": "😔 No active subscriptions",
+        "key_detail_status": "📊 Status:",
+        "key_detail_expires": "📅 Valid until:",
+        "key_detail_price": "💰 Price:",
+        "key_detail_link": "🔑 <b>Subscription link:</b>",
+        "key_detail_hint": "💡 Copy and paste into your VPN client",
+        "key_detail_no_url": "⚠️ Link unavailable.",
+        "btn_how_connect": "📲 How to connect?",
+        "btn_about": "ℹ️ About",
+        "btn_connect": "📲 How to connect",
+        "btn_buy_sub": "💳 Buy subscription",
+        "connect_title": "📲 <b>How to connect VPN?</b>\n\nChoose your device:",
+        "connect_not_found": "Guide not found",
+        "archive_empty_alert": "Archive is empty",
+        "sub_not_found": "Subscription not found",
+        # profile
+        "profile_not_found": "❌ Profile not found.",
+        "btn_my_subs": "🔑 My subscriptions",
+        "btn_all_subs": "📦 All subscriptions",
     },
 
     "fa": {
@@ -317,6 +337,26 @@ STRINGS: dict[str, dict[str, str]] = {
         "choose_language": "🌐 زبان را انتخاب کنید:",
         "language_set": "✅ زبان به فارسی تغییر یافت",
         "btn_language": "🌐 زبان",
+        # my_keys
+        "no_keys_buy": "😔 اشتراک فعالی وجود ندارد",
+        "key_detail_status": "📊 وضعیت:",
+        "key_detail_expires": "📅 معتبر تا:",
+        "key_detail_price": "💰 قیمت:",
+        "key_detail_link": "🔑 <b>لینک اشتراک:</b>",
+        "key_detail_hint": "💡 کپی کرده و در کلاینت VPN وارد کنید",
+        "key_detail_no_url": "⚠️ لینک در دسترس نیست.",
+        "btn_how_connect": "📲 نحوه اتصال؟",
+        "btn_about": "ℹ️ درباره",
+        "btn_connect": "📲 نحوه اتصال",
+        "btn_buy_sub": "💳 خرید اشتراک",
+        "connect_title": "📲 <b>نحوه اتصال VPN؟</b>\n\nدستگاه خود را انتخاب کنید:",
+        "connect_not_found": "راهنما پیدا نشد",
+        "archive_empty_alert": "آرشیو خالی است",
+        "sub_not_found": "اشتراک پیدا نشد",
+        # profile
+        "profile_not_found": "❌ پروفایل پیدا نشد.",
+        "btn_my_subs": "🔑 اشتراک‌های من",
+        "btn_all_subs": "📦 همه اشتراک‌ها",
     },
 }
 
@@ -325,6 +365,26 @@ STRINGS["ru"].update({
     "choose_language": "🌐 Выберите язык:",
     "language_set": "✅ Язык изменён на русский",
     "btn_language": "🌐 Язык",
+    # my_keys
+    "no_keys_buy": "😔 Нет активных подписок",
+    "key_detail_status": "📊 Статус:",
+    "key_detail_expires": "📅 Действует до:",
+    "key_detail_price": "💰 Стоимость:",
+    "key_detail_link": "🔑 <b>Ссылка подписки:</b>",
+    "key_detail_hint": "💡 Скопируй и вставь в VPN-клиент",
+    "key_detail_no_url": "⚠️ Ссылка недоступна.",
+    "btn_how_connect": "📲 Как подключить?",
+    "btn_about": "ℹ️ О проекте",
+    "btn_connect": "📲 Как подключить",
+    "btn_buy_sub": "💳 Купить подписку",
+    "connect_title": "📲 <b>Как подключить VPN?</b>\n\nВыбери своё устройство:",
+    "connect_not_found": "Инструкция не найдена",
+    "archive_empty_alert": "Архив пуст",
+    "sub_not_found": "Подписка не найдена",
+    # profile
+    "profile_not_found": "❌ Профиль не найден.",
+    "btn_my_subs": "🔑 Мои подписки",
+    "btn_all_subs": "📦 Все подписки",
 })
 
 

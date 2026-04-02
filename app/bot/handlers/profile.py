@@ -15,17 +15,18 @@ from app.services.vpn_key import VpnKeyService
 from app.services.payment import PaymentService
 from app.services.referral import ReferralService
 from app.services.bot_settings import BotSettingsService
+from app.services.i18n import t, get_lang
 from app.bot.utils.menu import get_main_menu_kb as _get_menu_kb
 
 router = Router()
 
 
-async def _build_profile_text(user_id: int) -> tuple[str, object]:
+async def _build_profile_text(user_id: int, lang: str = "ru") -> tuple[str, object]:
     """Собирает текст профиля и клавиатуру."""
     async with AsyncSessionFactory() as session:
         user = await UserService(session).get_by_id(user_id)
         if not user:
-            return "❌ Профиль не найден.", None
+            return t("profile_not_found", lang), None
 
         keys = await VpnKeyService(session).get_all_for_user(user_id)
         payments = await PaymentService(session).get_all(user_id=user_id, limit=5)
@@ -58,17 +59,17 @@ async def _build_profile_text(user_id: int) -> tuple[str, object]:
         )
 
     lines = [
-        f"👤 <b>Мой профиль</b>\n",
-        f"🆔 ID: <code>{user_id}</code>",
-        f"📛 Имя: <b>{user.full_name}</b>",
-        f"🔗 Username: {uname}",
-        f"📅 Регистрация: {reg_date}",
+        t("profile_title", lang) + "\n",
+        t("profile_id", lang, id=user_id),
+        t("profile_name", lang, name=user.full_name),
+        t("profile_username", lang, username=uname),
+        t("profile_reg", lang, date=reg_date),
         "",
-        f"💰 Баланс: <b>{balance:.2f} ₽</b>",
-        f"💳 Потрачено: <b>{total_spent:.2f} ₽</b>",
+        t("profile_balance", lang, balance=balance),
+        t("profile_spent", lang, spent=total_spent),
         "",
-        f"🔑 Активных подписок: <b>{len(active_keys)}</b>",
-        f"🗂 В архиве: <b>{len(expired_keys)}</b>",
+        t("profile_active", lang, count=len(active_keys)),
+        t("profile_archive", lang, count=len(expired_keys)),
     ]
 
     if nearest_exp:
@@ -76,37 +77,42 @@ async def _build_profile_text(user_id: int) -> tuple[str, object]:
         days_left = (nearest_exp - datetime.now(timezone.utc)).days
         exp_str = nearest_exp.strftime("%d.%m.%Y")
         if days_left <= 3:
-            lines.append(f"⚠️ Ближайшее истечение: <b>{exp_str}</b> (через {days_left} дн.)")
+            lines.append(t("profile_expiry_warn", lang, date=exp_str, days=days_left))
         else:
-            lines.append(f"📅 Ближайшее истечение: <b>{exp_str}</b>")
+            lines.append(t("profile_expiry", lang, date=exp_str))
 
     lines += [
         "",
-        f"👥 Рефералов: <b>{ref_count}</b>",
+        t("profile_referrals", lang, count=ref_count),
     ]
 
     if ref_link:
-        lines.append(f"🔗 Реф. ссылка:\n<code>{ref_link}</code>")
+        lines.append(t("profile_ref_link", lang, link=ref_link))
 
     if user.referral_code:
-        lines.append(f"🎫 Реф. код: <code>{user.referral_code}</code>")
+        lines.append(t("profile_ref_code", lang, code=user.referral_code))
 
     text = "\n".join(lines)
 
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"))
+    builder.row(InlineKeyboardButton(text=t("btn_my_subs", lang), callback_data="my_keys"))
     builder.row(
-        InlineKeyboardButton(text="💰 Баланс", callback_data="balance"),
-        InlineKeyboardButton(text="💬 Поддержка", callback_data="support"),
+        InlineKeyboardButton(text=t("btn_balance", lang), callback_data="balance"),
+        InlineKeyboardButton(text=t("btn_support", lang), callback_data="support"),
     )
-    builder.row(InlineKeyboardButton(text="◀️ Главное меню", callback_data="back_main"))
+    builder.row(InlineKeyboardButton(text=t("back_main", lang), callback_data="back_main"))
 
     return text, builder.as_markup()
 
 
 @router.message(Command("profile", "me", "я"))
 async def cmd_profile(message: Message) -> None:
-    text, kb = await _build_profile_text(message.from_user.id)
+    user_id = message.from_user.id
+    async with AsyncSessionFactory() as session:
+        _u = await UserService(session).get_by_id(user_id)
+        _s = await BotSettingsService(session).get_all()
+    lang = get_lang(_s, _u.language if _u and _u.language else None)
+    text, kb = await _build_profile_text(user_id, lang)
     async with AsyncSessionFactory() as session:
         photo = await BotSettingsService(session).get("photo_profile")
     from app.bot.utils.media import answer_with_photo
@@ -116,7 +122,12 @@ async def cmd_profile(message: Message) -> None:
 @router.callback_query(F.data == "profile")
 async def show_profile(callback: CallbackQuery) -> None:
     await callback.answer()
-    text, kb = await _build_profile_text(callback.from_user.id)
+    user_id = callback.from_user.id
+    async with AsyncSessionFactory() as session:
+        _u = await UserService(session).get_by_id(user_id)
+        _s = await BotSettingsService(session).get_all()
+    lang = get_lang(_s, _u.language if _u and _u.language else None)
+    text, kb = await _build_profile_text(user_id, lang)
     async with AsyncSessionFactory() as session:
         photo = await BotSettingsService(session).get("photo_profile")
     from app.bot.utils.media import edit_with_photo

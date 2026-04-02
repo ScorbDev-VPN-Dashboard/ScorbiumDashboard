@@ -7,6 +7,7 @@ from app.bot.utils.menu import get_main_menu_kb as _get_menu_kb
 from app.core.database import AsyncSessionFactory
 from app.services.vpn_key import VpnKeyService
 from app.services.bot_settings import BotSettingsService
+from app.services.i18n import t
 
 router = Router()
 
@@ -62,11 +63,22 @@ class KeyRow:
     price: str
 
 
+async def _get_lang(user_id: int, session) -> str:
+    from app.services.user import UserService
+    from app.services.bot_settings import BotSettingsService
+    from app.services.i18n import get_lang
+    user = await UserService(session).get_by_id(user_id)
+    settings = await BotSettingsService(session).get_all()
+    user_lang = user.language if user and user.language else None
+    return get_lang(settings, user_lang)
+
+
 # ── Мои подписки ──────────────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "my_keys")
 async def show_my_keys(callback: CallbackQuery) -> None:
     async with AsyncSessionFactory() as session:
+        lang = await _get_lang(callback.from_user.id, session)
         all_keys = await VpnKeyService(session).get_all_for_user(callback.from_user.id)
         kb_menu = await _get_menu_kb(session)
         photo = await BotSettingsService(session).get("photo_my_keys")
@@ -91,7 +103,7 @@ async def show_my_keys(callback: CallbackQuery) -> None:
         try:
             await edit_with_photo(
                 callback,
-                "📦 У тебя пока нет подписок.\n\nКупи подписку, чтобы получить VPN-доступ.",
+                t("no_keys", lang),
                 reply_markup=kb_menu,
                 photo=photo or None,
             )
@@ -108,25 +120,25 @@ async def show_my_keys(callback: CallbackQuery) -> None:
                 callback_data=f"key:detail:{row.id}",
             ))
     else:
-        builder.row(InlineKeyboardButton(text="😔 Нет активных подписок", callback_data="buy"))
+        builder.row(InlineKeyboardButton(text=t("no_keys_buy", lang), callback_data="buy"))
 
     if archive_rows:
         builder.row(InlineKeyboardButton(
-            text=f"🗂 Архив ({len(archive_rows)})",
+            text=t("archive_btn", lang, count=len(archive_rows)),
             callback_data="key:archive",
         ))
 
     builder.row(
-        InlineKeyboardButton(text="ℹ️ О проекте", callback_data="about"),
-        InlineKeyboardButton(text="📲 Как подключить", callback_data="connect:menu"),
+        InlineKeyboardButton(text=t("btn_about", lang), callback_data="about"),
+        InlineKeyboardButton(text=t("btn_connect", lang), callback_data="connect:menu"),
     )
-    builder.row(InlineKeyboardButton(text="◀️ Главное меню", callback_data="back_main"))
+    builder.row(InlineKeyboardButton(text=t("back_main", lang), callback_data="back_main"))
 
-    text = "📦 <b>Мои подписки</b>\n\n"
+    text = t("my_keys_title", lang) + "\n\n"
     if active_rows:
-        text += f"✅ Активных: <b>{len(active_rows)}</b>\n"
+        text += t("active_count", lang, count=len(active_rows)) + "\n"
     if archive_rows:
-        text += f"🗂 В архиве: <b>{len(archive_rows)}</b>\n"
+        text += t("archive_count", lang, count=len(archive_rows)) + "\n"
 
     try:
         await edit_with_photo(callback, text, reply_markup=builder.as_markup(), photo=photo or None)
@@ -140,6 +152,7 @@ async def show_my_keys(callback: CallbackQuery) -> None:
 @router.callback_query(F.data == "key:archive")
 async def show_archive(callback: CallbackQuery) -> None:
     async with AsyncSessionFactory() as session:
+        lang = await _get_lang(callback.from_user.id, session)
         all_keys = await VpnKeyService(session).get_all_for_user(callback.from_user.id)
 
         archive_rows = []
@@ -154,7 +167,7 @@ async def show_archive(callback: CallbackQuery) -> None:
                 ))
 
     if not archive_rows:
-        await callback.answer("Архив пуст", show_alert=True)
+        await callback.answer(t("archive_empty_alert", lang), show_alert=True)
         return
 
     builder = InlineKeyboardBuilder()
@@ -165,11 +178,11 @@ async def show_archive(callback: CallbackQuery) -> None:
             text=f"{icon} {row.name} — {row.expires_str}",
             callback_data=f"key:detail:{row.id}",
         ))
-    builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="my_keys"))
+    builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="my_keys"))
 
     try:
         await callback.message.edit_text(
-            f"🗂 <b>Архив подписок</b> ({len(archive_rows)}):",
+            t("archive_title", lang, count=len(archive_rows)),
             reply_markup=builder.as_markup(),
             parse_mode="HTML",
         )
@@ -185,9 +198,10 @@ async def show_key_detail(callback: CallbackQuery) -> None:
     key_id = int(callback.data.split(":")[2])
 
     async with AsyncSessionFactory() as session:
+        lang = await _get_lang(callback.from_user.id, session)
         key = await VpnKeyService(session).get_by_id(key_id)
         if not key or key.user_id != callback.from_user.id:
-            await callback.answer("Подписка не найдена", show_alert=True)
+            await callback.answer(t("sub_not_found", lang), show_alert=True)
             return
 
         status_val = key.status.value if hasattr(key.status, "value") else str(key.status)
@@ -198,27 +212,29 @@ async def show_key_detail(callback: CallbackQuery) -> None:
         plan_name = key.plan.name if key.plan else name
 
     status_label = {
-        "active": "✅ Активна", "expired": "⏰ Истекла", "revoked": "❌ Отозвана"
+        "active": t("status_active", lang),
+        "expired": t("status_expired", lang),
+        "revoked": t("status_revoked", lang),
     }.get(status_val, "❓")
 
     text = (
         f"📦 <b>{plan_name}</b>\n\n"
-        f"📊 Статус: {status_label}\n"
-        f"📅 Действует до: <b>{exp}</b>\n"
+        f"{t('key_detail_status', lang)} {status_label}\n"
+        f"{t('key_detail_expires', lang)} <b>{exp}</b>\n"
     )
     if price:
-        text += f"💰 Стоимость: <b>{price} ₽</b>\n"
+        text += f"{t('key_detail_price', lang)} <b>{price} ₽</b>\n"
 
     if access_url:
-        text += f"\n🔑 <b>Ссылка подписки:</b>\n<code>{access_url}</code>\n\n💡 Скопируй и вставь в VPN-клиент"
+        text += f"\n{t('key_detail_link', lang)}\n<code>{access_url}</code>\n\n{t('key_detail_hint', lang)}"
     else:
-        text += "\n⚠️ Ссылка недоступна."
+        text += f"\n{t('key_detail_no_url', lang)}"
 
     builder = InlineKeyboardBuilder()
     if access_url:
-        builder.row(InlineKeyboardButton(text="📲 Как подключить?", callback_data="connect:menu"))
+        builder.row(InlineKeyboardButton(text=t("btn_how_connect", lang), callback_data="connect:menu"))
     back_cb = "my_keys" if status_val == "active" else "key:archive"
-    builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data=back_cb))
+    builder.row(InlineKeyboardButton(text=t("back", lang), callback_data=back_cb))
 
     try:
         await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
@@ -232,6 +248,7 @@ async def show_key_detail(callback: CallbackQuery) -> None:
 @router.callback_query(F.data == "about")
 async def about_project(callback: CallbackQuery) -> None:
     async with AsyncSessionFactory() as session:
+        lang = await _get_lang(callback.from_user.id, session)
         settings = await BotSettingsService(session).get_all()
 
     about_text = settings.get("about_text") or (
@@ -247,9 +264,9 @@ async def about_project(callback: CallbackQuery) -> None:
     photo = settings.get("photo_about") or None
 
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📲 Как подключить", callback_data="connect:menu"))
-    builder.row(InlineKeyboardButton(text="💳 Купить подписку", callback_data="buy"))
-    builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="my_keys"))
+    builder.row(InlineKeyboardButton(text=t("btn_connect", lang), callback_data="connect:menu"))
+    builder.row(InlineKeyboardButton(text=t("btn_buy_sub", lang), callback_data="buy"))
+    builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="my_keys"))
 
     from app.bot.utils.media import edit_with_photo
     try:
@@ -263,6 +280,9 @@ async def about_project(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data == "connect:menu")
 async def connect_menu(callback: CallbackQuery) -> None:
+    async with AsyncSessionFactory() as session:
+        lang = await _get_lang(callback.from_user.id, session)
+
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(text="📱 iOS", callback_data="connect:ios"),
@@ -273,11 +293,11 @@ async def connect_menu(callback: CallbackQuery) -> None:
         InlineKeyboardButton(text="🍎 macOS", callback_data="connect:macos"),
     )
     builder.row(InlineKeyboardButton(text="🐧 Linux", callback_data="connect:linux"))
-    builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="my_keys"))
+    builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="my_keys"))
 
     try:
         await callback.message.edit_text(
-            "📲 <b>Как подключить VPN?</b>\n\nВыбери своё устройство:",
+            t("connect_title", lang),
             reply_markup=builder.as_markup(),
             parse_mode="HTML",
         )
@@ -292,14 +312,17 @@ async def connect_guide(callback: CallbackQuery) -> None:
     if platform == "menu":
         return
 
+    async with AsyncSessionFactory() as session:
+        lang = await _get_lang(callback.from_user.id, session)
+
     guide = CONNECT_GUIDES.get(platform)
     if not guide:
-        await callback.answer("Инструкция не найдена", show_alert=True)
+        await callback.answer(t("connect_not_found", lang), show_alert=True)
         return
 
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="◀️ Назад к устройствам", callback_data="connect:menu"))
-    builder.row(InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"))
+    builder.row(InlineKeyboardButton(text=t("btn_my_subs", lang), callback_data="my_keys"))
 
     try:
         await callback.message.edit_text(guide, reply_markup=builder.as_markup(), parse_mode="HTML")
