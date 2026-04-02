@@ -58,17 +58,14 @@ _BTN_LABELS: dict[str, dict[str, str]] = {
 
 def _translate_layout(layout: list, lang: str, settings: dict) -> list:
     """Translate button labels in layout based on user language, with admin overrides."""
-    from app.services.i18n import t_custom
     result = []
     for row in layout:
         new_row = []
         for b in row:
             bid = b.get("id", "")
-            # Try i18n key btn_{id}, fallback to _BTN_LABELS
-            i18n_key = f"btn_{bid}"
+            # Check admin override in settings: i18n_{lang}_btn_{id}
+            override = settings.get(f"i18n_{lang}_btn_{bid}", "").strip()
             default_label = _BTN_LABELS.get(lang, _BTN_LABELS["ru"]).get(bid, b.get("label", ""))
-            # Check admin override in settings
-            override = settings.get(f"i18n_{lang}_{i18n_key}", "").strip()
             label = override if override else default_label
             new_row.append({**b, "label": label})
         result.append(new_row)
