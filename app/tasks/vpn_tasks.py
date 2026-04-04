@@ -54,40 +54,96 @@ async def notify_expiring_soon() -> None:
     from sqlalchemy import select
     from app.models.vpn_key import VpnKey, VpnKeyStatus
     from app.services.telegram_notify import TelegramNotifyService
-
-    now = datetime.now(timezone.utc)
-    warn_before = now + timedelta(days=3)
-    warn_after = now + timedelta(days=2, hours=23) 
+    from app.services.bot_settings import BotSettingsService
+    from app.services.user import UserService as _US
 
     try:
         async with AsyncSessionFactory() as session:
-            result = await session.execute(
-                select(VpnKey).where(
-                    VpnKey.status == VpnKeyStatus.ACTIVE.value,
-                    VpnKey.expires_at >= warn_after,
-                    VpnKey.expires_at <= warn_before,
-                )
-            )
-            keys = list(result.scalars().all())
-            data = [(k.user_id, k.name or f"Подписка #{k.id}", k.expires_at) for k in keys]
+            settings = await BotSettingsService(session).get_all()
 
+        # Проверяем включены ли уведомления
+        if settings.get("notify_expiry_enabled", "1") != "1":
+            return
+
+        # Парсим периоды уведомлений
+        raw_days = settings.get("notify_expiry_days", "7,3,1")
+        notify_days = []
+        for d in raw_days.split(","):
+            try:
+                notify_days.append(int(d.strip()))
+            except ValueError:
+                pass
+        if not notify_days:
+            return
+
+        notify_msg_tpl = settings.get(
+            "notify_expiry_message",
+            "⚠️ <b>Подписка истекает через {days} дн.!</b>\n\n📦 {name}\n📅 Дата истечения: <b>{date}</b>\n\nПродлите подписку чтобы не потерять доступ.",
+        )
+
+        now = datetime.now(timezone.utc)
         notify = TelegramNotifyService()
-        for user_id, name, exp in data:
-            # Проверяем бан перед отправкой
-            async with AsyncSessionFactory() as check_session:
-                from app.services.user import UserService as _US
-                u = await _US(check_session).get_by_id(user_id)
-                if u and u.is_banned:
-                    continue
-            exp_str = exp.strftime("%d.%m.%Y") if exp else "—"
-            await notify.send_message(
-                user_id,
-                f"⚠️ <b>Подписка истекает через 3 дня!</b>\n\n"
-                f"📦 {name}\n📅 Дата истечения: <b>{exp_str}</b>\n\n"
-                f"Продлите подписку чтобы не потерять доступ.",
-            )
-        if data:
-            log.info(f"[vpn_tasks] Notified {len(data)} users about expiring subscriptions")
+        total_sent = 0
+
+        for days_before in notify_days:
+            # Окно: от (days_before дней - 5 мин) до (days_before дней + 5 мин)
+            # Задача запускается каждые 5 минут, поэтому окно = интервал задачи
+            window_start = now + timedelta(days=days_before) - timedelta(minutes=5)
+            window_end = now + timedelta(days=days_before) + timedelta(minutes=5)
+
+            async with AsyncSessionFactory() as session:
+                result = await session.execute(
+                    select(VpnKey).where(
+                        VpnKey.status == VpnKeyStatus.ACTIVE.value,
+                        VpnKey.expires_at >= window_start,
+                        VpnKey.expires_at <= window_end,
+                    )
+                )
+                keys = list(result.scalars().all())
+                data = [
+                    (k.user_id, k.name or f"Подписка #{k.id}", k.expires_at)
+                    for k in keys
+                ]
+
+            for user_id, name, exp in data:
+                # Проверяем бан
+                async with AsyncSessionFactory() as check_session:
+                    u = await _US(check_session).get_by_id(user_id)
+                    if not u or u.is_banned:
+                        continue
+                    user_lang = u.language if u and u.language else None
+                    from app.services.bot_settings import BotSettingsService as _BSS
+                    s = await _BSS(check_session).get_all()
+                    from app.services.i18n import get_lang
+                    lang = get_lang(s, user_lang)
+
+                exp_str = exp.strftime("%d.%m.%Y") if exp else "—"
+
+                # Локализованные сообщения
+                if lang == "en":
+                    msg = (
+                        f"⚠️ <b>Subscription expires in {days_before} day(s)!</b>\n\n"
+                        f"📦 {name}\n📅 Expiry date: <b>{exp_str}</b>\n\n"
+                        f"Renew your subscription to keep VPN access."
+                    )
+                elif lang == "fa":
+                    msg = (
+                        f"⚠️ <b>اشتراک شما در {days_before} روز منقضی می‌شود!</b>\n\n"
+                        f"📦 {name}\n📅 تاریخ انقضا: <b>{exp_str}</b>\n\n"
+                        f"اشتراک خود را تمدید کنید."
+                    )
+                else:
+                    try:
+                        msg = notify_msg_tpl.format(days=days_before, name=name, date=exp_str)
+                    except Exception:
+                        msg = f"⚠️ Подписка «{name}» истекает через {days_before} дн. ({exp_str})"
+
+                await notify.send_message(user_id, msg)
+                total_sent += 1
+
+        if total_sent:
+            log.info(f"[vpn_tasks] Sent {total_sent} expiry notifications")
+
     except Exception as e:
         log.error(f"[vpn_tasks] notify_expiring_soon error: {e}")
 

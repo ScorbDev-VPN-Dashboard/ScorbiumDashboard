@@ -1075,6 +1075,7 @@ async def save_bot_settings(request: Request, db: AsyncSession = Depends(get_db)
         "btn_emoji_servers", "btn_emoji_top_referrers", "btn_emoji_status", "btn_emoji_language",
         "bot_language", "cryptobot_token",
         "trial_enabled", "trial_days", "trial_label",
+        "notify_expiry_enabled", "notify_expiry_days", "notify_expiry_message",
     }
     data = {k: v for k, v in form.items() if k in allowed_keys}
     await BotSettingsService(db).set_many(data)
