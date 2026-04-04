@@ -152,6 +152,46 @@
   <!-- CryptoBot token -->
   <div class="col-12">
     <div class="card p-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-gift me-2 text-muted"></i>Пробный период</div>
+      <form hx-post="/panel/telegram/bot-settings" hx-swap="none" hx-on::after-request="showToast('Сохранено', 'success')">
+        <div class="row g-3 align-items-end">
+          <div class="col-auto">
+            <label class="form-label">Статус</label>
+            <div class="form-check form-switch mt-1">
+              <input class="form-check-input" type="checkbox" name="trial_enabled" value="1"
+                id="trial_enabled_check"
+                {% if bot_settings.get('trial_enabled','0') == '1' %}checked{% endif %}
+                onchange="this.form.querySelector('[name=trial_enabled_hidden]').disabled = this.checked">
+              <input type="hidden" name="trial_enabled_hidden" value="0" {% if bot_settings.get('trial_enabled','0') == '1' %}disabled{% endif %}>
+              <label class="form-check-label" for="trial_enabled_check">Включён</label>
+            </div>
+          </div>
+          <div class="col-auto">
+            <label class="form-label">Дней пробного периода</label>
+            <input type="number" name="trial_days" class="form-control" style="width:100px"
+              min="1" max="30" value="{{ bot_settings.get('trial_days','3') }}" />
+          </div>
+          <div class="col">
+            <label class="form-label">Текст кнопки</label>
+            <input type="text" name="trial_label" class="form-control"
+              placeholder="🎁 Пробный период ({days} дн.)"
+              value="{{ bot_settings.get('trial_label','') }}" />
+            <div style="font-size:.7rem;color:#8892a4;margin-top:.25rem">Переменная: <code>{days}</code></div>
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-accent"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+          </div>
+        </div>
+        <div style="font-size:.75rem;color:#8892a4;margin-top:.75rem">
+          <i class="bi bi-info-circle me-1"></i>Доступен только новым пользователям без подписок. Добавь кнопку «🎁 Пробный период» в раскладку через таб «Кнопки».
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CryptoBot token -->
+  <div class="col-12">
+    <div class="card p-3">
       <div class="fw-semibold text-white mb-3"><i class="bi bi-currency-bitcoin me-2 text-muted"></i>CryptoBot (оплата криптовалютой)</div>
       <form hx-post="/panel/telegram/bot-settings" hx-swap="none" hx-on::after-request="showToast('Сохранено', 'success')">
         <div class="d-flex gap-3 flex-wrap align-items-end">
@@ -201,6 +241,10 @@
         <div class="mb-2">
           <label class="form-label">При бане</label>
           <textarea name="ban_message" class="form-control" rows="2" placeholder="🚫 Аккаунт заблокирован.">{{ bot_settings.get('ban_message','') }}</textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">При разблокировке</label>
+          <textarea name="unban_message" class="form-control" rows="2" placeholder="✅ Ваш аккаунт разблокирован. Добро пожаловать обратно!">{{ bot_settings.get('unban_message','') }}</textarea>
         </div>
         <div class="mb-2">
           <label class="form-label">Бот отключён</label>
@@ -344,6 +388,8 @@
     ('photo_about','ℹ️ О проекте'),
     ('photo_support','💬 Поддержка'),
     ('photo_profile','👤 Мой профиль'),
+    ('photo_language','🌐 Выбор языка'),
+    ('photo_trial','🎁 Пробный период'),
   ] %}
   <div class="row g-3">
     {% for key, label in photo_fields %}

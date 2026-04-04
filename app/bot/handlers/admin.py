@@ -319,6 +319,10 @@ async def admin_unban_user(callback: CallbackQuery) -> None:
     async with AsyncSessionFactory() as session:
         await UserService(session).unban(user_id)
         await session.commit()
+        from app.services.bot_settings import BotSettingsService
+        unban_msg = await BotSettingsService(session).get("unban_message") or "✅ Ваш аккаунт разблокирован. Добро пожаловать обратно!"
+    from app.services.telegram_notify import TelegramNotifyService
+    await TelegramNotifyService().send_message(user_id, unban_msg)
     await callback.answer("✅ Пользователь разблокирован", show_alert=True)
     await _show_user_detail(callback, user_id)
 

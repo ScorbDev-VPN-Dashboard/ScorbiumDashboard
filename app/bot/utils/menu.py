@@ -6,7 +6,7 @@ from app.services.bot_settings import BotSettingsService
 
 _BUTTON_IDS = [
     "my_keys", "buy", "profile", "balance", "promo", "support",
-    "connect", "about", "servers", "top_referrers", "status", "language",
+    "connect", "about", "servers", "top_referrers", "status", "language", "trial",
 ]
 
 # Переводы лейблов кнопок по умолчанию
@@ -24,6 +24,7 @@ _BTN_LABELS: dict[str, dict[str, str]] = {
         "top_referrers": "🏆 Топ рефереров",
         "status": "📊 Статус",
         "language": "🌐 Язык",
+        "trial": "🎁 Пробный период",
     },
     "en": {
         "my_keys": "🔑 My subscriptions",
@@ -38,6 +39,7 @@ _BTN_LABELS: dict[str, dict[str, str]] = {
         "top_referrers": "🏆 Top referrers",
         "status": "📊 Status",
         "language": "🌐 Language",
+        "trial": "🎁 Trial period",
     },
     "fa": {
         "my_keys": "🔑 اشتراک‌های من",
@@ -52,6 +54,7 @@ _BTN_LABELS: dict[str, dict[str, str]] = {
         "top_referrers": "🏆 برترین معرفان",
         "status": "📊 وضعیت",
         "language": "🌐 زبان",
+        "trial": "🎁 دوره آزمایشی",
     },
 }
 

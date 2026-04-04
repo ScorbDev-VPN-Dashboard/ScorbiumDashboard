@@ -51,6 +51,7 @@ def _make_dp():
         "app.bot.handlers.profile",
         "app.bot.handlers.features",
         "app.bot.handlers.language",
+        "app.bot.handlers.trial",
     ]
 
     # Force-reload each handler module so we get fresh Router instances
@@ -67,6 +68,7 @@ def _make_dp():
     import app.bot.handlers.profile as _profile
     import app.bot.handlers.features as _features
     import app.bot.handlers.language as _language
+    import app.bot.handlers.trial as _trial
 
     dp = Dispatcher()
     dp.update.outer_middleware(BanCheckMiddleware())
@@ -81,6 +83,7 @@ def _make_dp():
     dp.include_router(_profile.router)
     dp.include_router(_features.router)
     dp.include_router(_language.router)
+    dp.include_router(_trial.router)
     return dp
 
 

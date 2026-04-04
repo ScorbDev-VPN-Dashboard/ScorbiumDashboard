@@ -22,6 +22,7 @@ DEFAULTS = {
     "subscription_issued_message": "🔑 Ваш VPN-ключ выдан!\n\nНажмите «Мои ключи» для просмотра.",
     "subscription_cancelled_message": "❌ Ваша подписка была отменена.",
     "referral_welcome_message": "🎉 По вашей реферальной ссылке зарегистрировался новый пользователь!\n\nВам начислен бонус.",
+    "unban_message": "✅ Ваш аккаунт разблокирован. Добро пожаловать обратно!",
     "bot_enabled": "1",
     "about_text": "",
     "vpn_group_ids": "",
@@ -35,10 +36,16 @@ DEFAULTS = {
     "photo_about": "",
     "photo_support": "",
     "photo_profile": "",
+    "photo_language": "",
+    "photo_trial": "",
     "panel_url": "",
     "keyboard_layout": "",  # JSON раскладка главного меню
     "bot_language": "ru",   # Язык бота: ru | en | fa
     "cryptobot_token": "",  # CryptoBot API токен
+    # ── Пробный период ────────────────────────────────────────────────────────
+    "trial_enabled": "0",       # 1 = включён
+    "trial_days": "3",          # кол-во дней пробного периода
+    "trial_label": "🎁 Пробный период ({days} дн.)",  # текст кнопки
     # ── Стили inline кнопок ───────────────────────────────────────────────────
     "btn_style_buy": "success",
     "btn_style_my_keys": "primary",

@@ -37,9 +37,10 @@ async def show_language(callback: CallbackQuery) -> None:
 
     user_lang = user.language if user and user.language else None
     lang = get_lang(settings, user_lang)
+    photo = settings.get("photo_language") or None
 
     from app.bot.utils.media import edit_with_photo
-    await edit_with_photo(callback, t("choose_language", lang), reply_markup=language_kb(lang))
+    await edit_with_photo(callback, t("choose_language", lang), reply_markup=language_kb(lang), photo=photo)
     await callback.answer()
 
 

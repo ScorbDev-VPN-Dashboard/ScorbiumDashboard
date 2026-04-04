@@ -318,6 +318,9 @@ async def unban_user_view(user_id: int, request: Request, db: AsyncSession = Dep
     user = await UserService(db).unban(user_id)
     if not user:
         return HTMLResponse("", status_code=404)
+    await db.commit()
+    unban_msg = await BotSettingsService(db).get("unban_message") or "✅ Ваш аккаунт разблокирован. Добро пожаловать обратно!"
+    await TelegramNotifyService().send_message(user_id, unban_msg)
     resp = templates.TemplateResponse("partials/users_rows.html", {"request": request, "users": [_to_detail(user)]})
     _toast(resp, "Пользователь разблокирован")
     return resp
@@ -1057,7 +1060,7 @@ async def save_bot_settings(request: Request, db: AsyncSession = Depends(get_db)
         "payment_success_message",
         "ban_message", "bot_disabled_message",
         "subscription_issued_message", "subscription_cancelled_message",
-        "referral_welcome_message", "about_text",
+        "referral_welcome_message", "about_text", "unban_message",
         "required_channel_id", "required_channel_name",
         "photo_welcome", "photo_buy", "photo_my_keys",
         "photo_balance", "photo_about", "photo_support", "photo_profile",
@@ -1071,6 +1074,7 @@ async def save_bot_settings(request: Request, db: AsyncSession = Depends(get_db)
         "btn_emoji_profile", "btn_emoji_connect", "btn_emoji_about",
         "btn_emoji_servers", "btn_emoji_top_referrers", "btn_emoji_status", "btn_emoji_language",
         "bot_language", "cryptobot_token",
+        "trial_enabled", "trial_days", "trial_label",
     }
     data = {k: v for k, v in form.items() if k in allowed_keys}
     await BotSettingsService(db).set_many(data)
@@ -1388,6 +1392,7 @@ _ALL_BUTTONS = [
     {"id": "top_referrers", "label": "🏆 Топ рефереров",    "callback": "top_referrers"},
     {"id": "status",        "label": "📊 Статус",           "callback": "status_cmd"},
     {"id": "language",      "label": "🌐 Язык",             "callback": "language"},
+    {"id": "trial",         "label": "🎁 Пробный период",   "callback": "trial"},
 ]
 
 _DEFAULT_LAYOUT = [
