@@ -80,7 +80,7 @@ async def show_my_keys(callback: CallbackQuery) -> None:
     async with AsyncSessionFactory() as session:
         lang = await _get_lang(callback.from_user.id, session)
         all_keys = await VpnKeyService(session).get_all_for_user(callback.from_user.id)
-        kb_menu = await _get_menu_kb(session)
+        kb_menu = await _get_menu_kb(session, lang=lang, user_id=callback.from_user.id)
         photo = await BotSettingsService(session).get("photo_my_keys")
 
         active_rows, archive_rows = [], []

@@ -136,7 +136,7 @@ async def handle_trial(callback: CallbackQuery) -> None:
     }
 
     async with AsyncSessionFactory() as session:
-        kb = await _get_menu_kb(session, lang=lang)
+        kb = await _get_menu_kb(session, lang=lang, user_id=callback.from_user.id)
         photo_trial = (await BotSettingsService(session).get("photo_trial")) or None
 
     await edit_with_photo(callback, msgs.get(lang, msgs["ru"]), reply_markup=kb, photo=photo_trial)

@@ -75,7 +75,7 @@ def _translate_layout(layout: list, lang: str, settings: dict) -> list:
     return result
 
 
-async def get_main_menu_kb(session, lang: str = "ru") -> InlineKeyboardMarkup:
+async def get_main_menu_kb(session, lang: str = "ru", user_id: int = None) -> InlineKeyboardMarkup:
     s = await BotSettingsService(session).get_all()
 
     # Load layout
@@ -84,6 +84,18 @@ async def get_main_menu_kb(session, lang: str = "ru") -> InlineKeyboardMarkup:
         layout = json.loads(raw_layout) if raw_layout else _DEFAULT_LAYOUT
     except Exception:
         layout = _DEFAULT_LAYOUT
+
+    # Если пробный период уже использован — убираем кнопку из раскладки
+    if user_id and s.get("trial_enabled", "0") == "1":
+        from sqlalchemy import select
+        from app.models.vpn_key import VpnKey
+        result = await session.execute(
+            select(VpnKey).where(VpnKey.user_id == user_id).limit(1)
+        )
+        has_keys = result.scalar_one_or_none() is not None
+        if has_keys:
+            layout = [[b for b in row if b.get("id") != "trial"] for row in layout]
+            layout = [row for row in layout if row]  # убираем пустые ряды
 
     # Translate labels
     layout = _translate_layout(layout, lang, s)

@@ -167,7 +167,7 @@ async def handle_yookassa_payment(callback: CallbackQuery, bot: Bot) -> None:
         except Exception as e:
             log.error(f"Yookassa error for user {callback.from_user.id}: {e}")
             async with AsyncSessionFactory() as s2:
-                kb = await _get_menu_kb(s2, lang=lang)
+                kb = await _get_menu_kb(s2, lang=lang, user_id=callback.from_user.id)
             try:
                 from app.bot.utils.media import edit_with_photo
                 await edit_with_photo(callback, t("payment_error", lang), reply_markup=kb)
@@ -280,7 +280,7 @@ async def handle_sbp_payment(callback: CallbackQuery, bot: Bot) -> None:
         except Exception as e:
             log.error(f"SBP error for user {callback.from_user.id}: {e}")
             async with AsyncSessionFactory() as s2:
-                kb = await _get_menu_kb(s2, lang=lang)
+                kb = await _get_menu_kb(s2, lang=lang, user_id=callback.from_user.id)
             from app.bot.utils.media import edit_with_photo
             await edit_with_photo(callback, t("payment_error", lang), reply_markup=kb)
 
@@ -327,7 +327,7 @@ async def handle_stars_payment(callback: CallbackQuery, bot: Bot) -> None:
             )
         else:
             async with AsyncSessionFactory() as s2:
-                kb = await _get_menu_kb(s2, lang=lang)
+                kb = await _get_menu_kb(s2, lang=lang, user_id=callback.from_user.id)
             from app.bot.utils.media import edit_with_photo
             await edit_with_photo(callback, t("payment_error", lang), reply_markup=kb)
     except Exception:
@@ -429,7 +429,7 @@ async def handle_crypto_payment(callback: CallbackQuery, bot: Bot) -> None:
         except Exception as e:
             log.error(f"CryptoBot error for user {callback.from_user.id}: {e}")
             async with AsyncSessionFactory() as s2:
-                kb = await _get_menu_kb(s2, lang=lang)
+                kb = await _get_menu_kb(s2, lang=lang, user_id=callback.from_user.id)
             from app.bot.utils.media import edit_with_photo
             await edit_with_photo(callback, t("payment_error", lang), reply_markup=kb)
 

@@ -29,7 +29,7 @@ async def show_plans(callback: CallbackQuery) -> None:
     from app.bot.utils.media import edit_with_photo
     if not plans:
         async with AsyncSessionFactory() as session:
-            kb = await _get_menu_kb(session, lang=lang)
+            kb = await _get_menu_kb(session, lang=lang, user_id=callback.from_user.id)
         await edit_with_photo(callback, t("no_plans", lang), reply_markup=kb)
         await callback.answer()
         return
