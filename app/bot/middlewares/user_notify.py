@@ -79,6 +79,9 @@ async def _notify_expired_keys(user_id: int) -> None:
             return
 
         user = await UserService(session).get_by_id(user_id)
+        # Не уведомляем забаненных пользователей
+        if not user or user.is_banned:
+            return
         settings = await BotSettingsService(session).get_all()
         user_lang = user.language if user and user.language else None
         from app.services.i18n import get_lang
@@ -124,6 +127,9 @@ async def _notify_pending_payments(user_id: int) -> None:
             return
 
         user = await UserService(session).get_by_id(user_id)
+        # Не уведомляем забаненных
+        if not user or user.is_banned:
+            return
         settings = await BotSettingsService(session).get_all()
         user_lang = user.language if user and user.language else None
         from app.services.i18n import get_lang

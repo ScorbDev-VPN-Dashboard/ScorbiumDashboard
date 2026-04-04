@@ -73,6 +73,12 @@ async def notify_expiring_soon() -> None:
 
         notify = TelegramNotifyService()
         for user_id, name, exp in data:
+            # Проверяем бан перед отправкой
+            async with AsyncSessionFactory() as check_session:
+                from app.services.user import UserService as _US
+                u = await _US(check_session).get_by_id(user_id)
+                if u and u.is_banned:
+                    continue
             exp_str = exp.strftime("%d.%m.%Y") if exp else "—"
             await notify.send_message(
                 user_id,
