@@ -37,7 +37,8 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-      - "${HTTPS_PORT:-443}:${HTTPS_PORT:-443}"
+      - "443:443"
+      - "8443:8443"
     environment:
       - DOMAIN=${DOMAIN:-localhost}
       - HTTPS_PORT=${HTTPS_PORT:-443}

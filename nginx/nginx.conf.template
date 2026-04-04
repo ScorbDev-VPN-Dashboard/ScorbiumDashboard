@@ -12,7 +12,8 @@ server {
 }
 
 server {
-    listen ${HTTPS_PORT} ssl http2;
+    listen 443 ssl http2;
+    listen 8443 ssl http2;
     server_name ${DOMAIN};
 
     ssl_certificate     /etc/nginx/ssl/live/${DOMAIN}/fullchain.pem;
@@ -37,16 +38,16 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 60s;
     }
-    location /api/ {
-        limit_req zone=api burst=30 nodelay;
+    location /webhook/ {
+        limit_req zone=webhook burst=50 nodelay;
         proxy_pass http://vpn_app;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-    location /webhook/ {
-        limit_req zone=webhook burst=50 nodelay;
+    location /api/ {
+        limit_req zone=api burst=30 nodelay;
         proxy_pass http://vpn_app;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
