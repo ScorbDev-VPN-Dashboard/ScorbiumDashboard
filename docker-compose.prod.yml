@@ -38,8 +38,11 @@ services:
     ports:
       - "80:80"
       - "${HTTPS_PORT:-443}:${HTTPS_PORT:-443}"
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+      - HTTPS_PORT=${HTTPS_PORT:-443}
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - certbot_www:/var/www/certbot:ro
     depends_on:
