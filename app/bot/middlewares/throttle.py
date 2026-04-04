@@ -20,12 +20,13 @@ BLOCK_DURATION = 30      # seconds to block after exhaustion
 
 
 class _Bucket:
-    __slots__ = ("tokens", "last_refill", "blocked_until")
+    __slots__ = ("tokens", "last_refill", "blocked_until", "warned")
 
     def __init__(self) -> None:
         self.tokens: float = MAX_TOKENS
         self.last_refill: float = time.monotonic()
         self.blocked_until: float = 0.0
+        self.warned: bool = False  # отправили ли предупреждение в этот блок
 
     def refill(self) -> None:
         now = time.monotonic()
@@ -38,6 +39,9 @@ class _Bucket:
         now = time.monotonic()
         if now < self.blocked_until:
             return False
+        # Блок истёк — сбрасываем флаг предупреждения
+        if self.warned:
+            self.warned = False
         self.refill()
         if self.tokens >= cost:
             self.tokens -= cost
@@ -75,20 +79,22 @@ class ThrottleMiddleware(BaseMiddleware):
         bucket = self._buckets[user_id]
 
         if not bucket.consume(cost):
-            # Rate limited — silently drop, or warn once
-            if isinstance(event, Message):
-                try:
-                    await event.answer(
-                        "⏳ Слишком много запросов. Подождите немного.",
-                        disable_notification=True,
-                    )
-                except Exception:
-                    pass
-            elif isinstance(event, CallbackQuery):
-                try:
-                    await event.answer("⏳ Слишком быстро!", show_alert=False)
-                except Exception:
-                    pass
+            # Предупреждаем только один раз за период блока
+            if not bucket.warned:
+                bucket.warned = True
+                if isinstance(event, Message):
+                    try:
+                        await event.answer(
+                            "⏳ Слишком много запросов. Подождите 30 секунд.",
+                            disable_notification=True,
+                        )
+                    except Exception:
+                        pass
+                elif isinstance(event, CallbackQuery):
+                    try:
+                        await event.answer("⏳ Слишком быстро! Подождите.", show_alert=True)
+                    except Exception:
+                        pass
             return  # drop the update
 
         return await handler(event, data)
