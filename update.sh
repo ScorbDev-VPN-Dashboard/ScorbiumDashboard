@@ -30,8 +30,9 @@ server {
     location / { return 301 https://\$host\$request_uri; }
 }
 server {
-    listen 443 ssl http2;
-    listen 8443 ssl http2;
+    listen 443 ssl;
+    listen 8443 ssl;
+    http2 on;
     server_name ${DOMAIN};
     ssl_certificate     /etc/nginx/ssl/live/${DOMAIN}/fullchain.pem;
     ssl_certificate_key /etc/nginx/ssl/live/${DOMAIN}/privkey.pem;
