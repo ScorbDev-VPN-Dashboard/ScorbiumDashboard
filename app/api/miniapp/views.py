@@ -307,9 +307,10 @@ async def pay_sbp(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/settings")
-async def get_settings(db: AsyncSession = Depends(get_db)):    """Get public bot settings for Mini App."""
+async def get_settings(db: AsyncSession = Depends(get_db)):
+    """Get public bot settings for Mini App."""
     s = await BotSettingsService(db).get_all()
-    return JSONResponse({ 
+    return JSONResponse({
         "ok": True,
         "lang": s.get("bot_language", "ru"),
         "about_text": s.get("about_text", ""),
