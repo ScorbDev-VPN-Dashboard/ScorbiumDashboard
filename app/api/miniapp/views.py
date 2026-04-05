@@ -262,9 +262,52 @@ async def pay_yookassa(request: Request, db: AsyncSession = Depends(get_db)):
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 
+@router.post("/pay/sbp")
+async def pay_sbp(request: Request, db: AsyncSession = Depends(get_db)):
+    """Create SBP (YooKassa) payment."""
+    tg_user = await _get_tg_user(request)
+    if not tg_user:
+        return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
+
+    body = await request.json()
+    plan_id = body.get("plan_id")
+    user_id = tg_user["id"]
+
+    plan = await PlanService(db).get_by_id(plan_id)
+    if not plan or not plan.is_active:
+        return JSONResponse({"ok": False, "error": "Plan not found"}, status_code=404)
+
+    try:
+        from app.services.yookassa import YookassaService
+        from app.models.payment import PaymentProvider
+        yk = YookassaService()
+        payment = await PaymentService(db).create_pending(
+            user_id=user_id, plan=plan, provider=PaymentProvider.YOOKASSA_SBP
+        )
+        await db.flush()
+
+        return_url = f"https://t.me/"
+        yk_payment = yk.create_sbp_payment(
+            amount=plan.price,
+            description=f"VPN — {plan.name}",
+            return_url=return_url,
+            metadata={"payment_id": str(payment.id), "plan_id": str(plan.id)},
+        )
+        payment.external_id = yk_payment.id
+        await db.commit()
+
+        return JSONResponse({
+            "ok": True,
+            "payment_id": payment.id,
+            "confirm_url": yk_payment.confirmation.confirmation_url,
+        })
+    except Exception as e:
+        log.error(f"Mini App SBP error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
 @router.get("/settings")
-async def get_settings(db: AsyncSession = Depends(get_db)):
-    """Get public bot settings for Mini App."""
+async def get_settings(db: AsyncSession = Depends(get_db)):    """Get public bot settings for Mini App."""
     s = await BotSettingsService(db).get_all()
     return JSONResponse({ 
         "ok": True,
