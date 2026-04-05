@@ -5,7 +5,7 @@ GREEN='\033[0;32m'; CYAN='\033[0;36m'; RESET='\033[0m'
 DOMAIN=$(grep "^DOMAIN=" .env 2>/dev/null | cut -d= -f2 || echo "")
 [[ -z "$DOMAIN" ]] && DOMAIN=$(grep TELEGRAM_WEBHOOK_URL .env | sed 's|.*https://||;s|/.*||;s|:.*||')
 
-echo -e "${CYAN}[1/4] git pull...${RESET}"
+echo -e "${CYAN}[1/3] git pull...${RESET}"
 git pull
 
 # Обновляем APP_VERSION из pyproject.toml
@@ -16,15 +16,18 @@ if [[ -n "$NEW_VER" ]]; then
     else
         echo "APP_VERSION=${NEW_VER}" >> .env
     fi
-    echo -e "${GREEN}  Версия: ${NEW_VER}${RESET}"
 fi
 
-echo -e "${CYAN}[2/4] Генерирую nginx.conf...${RESET}"
+echo -e "${CYAN}[2/3] Генерирую nginx.conf для ${DOMAIN}...${RESET}"
 cat > nginx/nginx.conf << NGINXEOF
 worker_processes auto;
 error_log /var/log/nginx/error.log warn;
 pid /var/run/nginx.pid;
-events { worker_connections 1024; }
+
+events {
+    worker_connections 1024;
+}
+
 http {
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
@@ -32,51 +35,77 @@ http {
     keepalive_timeout 65;
     client_max_body_size 20M;
     gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+    gzip_types text/plain text/css application/json application/javascript;
+
     limit_req_zone \$binary_remote_addr zone=panel:10m rate=30r/m;
     limit_req_zone \$binary_remote_addr zone=api:10m rate=60r/m;
     limit_req_zone \$binary_remote_addr zone=webhook:10m rate=120r/m;
-    upstream vpn_app { server app:8000; keepalive 32; }
+
+    upstream vpn_app {
+        server app:8000;
+        keepalive 32;
+    }
+
     server {
         listen 80;
         server_name ${DOMAIN};
         location /.well-known/acme-challenge/ { root /var/www/certbot; }
         location / { return 301 https://\$host\$request_uri; }
     }
+
     server {
         listen 443 ssl;
         listen 8443 ssl;
         http2 on;
         server_name ${DOMAIN};
+
         ssl_certificate /etc/nginx/ssl/live/${DOMAIN}/fullchain.pem;
         ssl_certificate_key /etc/nginx/ssl/live/${DOMAIN}/privkey.pem;
         ssl_protocols TLSv1.2 TLSv1.3;
         ssl_session_cache shared:SSL:10m;
-        location /panel/ { limit_req zone=panel burst=20 nodelay; proxy_pass http://vpn_app; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-Proto \$scheme; proxy_read_timeout 60s; }
-        location /app/ { proxy_pass http://vpn_app; proxy_set_header Host \$host; proxy_set_header X-Forwarded-Proto \$scheme; }
-        location /webhook/ { limit_req zone=webhook burst=50 nodelay; proxy_pass http://vpn_app; proxy_set_header Host \$host; proxy_set_header X-Forwarded-Proto \$scheme; }
-        location /api/ { limit_req zone=api burst=30 nodelay; proxy_pass http://vpn_app; proxy_set_header Host \$host; proxy_set_header X-Forwarded-Proto \$scheme; }
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 60s;
+        proxy_next_upstream error timeout http_502 http_503;
+        proxy_next_upstream_tries 3;
+        proxy_next_upstream_timeout 30s;
+
+        location /panel/ {
+            limit_req zone=panel burst=20 nodelay;
+            proxy_pass http://vpn_app;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Real-IP \$remote_addr;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+        }
+        location /app/ {
+            proxy_pass http://vpn_app;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+        }
+        location /webhook/ {
+            limit_req zone=webhook burst=50 nodelay;
+            proxy_pass http://vpn_app;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+        }
+        location /api/ {
+            limit_req zone=api burst=30 nodelay;
+            proxy_pass http://vpn_app;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+        }
         location = / { return 301 /panel/; }
-        location / { proxy_pass http://vpn_app; proxy_set_header Host \$host; proxy_set_header X-Forwarded-Proto \$scheme; }
+        location / {
+            proxy_pass http://vpn_app;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+        }
     }
 }
 NGINXEOF
-echo -e "${GREEN}  nginx.conf готов для ${DOMAIN}${RESET}"
+echo -e "${GREEN}  nginx.conf готов${RESET}"
 
-echo -e "${CYAN}[3/4] Пересобираю контейнеры...${RESET}"
+echo -e "${CYAN}[3/3] Пересобираю и запускаю...${RESET}"
 docker compose -f docker-compose.prod.yml up -d --build
-echo -e "${GREEN}  Контейнеры запущены (nginx стартует автоматически после app)${RESET}"
-
-echo -e "${CYAN}[4/4] Ожидаю готовности...${RESET}"
-echo -n "  "
-for i in $(seq 1 60); do
-    STATUS=$(docker inspect --format='{{.State.Health.Status}}' vpn_app 2>/dev/null || echo "none")
-    if [[ "$STATUS" == "healthy" ]]; then
-        echo -e "\n${GREEN}  app healthy ✅${RESET}"
-        break
-    fi
-    echo -n "."
-    sleep 3
-done
-
 echo -e "${GREEN}✅ Готово! https://${DOMAIN}/panel/${RESET}"
+echo -e "   (nginx запустится автоматически когда app будет готов)"
