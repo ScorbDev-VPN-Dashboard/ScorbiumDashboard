@@ -1,24 +1,26 @@
 #!/usr/bin/env bash
-# Обновление проекта на сервере
 set -euo pipefail
+GREEN='\033[0;32m'; CYAN='\033[0;36m'; RESET='\033[0m'
 
-GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'; RESET='\033[0m'
-
-# Берём домен из .env
 DOMAIN=$(grep "^DOMAIN=" .env 2>/dev/null | cut -d= -f2 || echo "")
-if [[ -z "$DOMAIN" ]]; then
-    DOMAIN=$(grep TELEGRAM_WEBHOOK_URL .env | sed 's|.*https://||;s|/.*||' | sed 's|:.*||')
-fi
+[[ -z "$DOMAIN" ]] && DOMAIN=$(grep TELEGRAM_WEBHOOK_URL .env | sed 's|.*https://||;s|/.*||;s|:.*||')
 
 echo -e "${CYAN}[1/4] git pull...${RESET}"
 git pull
 
-echo -e "${CYAN}[2/4] Пересобираю контейнеры...${RESET}"
-docker compose -f docker-compose.prod.yml up -d --build
+# Обновляем APP_VERSION из pyproject.toml
+NEW_VER=$(grep '^version' pyproject.toml | head -1 | sed 's/.*= *"\(.*\)"/\1/')
+if [[ -n "$NEW_VER" ]]; then
+    if grep -q "^APP_VERSION=" .env; then
+        sed -i "s/^APP_VERSION=.*/APP_VERSION=${NEW_VER}/" .env
+    else
+        echo "APP_VERSION=${NEW_VER}" >> .env
+    fi
+    echo -e "${GREEN}  Версия: ${NEW_VER}${RESET}"
+fi
 
-echo -e "${CYAN}[3/4] Применяю nginx конфиг...${RESET}"
-# Генерируем конфиг с реальным доменом и копируем в контейнер
-cat > /tmp/vpn_nginx.conf << NGINXEOF
+echo -e "${CYAN}[2/4] Генерирую nginx.conf...${RESET}"
+cat > nginx/nginx.conf << NGINXEOF
 limit_req_zone \$binary_remote_addr zone=panel:10m rate=30r/m;
 limit_req_zone \$binary_remote_addr zone=api:10m rate=60r/m;
 limit_req_zone \$binary_remote_addr zone=webhook:10m rate=120r/m;
@@ -34,55 +36,28 @@ server {
     listen 8443 ssl;
     http2 on;
     server_name ${DOMAIN};
-    ssl_certificate     /etc/nginx/ssl/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate /etc/nginx/ssl/live/${DOMAIN}/fullchain.pem;
     ssl_certificate_key /etc/nginx/ssl/live/${DOMAIN}/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_session_cache shared:SSL:10m;
     client_max_body_size 20M;
-    location /panel/ {
-        limit_req zone=panel burst=20 nodelay;
-        proxy_pass http://vpn_app;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_read_timeout 60s;
-    }
-    location /webhook/ {
-        limit_req zone=webhook burst=50 nodelay;
-        proxy_pass http://vpn_app;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-    location /api/ {
-        proxy_pass http://vpn_app;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
+    location /panel/ { limit_req zone=panel burst=20 nodelay; proxy_pass http://vpn_app; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-Proto \$scheme; proxy_read_timeout 60s; }
+    location /app/ { proxy_pass http://vpn_app; proxy_set_header Host \$host; proxy_set_header X-Forwarded-Proto \$scheme; }
+    location /webhook/ { limit_req zone=webhook burst=50 nodelay; proxy_pass http://vpn_app; proxy_set_header Host \$host; proxy_set_header X-Forwarded-Proto \$scheme; }
+    location /api/ { limit_req zone=api burst=30 nodelay; proxy_pass http://vpn_app; proxy_set_header Host \$host; proxy_set_header X-Forwarded-Proto \$scheme; }
     location = / { return 301 /panel/; }
-    location / {
-        proxy_pass http://vpn_app;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
+    location / { proxy_pass http://vpn_app; proxy_set_header Host \$host; proxy_set_header X-Forwarded-Proto \$scheme; }
 }
 NGINXEOF
+echo -e "${GREEN}  nginx.conf готов для ${DOMAIN}${RESET}"
 
-docker cp /tmp/vpn_nginx.conf vpn_nginx:/etc/nginx/conf.d/default.conf
+echo -e "${CYAN}[3/4] Пересобираю контейнеры...${RESET}"
+docker compose -f docker-compose.prod.yml up -d --build
+
+echo -e "${CYAN}[4/4] Применяю nginx конфиг...${RESET}"
+sleep 5
+docker cp nginx/nginx.conf vpn_nginx:/etc/nginx/conf.d/default.conf
 docker exec vpn_nginx nginx -t && docker exec vpn_nginx nginx -s reload
 echo -e "${GREEN}  nginx OK${RESET}"
 
-echo -e "${CYAN}[4/4] Миграции БД...${RESET}"
-# Ждём пока app полностью запустится
-echo -n "  Ожидание запуска app"
-for i in $(seq 1 30); do
-    if docker compose -f docker-compose.prod.yml exec -T app uv run python -c "import sys; sys.exit(0)" 2>/dev/null; then
-        break
-    fi
-    echo -n "."
-    sleep 2
-done
-echo ""
-docker compose -f docker-compose.prod.yml exec -T app uv run alembic upgrade head
-
-echo -e "${GREEN}✅ Готово! Панель: https://${DOMAIN}/panel/${RESET}"
+echo -e "${GREEN}✅ Готово! https://${DOMAIN}/panel/${RESET}"

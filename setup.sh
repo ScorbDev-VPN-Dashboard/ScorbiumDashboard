@@ -108,7 +108,7 @@ fi
 info "Генерирую .env..."
 cat > .env <<EOF
 APP_NAME=${APP_NAME}
-APP_VERSION=1.0.0
+APP_VERSION=$(grep '^version' pyproject.toml | head -1 | sed 's/.*= *"\(.*\)"/\1/')
 SERVER_HOST=0.0.0.0
 SERVER_PORT=8000
 ALLOWED_ORIGINS=${ALLOWED_ORIGINS}

@@ -39,11 +39,8 @@ services:
       - "80:80"
       - "443:443"
       - "8443:8443"
-    environment:
-      - DOMAIN=${DOMAIN:-localhost}
-      - HTTPS_PORT=${HTTPS_PORT:-443}
     volumes:
-      - ./nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - certbot_www:/var/www/certbot:ro
     depends_on:
