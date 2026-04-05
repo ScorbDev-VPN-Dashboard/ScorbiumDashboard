@@ -73,7 +73,16 @@ docker exec vpn_nginx nginx -t && docker exec vpn_nginx nginx -s reload
 echo -e "${GREEN}  nginx OK${RESET}"
 
 echo -e "${CYAN}[4/4] Миграции БД...${RESET}"
-sleep 3
-docker compose -f docker-compose.prod.yml exec app uv run alembic upgrade head
+# Ждём пока app полностью запустится
+echo -n "  Ожидание запуска app"
+for i in $(seq 1 30); do
+    if docker compose -f docker-compose.prod.yml exec -T app uv run python -c "import sys; sys.exit(0)" 2>/dev/null; then
+        break
+    fi
+    echo -n "."
+    sleep 2
+done
+echo ""
+docker compose -f docker-compose.prod.yml exec -T app uv run alembic upgrade head
 
 echo -e "${GREEN}✅ Готово! Панель: https://${DOMAIN}/panel/${RESET}"
