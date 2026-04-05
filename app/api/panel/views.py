@@ -1394,7 +1394,7 @@ _ALL_BUTTONS = [
     {"id": "status",        "label": "📊 Статус",           "callback": "status_cmd"},
     {"id": "language",      "label": "🌐 Язык",             "callback": "language"},
     {"id": "trial",         "label": "🎁 Пробный период",   "callback": "trial"},
-    {"id": "miniapp",       "label": "📱 Открыть приложение", "callback": "miniapp"},
+    {"id": "miniapp",       "label": "📱 Scr", "callback": "miniapp"},
 ]
 
 _DEFAULT_LAYOUT = [

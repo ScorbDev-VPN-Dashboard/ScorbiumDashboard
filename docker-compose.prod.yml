@@ -47,7 +47,8 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - certbot_www:/var/www/certbot:ro
     depends_on:
-      - app
+      app:
+        condition: service_started
     networks:
       - vpn_net
 
