@@ -56,7 +56,8 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 echo -e "${CYAN}[4/4] Применяю nginx конфиг...${RESET}"
 sleep 5
-docker cp nginx/nginx.conf vpn_nginx:/etc/nginx/conf.d/default.conf
+# Файл примонтирован как volume — пишем через exec, не через cp
+docker exec vpn_nginx sh -c "cat > /etc/nginx/conf.d/default.conf" < nginx/nginx.conf
 docker exec vpn_nginx nginx -t && docker exec vpn_nginx nginx -s reload
 echo -e "${GREEN}  nginx OK${RESET}"
 
