@@ -261,26 +261,68 @@ async def admin_users(callback: CallbackQuery) -> None:
     if not _is_admin(callback.from_user.id):
         await callback.answer("⛔ Нет доступа", show_alert=True)
         return
+    await callback.answer()
+    await _show_users_page(callback, page=0)
+
+
+@router.callback_query(F.data.startswith("adm:users:page:"))
+async def admin_users_page(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return
+    await callback.answer()
+    page = int(callback.data.split(":")[3])
+    await _show_users_page(callback, page=page)
+
+
+async def _show_users_page(callback: CallbackQuery, page: int = 0) -> None:
+    PAGE_SIZE = 8
+    offset = page * PAGE_SIZE
 
     async with AsyncSessionFactory() as session:
-        users = await UserService(session).get_all(limit=10)
+        users = await UserService(session).get_all(limit=PAGE_SIZE, offset=offset)
         total = await UserService(session).count_all()
 
-    lines = [f"👥 <b>Последние пользователи</b> (всего: {total})\n"]
+    total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     builder = InlineKeyboardBuilder()
+
     for u in users:
         status = "🚫" if u.is_banned else "✅"
         uname = f"@{u.username}" if u.username else f"id:{u.id}"
-        lines.append(f"{status} {u.full_name} ({uname}) — 💰{float(u.balance or 0):.0f}₽")
+        label = f"{status} {u.full_name[:18]} ({uname[:12]})"
         builder.row(InlineKeyboardButton(
-            text=f"⚙️ {u.full_name[:20]}",
+            text=label,
             callback_data=f"adm:user:{u.id}",
         ))
+
+    # Пагинация
+    nav_btns = []
+    if page > 0:
+        nav_btns.append(InlineKeyboardButton(text="◀️", callback_data=f"adm:users:page:{page-1}"))
+    nav_btns.append(InlineKeyboardButton(text=f"{page+1}/{total_pages}", callback_data="adm:noop"))
+    if page < total_pages - 1:
+        nav_btns.append(InlineKeyboardButton(text="▶️", callback_data=f"adm:users:page:{page+1}"))
+    if nav_btns:
+        builder.row(*nav_btns)
+
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back"))
 
-    await callback.message.edit_text(
-        "\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML",
+    text = (
+        f"👥 <b>Пользователи</b> (всего: {total})\n"
+        f"Страница {page+1} из {total_pages}\n\n"
     )
+    for u in users:
+        status = "🚫" if u.is_banned else "✅"
+        uname = f"@{u.username}" if u.username else f"id:{u.id}"
+        text += f"{status} <b>{u.full_name}</b> ({uname}) — {float(u.balance or 0):.0f}₽\n"
+
+    try:
+        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data == "adm:noop")
+async def admin_noop(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
