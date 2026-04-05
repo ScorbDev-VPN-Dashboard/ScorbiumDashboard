@@ -21,6 +21,7 @@ _DEFAULT_LAYOUT = [
 
 def main_menu_kb(
     support_url: str = "",
+    miniapp_url: str = "",
     layout: list = None,
     styles: dict = None,
     emojis: dict = None,
@@ -48,6 +49,9 @@ def main_menu_kb(
 
             if bid == "support" and support_url:
                 row_btns.append(btn(label, url=support_url, style=style, emoji_id=emoji_id))
+            elif bid == "miniapp" and miniapp_url:
+                from aiogram.types import WebAppInfo
+                row_btns.append(InlineKeyboardButton(text=label, web_app=WebAppInfo(url=miniapp_url)))
             else:
                 row_btns.append(btn(label, callback_data=callback, style=style, emoji_id=emoji_id))
 

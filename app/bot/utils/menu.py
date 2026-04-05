@@ -108,6 +108,7 @@ async def get_main_menu_kb(session, lang: str = "ru", user_id: int = None) -> In
 
     return main_menu_kb(
         support_url=s.get("support_url", ""),
+        miniapp_url=f"{s.get('panel_url','').rstrip('/')}/app/" if s.get("panel_url") else "",
         layout=layout,
         styles=styles,
         emojis=emojis,
