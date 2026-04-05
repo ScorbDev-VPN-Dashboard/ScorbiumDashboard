@@ -64,9 +64,17 @@ async def _get_tg_user(request: Request) -> Optional[dict]:
 # ── Pages ─────────────────────────────────────────────────────────────────────
 
 @router.get("/", response_class=HTMLResponse)
-async def miniapp_index(request: Request):
+async def miniapp_index(request: Request, db: AsyncSession = Depends(get_db)):
     """Main Mini App page."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    from app.core.config import config as _cfg
+    settings = await BotSettingsService(db).get_all()
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "app_name": _cfg.web.app_name,
+        "support_url": settings.get("support_url", ""),
+        "about_text": settings.get("about_text", ""),
+        "bot_language": settings.get("bot_language", "ru"),
+    })
 
 
 # ── API endpoints ─────────────────────────────────────────────────────────────
@@ -304,6 +312,83 @@ async def pay_sbp(request: Request, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         log.error(f"Mini App SBP error: {e}")
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@router.get("/pay/check/{payment_id}")
+async def check_payment(payment_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Check payment status and provision VPN key if succeeded."""
+    tg_user = await _get_tg_user(request)
+    if not tg_user:
+        return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
+
+    payment = await PaymentService(db).get_by_id(payment_id)
+    if not payment or payment.user_id != tg_user["id"]:
+        return JSONResponse({"ok": False, "error": "Payment not found"}, status_code=404)
+
+    if payment.status == PaymentStatus.SUCCEEDED.value:
+        # Already succeeded — find the key
+        from sqlalchemy import select
+        from app.models.vpn_key import VpnKey
+        result = await db.execute(
+            select(VpnKey).where(VpnKey.id == payment.vpn_key_id)
+        )
+        key = result.scalar_one_or_none()
+        return JSONResponse({
+            "ok": True,
+            "status": "succeeded",
+            "access_url": key.access_url if key else None,
+            "expires_at": key.expires_at.isoformat() if key and key.expires_at else None,
+        })
+
+    if payment.status == PaymentStatus.FAILED.value:
+        return JSONResponse({"ok": True, "status": "failed"})
+
+    # Check with YooKassa
+    if not payment.external_id:
+        return JSONResponse({"ok": True, "status": "pending"})
+
+    try:
+        from app.services.yookassa import YookassaService
+        yk_payment = YookassaService().get_payment(payment.external_id)
+        if yk_payment.status == "succeeded":
+            payment.status = PaymentStatus.SUCCEEDED.value
+            await db.flush()
+
+            # Get plan_id from meta
+            import json as _json
+            plan_id = None
+            if payment.meta:
+                try:
+                    meta = _json.loads(payment.meta)
+                    plan_id = int(meta.get("plan_id", 0)) or None
+                except Exception:
+                    pass
+
+            if plan_id:
+                plan = await PlanService(db).get_by_id(plan_id)
+                if plan:
+                    key = await VpnKeyService(db).provision(user_id=tg_user["id"], plan=plan)
+                    if key:
+                        payment.vpn_key_id = key.id
+                    await db.commit()
+                    return JSONResponse({
+                        "ok": True,
+                        "status": "succeeded",
+                        "access_url": key.access_url if key else None,
+                        "expires_at": key.expires_at.isoformat() if key and key.expires_at else None,
+                    })
+            await db.commit()
+            return JSONResponse({"ok": True, "status": "succeeded", "access_url": None})
+
+        elif yk_payment.status in ("canceled", "expired"):
+            payment.status = PaymentStatus.FAILED.value
+            await db.commit()
+            return JSONResponse({"ok": True, "status": "failed"})
+        else:
+            return JSONResponse({"ok": True, "status": "pending"})
+    except Exception as e:
+        log.error(f"Mini App check payment error: {e}")
+        return JSONResponse({"ok": True, "status": "pending"})
 
 
 @router.get("/settings")
