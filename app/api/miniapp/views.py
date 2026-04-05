@@ -258,6 +258,8 @@ async def pay_yookassa(request: Request, db: AsyncSession = Depends(get_db)):
             metadata={"payment_id": str(payment.id), "plan_id": str(plan.id)},
         )
         payment.external_id = yk_payment.id
+        import json as _json
+        payment.meta = _json.dumps({"plan_id": plan.id})
         await db.commit()
 
         return JSONResponse({
@@ -293,6 +295,8 @@ async def pay_sbp(request: Request, db: AsyncSession = Depends(get_db)):
             user_id=user_id, plan=plan, provider=PaymentProvider.YOOKASSA_SBP
         )
         await db.flush()
+        import json as _json
+        payment.meta = _json.dumps({"plan_id": plan.id})
 
         return_url = f"https://t.me/"
         yk_payment = yk.create_sbp_payment(
@@ -354,13 +358,20 @@ async def check_payment(payment_id: int, request: Request, db: AsyncSession = De
             payment.status = PaymentStatus.SUCCEEDED.value
             await db.flush()
 
-            # Get plan_id from meta
+            # Get plan_id from meta or from yk metadata
             import json as _json
             plan_id = None
             if payment.meta:
                 try:
                     meta = _json.loads(payment.meta)
                     plan_id = int(meta.get("plan_id", 0)) or None
+                except Exception:
+                    pass
+            # Fallback: try yk payment metadata
+            if not plan_id:
+                try:
+                    yk_meta = yk_payment.metadata or {}
+                    plan_id = int(yk_meta.get("plan_id", 0)) or None
                 except Exception:
                     pass
 
