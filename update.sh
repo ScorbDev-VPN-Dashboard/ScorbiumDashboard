@@ -65,25 +65,18 @@ echo -e "${GREEN}  nginx.conf готов для ${DOMAIN}${RESET}"
 
 echo -e "${CYAN}[3/4] Пересобираю контейнеры...${RESET}"
 docker compose -f docker-compose.prod.yml up -d --build
+echo -e "${GREEN}  Контейнеры запущены (nginx стартует автоматически после app)${RESET}"
 
-echo -e "${CYAN}[4/4] Перезагружаю nginx...${RESET}"
-# Ждём пока app реально запустится (отвечает на HTTP)
-echo -n "  Ожидание app"
-for i in $(seq 1 40); do
-    if docker exec vpn_app curl -sf http://localhost:8000/api/v1/healthy > /dev/null 2>&1; then
+echo -e "${CYAN}[4/4] Ожидаю готовности...${RESET}"
+echo -n "  "
+for i in $(seq 1 60); do
+    STATUS=$(docker inspect --format='{{.State.Health.Status}}' vpn_app 2>/dev/null || echo "none")
+    if [[ "$STATUS" == "healthy" ]]; then
+        echo -e "\n${GREEN}  app healthy ✅${RESET}"
         break
     fi
     echo -n "."
     sleep 3
 done
-echo ""
-# Ждём пока nginx запустится
-for i in $(seq 1 20); do
-    STATUS=$(docker inspect --format='{{.State.Status}}' vpn_nginx 2>/dev/null || echo "none")
-    [[ "$STATUS" == "running" ]] && break
-    sleep 2
-done
-docker exec vpn_nginx nginx -t && docker exec vpn_nginx nginx -s reload
-echo -e "${GREEN}  nginx OK${RESET}"
 
 echo -e "${GREEN}✅ Готово! https://${DOMAIN}/panel/${RESET}"
