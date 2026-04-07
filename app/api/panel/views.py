@@ -215,14 +215,75 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     ctx["recent_users"] = await UserService(db).get_all(limit=8)
     ctx["recent_payments"] = await PaymentService(db).get_all(limit=8)
 
-    from app.services.pasarguard.pasarguard import PasarguardService
+    from app.services.pasarguard.pasarguard import get_vpn_panel
     try:
-        marzban_stats = await PasarguardService().get_system_stats()
+        marzban_stats = await get_vpn_panel().get_system_stats()
         ctx["marzban_stats"] = marzban_stats
     except Exception:
         ctx["marzban_stats"] = None
 
     return templates.TemplateResponse("dashboard.html", ctx)
+
+
+# ── SPA API endpoints ─────────────────────────────────────────────────────────
+
+@router.get("/api/dashboard")
+async def spa_dashboard_api(request: Request, db: AsyncSession = Depends(get_db)):
+    """JSON API for SPA dashboard."""
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select, func
+    from app.models.user import User
+    from app.models.payment import Payment, PaymentStatus
+    from app.models.vpn_key import VpnKey, VpnKeyStatus
+
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    new_today_r = await db.execute(select(func.count()).select_from(User).where(User.created_at >= today_start))
+    rev_today_r = await db.execute(select(func.coalesce(func.sum(Payment.amount), 0)).where(Payment.status == PaymentStatus.SUCCEEDED.value, Payment.created_at >= today_start))
+    expired_r = await db.execute(select(func.count()).select_from(VpnKey).where(VpnKey.status == VpnKeyStatus.EXPIRED.value))
+
+    rev_week = []
+    for i in range(6, -1, -1):
+        day_start = today_start - timedelta(days=i)
+        day_end = day_start + timedelta(days=1)
+        r = await db.execute(select(func.coalesce(func.sum(Payment.amount), 0)).where(Payment.status == PaymentStatus.SUCCEEDED.value, Payment.created_at >= day_start, Payment.created_at < day_end))
+        rev_week.append(float(r.scalar_one()))
+
+    return {
+        "stats": {
+            "total_users": await UserService(db).count_all(),
+            "active_subscriptions": await VpnKeyService(db).count_active(),
+            "total_revenue": float(await PaymentService(db).total_revenue()),
+            "open_tickets": await SupportService(db).count_open(),
+            "new_users_today": new_today_r.scalar_one(),
+            "revenue_today": float(rev_today_r.scalar_one()),
+            "expired_keys": expired_r.scalar_one(),
+            "pending_payments": await PaymentService(db).count_by_status(PaymentStatus.PENDING),
+        },
+        "rev_week": rev_week,
+    }
+
+
+@router.get("/api/app-info")
+async def spa_app_info(request: Request):
+    """App name and version for SPA."""
+    return {"app_name": config.web.app_name, "app_version": config.web.app_version}
+
+
+@router.post("/api/login")
+async def spa_login_json(request: Request):
+    """JSON login for SPA — sets session cookie."""
+    from fastapi.responses import JSONResponse as _JR
+    body = await request.json()
+    username = body.get("username", "")
+    password = body.get("password", "")
+    if username != config.web.web_superadmin_username or \
+       password != config.web.web_superadmin_password.get_secret_value():
+        return _JR({"ok": False, "error": "Invalid credentials"}, status_code=401)
+    token = create_access_token(subject=username)
+    resp = _JR({"ok": True, "username": username, "app_name": config.web.app_name, "app_version": config.web.app_version})
+    resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
+    return resp
 
 
 # ── Users ─────────────────────────────────────────────────────────────────────

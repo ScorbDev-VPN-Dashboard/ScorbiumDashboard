@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.vpn_key import VpnKey, VpnKeyStatus
 from app.models.plan import Plan
-from app.services.pasarguard.pasarguard import PasarguardService
+from app.services.pasarguard.pasarguard import get_vpn_panel
+from app.services.vpn_panel_interface import VpnPanelInterface
 from app.core.config import config
 from app.utils.log import log
 
@@ -17,7 +18,7 @@ def _marzban_username(user_id: int, key_id: int) -> str:
 class VpnKeyService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
-        self._marzban = PasarguardService()
+        self._marzban: VpnPanelInterface = get_vpn_panel()
 
     async def get_by_id(self, key_id: int) -> Optional[VpnKey]:
         result = await self.session.execute(select(VpnKey).where(VpnKey.id == key_id))
@@ -103,7 +104,13 @@ class VpnKeyService:
             else:
                 access_url = f"{panel_base}{sub_token.rstrip('/')}"
         else:
-            access_url = f"{panel_base}/sub/{username}"
+            # Fallback: try Remnawave uuid-based URL or Marzban username-based
+            uuid = marz_user.get("uuid", "")
+            if uuid:
+                from app.core.configs.remnawave_config import remnawave as _rw
+                access_url = f"{_rw.remnawave_url.rstrip('/')}/sub/{uuid}" if _rw.remnawave_url else f"{panel_base}/sub/{username}"
+            else:
+                access_url = f"{panel_base}/sub/{username}"
 
         key.pasarguard_key_id = username
         key.access_url = access_url

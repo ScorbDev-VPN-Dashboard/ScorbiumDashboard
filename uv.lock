@@ -1360,11 +1360,12 @@ wheels = [
 
 [[package]]
 name = "vpn-dashboard"
-version = "0.1.0"
+version = "1.5.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiofiles" },
     { name = "aiogram" },
+    { name = "aiohttp" },
     { name = "alembic" },
     { name = "asyncpg" },
     { name = "fastapi" },
@@ -1394,6 +1395,7 @@ dev = [
 requires-dist = [
     { name = "aiofiles", specifier = ">=23.0.0" },
     { name = "aiogram", specifier = ">=3.10.0" },
+    { name = "aiohttp", specifier = ">=3.9.0" },
     { name = "alembic", specifier = ">=1.13.0" },
     { name = "asyncpg", specifier = ">=0.29.0" },
     { name = "fastapi", specifier = ">=0.115.0" },

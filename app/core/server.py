@@ -201,6 +201,16 @@ def create_app() -> FastAPI:
     from app.api.miniapp import get_miniapp_router
     app.include_router(get_miniapp_router())
 
+    # SPA Admin
+    from fastapi.responses import FileResponse
+    from pathlib import Path as _Path
+    _spa_path = _Path(__file__).resolve().parent.parent / "templates" / "spa"
+    _spa_path.mkdir(exist_ok=True)
+
+    @app.get("/admin2/{full_path:path}", include_in_schema=False)
+    async def spa_admin(full_path: str = ""):
+        return FileResponse(str(_spa_path / "index.html"))
+
     # Static files
     static_path = Path(__file__).resolve().parent.parent / "static"
     static_path.mkdir(exist_ok=True)

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0f;--surface:rgba(255,255,255,.04);--surface2:rgba(255,255,255,.07);
+  --border:rgba(255,255,255,.08);--text:#f0f0f5;--muted:#8892a4;
+  --accent:#7c6fff;--accent2:#a78bfa;--green:#22c55e;--red:#ef4444;--yellow:#eab308;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;min-height:100vh;overflow-x:hidden}
+
+/* Login */
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(ellipse at 50% 0%,rgba(124,111,255,.15) 0%,transparent 70%)}
+.login-box{background:rgba(255,255,255,.05);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:24px;padding:40px;width:100%;max-width:380px}
+.login-logo{text-align:center;margin-bottom:32px}
+.login-logo .icon{width:56px;height:56px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:16px;display:inline-flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:12px}
+.login-logo h1{font-size:22px;font-weight:700}
+.login-logo p{font-size:13px;color:var(--muted);margin-top:4px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+.field input{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:12px;padding:12px 16px;color:var(--text);font-size:14px;outline:none;transition:border-color .2s}
+.field input:focus{border-color:var(--accent)}
+.btn-login{width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;transition:opacity .2s;margin-top:8px}
+.btn-login:hover{opacity:.9}
+.login-err{color:var(--red);font-size:13px;text-align:center;margin-top:12px;display:none}
+
+/* App */
+#app{display:none;min-height:100vh}
+.layout{display:flex;min-height:100vh}
+
+/* Sidebar */
+.sidebar{width:240px;background:rgba(255,255,255,.03);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100}
+.sb-logo{padding:24px 20px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+.sb-logo .dot{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.sb-logo span{font-size:15px;font-weight:700}
+.sb-nav{flex:1;padding:12px 10px;overflow-y:auto}
+.sb-section{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:8px 10px 4px}
+.sb-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:500;transition:all .15s;margin-bottom:2px;text-decoration:none}
+.sb-item:hover{background:var(--surface2);color:var(--text)}
+.sb-item.active{background:rgba(124,111,255,.15);color:var(--accent)}
+.sb-item .ico{width:18px;text-align:center;font-size:15px}
+.sb-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:20px}
+.sb-footer{padding:16px;border-top:1px solid var(--border)}
+.sb-user{display:flex;align-items:center;gap:10px}
+.sb-avatar{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff}
+.sb-uname{font-size:13px;font-weight:600}
+.sb-role{font-size:11px;color:var(--muted)}
+.sb-logout{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px;border-radius:6px;transition:color .15s}
+.sb-logout:hover{color:var(--red)}
+
+/* Main */
+.main{margin-left:240px;flex:1;display:flex;flex-direction:column}
+.topbar{padding:20px 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:rgba(10,10,15,.8);backdrop-filter:blur(10px);position:sticky;top:0;z-index:50}
+.topbar-title{font-size:20px;font-weight:700}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.tb-btn{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 14px;color:var(--text);font-size:13px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px}
+.tb-btn:hover{background:rgba(255,255,255,.1)}
+.content{padding:28px;flex:1}
+
+/* Cards */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;position:relative;overflow:hidden;transition:transform .2s,border-color .2s}
+.stat-card:hover{transform:translateY(-2px);border-color:rgba(124,111,255,.3)}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));opacity:0;transition:opacity .2s}
+.stat-card:hover::before{opacity:1}
+.sc-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:14px}
+.sc-val{font-size:28px;font-weight:800;margin-bottom:4px}
+.sc-label{font-size:12px;color:var(--muted);font-weight:500}
+.sc-change{font-size:11px;margin-top:6px;display:flex;align-items:center;gap:4px}
+.sc-up{color:var(--green)}
+.sc-down{color:var(--red)}
+
+/* Charts row */
+.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:28px}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.card-title{font-size:14px;font-weight:600}
+.card-sub{font-size:12px;color:var(--muted)}
+
+/* Bar chart */
+.bar-chart{display:flex;align-items:flex-end;gap:6px;height:120px}
+.bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.bar{width:100%;border-radius:6px 6px 0 0;background:linear-gradient(180deg,var(--accent),rgba(124,111,255,.3));transition:height .5s cubic-bezier(.4,0,.2,1);min-height:4px}
+.bar-label{font-size:10px;color:var(--muted)}
+
+/* Donut */
+.donut-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%}
+svg.donut{transform:rotate(-90deg)}
+.donut-legend{margin-top:16px;display:flex;flex-direction:column;gap:8px;width:100%}
+.dl-item{display:flex;align-items:center;gap:8px;font-size:12px}
+.dl-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dl-val{margin-left:auto;font-weight:600}
+
+/* Table */
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:28px}
+.table-head{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+table{width:100%;border-collapse:collapse}
+th{padding:10px 20px;text-align:left;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+td{padding:12px 20px;font-size:13px;border-bottom:1px solid rgba(255,255,255,.04)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-green{background:rgba(34,197,94,.15);color:var(--green)}
+.badge-red{background:rgba(239,68,68,.12);color:var(--red)}
+.badge-yellow{background:rgba(234,179,8,.12);color:var(--yellow)}
+.badge-blue{background:rgba(124,111,255,.15);color:var(--accent)}
+
+/* Loader */
+.loader{display:flex;align-items:center;justify-content:center;padding:60px;color:var(--muted)}
+.spin{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;margin-right:10px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* Toast */
+.toast-wrap{position:fixed;top:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:8px}
+.toast{background:rgba(30,30,40,.95);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:12px;padding:12px 16px;font-size:13px;display:flex;align-items:center;gap:8px;animation:tin .3s ease;min-width:220px}
+@keyframes tin{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+.toast.ok{border-color:rgba(34,197,94,.3)}
+.toast.err{border-color:rgba(239,68,68,.3)}
+
+/* Responsive */
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%);transition:transform .25s}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0}
+  .charts-row{grid-template-columns:1fr}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="icon">⚡</div>
+      <h1 id="login-title">Admin Panel</h1>
+      <p>Войдите в систему управления</p>
+    </div>
+    <div class="field"><label>Логин</label><input type="text" id="l-user" placeholder="admin" autocomplete="username"></div>
+    <div class="field"><label>Пароль</label><input type="password" id="l-pass" placeholder="••••••••" autocomplete="current-password"></div>
+    <button class="btn-login" onclick="doLogin()">Войти →</button>
+    <div class="login-err" id="login-err">Неверный логин или пароль</div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sb-logo">
+        <div class="dot">⚡</div>
+        <span id="sb-appname">Admin</span>
+      </div>
+      <nav class="sb-nav">
+        <div class="sb-section">Обзор</div>
+        <a class="sb-item active" onclick="nav('dashboard')"><span class="ico">📊</span>Дашборд</a>
+        <div class="sb-section">Управление</div>
+        <a class="sb-item" onclick="nav('users')"><span class="ico">👥</span>Пользователи</a>
+        <a class="sb-item" onclick="nav('payments')"><span class="ico">💳</span>Платежи</a>
+        <a class="sb-item" onclick="nav('subscriptions')"><span class="ico">🔑</span>Подписки</a>
+        <a class="sb-item" onclick="nav('plans')"><span class="ico">📦</span>Тарифы</a>
+        <div class="sb-section">Сервис</div>
+        <a class="sb-item" onclick="nav('support')"><span class="ico">💬</span>Поддержка<span class="sb-badge" id="badge-tickets" style="display:none">0</span></a>
+        <a class="sb-item" onclick="nav('promos')"><span class="ico">🎁</span>Промокоды</a>
+        <a class="sb-item" onclick="nav('broadcasts')"><span class="ico">📢</span>Рассылки</a>
+        <div class="sb-section">Настройки</div>
+        <a class="sb-item" onclick="nav('telegram')"><span class="ico">🤖</span>Telegram</a>
+      </nav>
+      <div class="sb-footer">
+        <div class="sb-user">
+          <div class="sb-avatar" id="sb-av">A</div>
+          <div><div class="sb-uname" id="sb-uname">Admin</div><div class="sb-role">Администратор</div></div>
+          <button class="sb-logout" onclick="logout()" title="Выйти">⏻</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button class="tb-btn" id="menu-btn" onclick="toggleSidebar()" style="display:none">☰</button>
+          <div class="topbar-title" id="page-title">Дашборд</div>
+        </div>
+        <div class="topbar-right">
+          <button class="tb-btn" onclick="refreshPage()">↻ Обновить</button>
+          <button class="tb-btn" onclick="window.open('/panel/','_blank')">🔗 Старая панель</button>
+        </div>
+      </div>
+      <div class="content" id="content">
+        <div class="loader"><div class="spin"></div>Загрузка...</div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+const API = '/api/v1';
+let token = localStorage.getItem('spa_token') || '';
+let currentPage = 'dashboard';
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const u = document.getElementById('l-user').value;
+  const p = document.getElementById('l-pass').value;
+  const err = document.getElementById('login-err');
+  err.style.display = 'none';
+  try {
+    const r = await fetch('/panel/api/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: u, password: p}),
+      credentials: 'include',
+    });
+    const data = await r.json();
+    if (data.ok) {
+      showApp(data.username, data);
+    } else {
+      err.style.display = 'block';
+    }
+  } catch(e) {
+    err.style.display = 'block';
+  }
+}
+
+function showApp(username, info) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('sb-uname').textContent = username || 'Admin';
+  document.getElementById('sb-av').textContent = (username || 'A')[0].toUpperCase();
+  if (info && info.app_name) {
+    document.getElementById('sb-appname').textContent = info.app_name;
+    document.getElementById('login-title').textContent = info.app_name;
+    document.title = info.app_name + ' Admin';
+  }
+  localStorage.setItem('spa_user', username || 'admin');
+  nav('dashboard');
+}
+
+  } catch(e) {}
+}
+
+// ── API ───────────────────────────────────────────────────────────────────────
+async function apiFetch(url, opts = {}) {
+  const r = await fetch(url, {credentials: 'include', ...opts});
+  if (r.status === 401 || r.status === 302) { logout(); return null; }
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function nav(page) {
+  currentPage = page;
+  document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
+  const titles = {
+    dashboard: 'Дашборд', users: 'Пользователи', payments: 'Платежи',
+    subscriptions: 'Подписки', plans: 'Тарифы', support: 'Поддержка',
+    promos: 'Промокоды', broadcasts: 'Рассылки', telegram: 'Telegram',
+  };
+  document.getElementById('page-title').textContent = titles[page] || page;
+  // Mark active
+  document.querySelectorAll('.sb-item').forEach(i => {
+    if (i.getAttribute('onclick')?.includes(`'${page}'`)) i.classList.add('active');
+  });
+  if (page === 'dashboard') renderDashboard();
+  else renderComingSoon(page);
+}
+
+function refreshPage() { nav(currentPage); }
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+async function renderDashboard() {
+  const el = document.getElementById('content');
+  el.innerHTML = '<div class="loader"><div class="spin"></div>Загрузка данных...</div>';
+  try {
+    const [dash, payments] = await Promise.all([
+      apiFetch('/panel/api/dashboard'),
+      apiFetch('/api/v1/payments/?limit=8'),
+    ]);
+    if (!dash) return;
+    el.innerHTML = buildDashboard(dash, payments || []);
+    animateBars(dash.rev_week || []);
+  } catch(e) {
+    el.innerHTML = `<div class="loader" style="color:#ef4444">Ошибка загрузки: ${e.message}</div>`;
+  }
+}
+
+function buildDashboard(d, payments) {
+  const s = d.stats || {};
+  const stats = [
+    {icon:'👥', val: s.total_users||0, label:'Пользователей', color:'rgba(124,111,255,.15)', change: `+${s.new_users_today||0} сегодня`, up: true},
+    {icon:'✅', val: s.active_subscriptions||0, label:'Активных подписок', color:'rgba(34,197,94,.12)', change: `${s.expired_keys||0} истекло`, up: false},
+    {icon:'💰', val: `${(s.total_revenue||0).toFixed(0)} ₽`, label:'Выручка всего', color:'rgba(234,179,8,.12)', change: `+${(s.revenue_today||0).toFixed(0)} ₽ сегодня`, up: true},
+    {icon:'⏳', val: s.pending_payments||0, label:'Ожидают оплаты', color:'rgba(239,68,68,.12)', change: `${s.open_tickets||0} тикетов`, up: false},
+  ];
+
+  let statsHtml = stats.map(s => `
+    <div class="stat-card">
+      <div class="sc-icon" style="background:${s.color}">${s.icon}</div>
+      <div class="sc-val">${s.val}</div>
+      <div class="sc-label">${s.label}</div>
+      <div class="sc-change ${s.up ? 'sc-up' : 'sc-down'}">${s.up ? '↑' : '↓'} ${s.change}</div>
+    </div>`).join('');
+
+  const days = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  const rev = d.rev_week || Array(7).fill(0);
+  const maxRev = Math.max(...rev, 1);
+  const barsHtml = rev.map((v, i) => `
+    <div class="bar-wrap">
+      <div class="bar" id="bar-${i}" style="height:0%" data-h="${Math.round(v/maxRev*100)}"></div>
+      <div class="bar-label">${days[i]}</div>
+    </div>`).join('');
+
+  const payRows = payments.slice(0, 8).map(p => {
+    const st = p.status;
+    const badge = st === 'succeeded' ? 'badge-green' : st === 'pending' ? 'badge-yellow' : 'badge-red';
+    const label = {succeeded:'✅ Успешно', pending:'⏳ Ожидание', failed:'❌ Отменён', refunded:'↩️ Возврат'}[st] || st;
+    const prov = {yookassa:'ЮКасса', telegram_stars:'⭐ Stars', cryptobot:'₿ Crypto', balance:'💰 Баланс', yookassa_sbp:'🏦 СБП'}[p.provider] || p.provider;
+    return `<tr>
+      <td><code style="color:var(--accent)">#${p.id}</code></td>
+      <td>${p.user_id}</td>
+      <td>${prov}</td>
+      <td><b>${p.amount} ${p.currency}</b></td>
+      <td><span class="badge ${badge}">${label}</span></td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="stats-grid">${statsHtml}</div>
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="card-header">
+          <div><div class="card-title">Выручка за 7 дней</div><div class="card-sub">Последние 7 дней</div></div>
+          <div style="font-size:20px;font-weight:800;color:var(--accent)">${(s.revenue_today||0).toFixed(0)} ₽</div>
+        </div>
+        <div class="bar-chart">${barsHtml}</div>
+      </div>
+      <div class="chart-card">
+        <div class="card-header"><div class="card-title">Статус системы</div></div>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
+          ${statusRow('🤖 Бот', 'Online', 'badge-green')}
+          ${statusRow('🗄️ База данных', 'Healthy', 'badge-green')}
+          ${statusRow('💳 ЮКасса', s.pending_payments > 0 ? 'Активна' : 'Ожидание', 'badge-blue')}
+          ${statusRow('📊 Подписки', `${s.active_subscriptions||0} активных`, 'badge-green')}
+        </div>
+      </div>
+    </div>
+    <div class="table-card">
+      <div class="table-head">
+        <div class="card-title">Последние платежи</div>
+        <button class="tb-btn" onclick="nav('payments')">Все платежи →</button>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Юзер</th><th>Метод</th><th>Сумма</th><th>Статус</th></tr></thead>
+        <tbody>${payRows || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Нет платежей</td></tr>'}</tbody>
+      </table>
+    </div>`;
+}
+
+function statusRow(label, val, badge) {
+  return `<div style="display:flex;align-items:center;justify-content:space-between">
+    <span style="font-size:13px">${label}</span>
+    <span class="badge ${badge}">${val}</span>
+  </div>`;
+}
+
+function animateBars(rev) {
+  setTimeout(() => {
+    rev.forEach((_, i) => {
+      const el = document.getElementById('bar-' + i);
+      if (el) el.style.height = el.dataset.h + '%';
+    });
+  }, 100);
+}
+
+function renderComingSoon(page) {
+  document.getElementById('content').innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;color:var(--muted)">
+      <div style="font-size:64px;margin-bottom:16px">🚧</div>
+      <div style="font-size:20px;font-weight:700;color:var(--text);margin-bottom:8px">В разработке</div>
+      <div style="font-size:14px">Страница «${page}» будет добавлена в следующей версии</div>
+      <button class="tb-btn" style="margin-top:24px" onclick="window.open('/panel/','_blank')">Открыть в старой панели →</button>
+    </div>`;
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg, ok = true) {
+  const wrap = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast ' + (ok ? 'ok' : 'err');
+  el.innerHTML = `<span>${ok ? '✅' : '❌'}</span> ${msg}`;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async () => {
+  // DEV MODE: skip auth, show dashboard directly
+  showApp('admin', {app_name: 'Admin Panel'});
+})();
+
+// Enter key on login
+document.getElementById('l-pass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+// Responsive
+if (window.innerWidth <= 768) {
+  document.getElementById('menu-btn').style.display = 'flex';
+}
+</script>
+</body>
+</html>

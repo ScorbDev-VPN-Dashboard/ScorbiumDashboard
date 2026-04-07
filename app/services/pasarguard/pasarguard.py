@@ -6,6 +6,7 @@ from httpx import AsyncClient, HTTPStatusError, RequestError
 from app.core.config import config
 from app.utils.log import log
 from app.core.exceptions import PasarguardRequestError, PasarguardAuthError
+from app.services.vpn_panel_interface import VpnPanelInterface
 
 
 class MarzbanClient:
@@ -16,15 +17,18 @@ class MarzbanClient:
     _lock = asyncio.Lock()
 
     def __init__(self) -> None:
-        self._base = str(config.pasarguard.pasarguard_admin_panel).rstrip("/")
-        self._login = config.pasarguard.pasarguard_admin_login
+        cfg = config.pasarguard
+        if cfg is None:
+            raise RuntimeError("Marzban/Pasarguard is not configured (VPN_PANEL_TYPE=remnawave?)")
+        self._base = str(cfg.pasarguard_admin_panel).rstrip("/")
+        self._login = cfg.pasarguard_admin_login
         self._password = (
-            config.pasarguard.pasarguard_admin_password.get_secret_value()
-            if config.pasarguard.pasarguard_admin_password else None
+            cfg.pasarguard_admin_password.get_secret_value()
+            if cfg.pasarguard_admin_password else None
         )
         self._api_key = (
-            config.pasarguard.pasarguard_api_key.get_secret_value()
-            if config.pasarguard.pasarguard_api_key else None
+            cfg.pasarguard_api_key.get_secret_value()
+            if cfg.pasarguard_api_key else None
         )
 
     async def _get_token(self) -> str:
@@ -121,10 +125,10 @@ class MarzbanClient:
             raise PasarguardRequestError(f"Connection error: {e}")
 
 
-class PasarguardService:
+class PasarguardService(VpnPanelInterface):
     """
-    High-level Marzban API service.
-    Используется для создания/удаления VPN пользователей при покупке подписки.
+    High-level Marzban/Pasarguard API service.
+    Implements VpnPanelInterface.
     """
 
     def __init__(self) -> None:
@@ -263,3 +267,17 @@ class PasarguardService:
         """Ссылка на подписку для клиента."""
         base = str(config.pasarguard.pasarguard_admin_panel).rstrip("/")
         return f"{base}/sub/{sub_token}/"
+
+
+def get_vpn_panel() -> VpnPanelInterface:
+    """
+    Factory — returns the correct VPN panel backend based on VPN_PANEL_TYPE env var.
+    VPN_PANEL_TYPE=marzban  → PasarguardService (default)
+    VPN_PANEL_TYPE=remnawave → RemnawaveService
+    """
+    from app.core.configs.remnawave_config import remnawave as _rw_cfg
+    panel_type = (_rw_cfg.vpn_panel_type or "marzban").lower().strip()
+    if panel_type == "remnawave":
+        from app.services.remnawave.remnawave import RemnawaveService
+        return RemnawaveService()
+    return PasarguardService()

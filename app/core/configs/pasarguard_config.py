@@ -176,13 +176,21 @@ class _PasarGuardConfig(BaseSettings):
         )
 
 @lru_cache()
-def get_pasarguard_config() -> _PasarGuardConfig:
+def get_pasarguard_config() -> Optional["_PasarGuardConfig"]:
+    """Returns config, or None when VPN_PANEL_TYPE=remnawave and Marzban vars are absent."""
+    import os as _os
+    panel_type = _os.environ.get("VPN_PANEL_TYPE", "marzban").lower().strip()
+    if panel_type == "remnawave" and not _os.environ.get("PASARGUARD_ADMIN_PANEL"):
+        log.info("ℹ️  Pasarguard config skipped (VPN_PANEL_TYPE=remnawave)")
+        return None
     return _PasarGuardConfig()
+
 
 try:
     pasarguard = get_pasarguard_config()
-    log.success("✅ Pasarguard config initialized successfully")
-    log.debug(f"Pasarguard: {pasarguard}")
+    if pasarguard:
+        log.success("✅ Pasarguard config initialized successfully")
+        log.debug(f"Pasarguard: {pasarguard}")
 except EnvException as e:
     log.error(f"""
             ❌ Failed to initialize Pasarguard config: {e}
@@ -192,7 +200,6 @@ except EnvException as e:
             - PASARGUARD_ADMIN_LOGIN + PASARGUARD_ADMIN_PASSWORD
             - PASARGUARD_API_KEY
               """)
-
     raise
 
  

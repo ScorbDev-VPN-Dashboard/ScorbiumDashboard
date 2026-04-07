@@ -59,11 +59,32 @@ read -rp "Пользователь БД [postgres]: " DB_USER; DB_USER=${DB_USER
 read -rsp "Пароль БД [postgres]: " DB_PASS; echo ""; DB_PASS=${DB_PASS:-postgres}
 
 echo ""
-echo -e "${BOLD}── PasarGuard / Marzban ────────────────────────────${RESET}"
-read -rp "URL панели (например: https://panel.example.com:8012): " PASAR_URL
-[[ -z "$PASAR_URL" ]] && error "URL панели обязателен"
-read -rp "Логин Marzban [admin]: " PASAR_LOGIN; PASAR_LOGIN=${PASAR_LOGIN:-admin}
-read -rsp "Пароль Marzban: " PASAR_PASS; echo ""
+echo -e "${BOLD}── VPN Panel ────────────────────────────────────────${RESET}"
+echo "Тип панели:"
+echo "  1) Marzban / Pasarguard (по умолчанию)"
+echo "  2) Remnawave"
+read -rp "Выбор [1/2]: " PANEL_CHOICE
+PANEL_CHOICE=${PANEL_CHOICE:-1}
+
+if [[ "$PANEL_CHOICE" == "2" ]]; then
+    VPN_PANEL_TYPE=remnawave
+    read -rp "URL Remnawave (например: https://panel.example.com): " REMNAWAVE_URL
+    [[ -z "$REMNAWAVE_URL" ]] && error "URL Remnawave обязателен"
+    read -rp "Логин Remnawave [admin]: " REMNAWAVE_LOGIN; REMNAWAVE_LOGIN=${REMNAWAVE_LOGIN:-admin}
+    read -rsp "Пароль Remnawave: " REMNAWAVE_PASS; echo ""
+    PASAR_URL="http://localhost:8012"
+    PASAR_LOGIN="admin"
+    PASAR_PASS="unused"
+else
+    VPN_PANEL_TYPE=marzban
+    REMNAWAVE_URL=""
+    REMNAWAVE_LOGIN=""
+    REMNAWAVE_PASS=""
+    read -rp "URL панели (например: https://panel.example.com:8012): " PASAR_URL
+    [[ -z "$PASAR_URL" ]] && error "URL панели обязателен"
+    read -rp "Логин Marzban [admin]: " PASAR_LOGIN; PASAR_LOGIN=${PASAR_LOGIN:-admin}
+    read -rsp "Пароль Marzban: " PASAR_PASS; echo ""
+fi
 
 echo ""
 echo -e "${BOLD}── YooKassa (Enter = пропустить) ───────────────────${RESET}"
@@ -123,6 +144,10 @@ PASARGUARD_ADMIN_PANEL=${PASAR_URL}
 PASARGUARD_ADMIN_LOGIN=${PASAR_LOGIN}
 PASARGUARD_ADMIN_PASSWORD=${PASAR_PASS}
 PASARGUARD_API_KEY=
+VPN_PANEL_TYPE=${VPN_PANEL_TYPE}
+REMNAWAVE_URL=${REMNAWAVE_URL}
+REMNAWAVE_LOGIN=${REMNAWAVE_LOGIN}
+REMNAWAVE_PASSWORD=${REMNAWAVE_PASS}
 YOOKASSA_SHOP_ID=${YK_SHOP}
 YOOKASSA_SECRET_KEY=${YK_SECRET}
 CRYPTOBOT_TOKEN=${CRYPTOBOT_TOKEN}
