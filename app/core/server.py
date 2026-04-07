@@ -195,21 +195,46 @@ def create_app() -> FastAPI:
         log.error(f"Unhandled exception on {request.url}: {exc}")
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
+    # Security headers middleware
+    from starlette.middleware.base import BaseHTTPMiddleware as _BHM
+    class _SecurityHeaders(_BHM):
+        async def dispatch(self, request: Request, call_next):
+            resp = await call_next(request)
+            resp.headers["X-Content-Type-Options"] = "nosniff"
+            resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+            path = request.url.path
+            if path.startswith("/admin2"):
+                # SPA itself cannot be framed
+                resp.headers["X-Frame-Options"] = "DENY"
+                resp.headers["Cache-Control"] = "no-store"
+            elif path.startswith("/panel"):
+                # Old panel can be framed from same origin (for SPA iframe)
+                resp.headers["X-Frame-Options"] = "SAMEORIGIN"
+            else:
+                resp.headers["X-Frame-Options"] = "DENY"
+            return resp
+    app.add_middleware(_SecurityHeaders)
+
     app.include_router(get_router())
     app.include_router(get_panel_router())
 
     from app.api.miniapp import get_miniapp_router
     app.include_router(get_miniapp_router())
 
-    # SPA Admin
-    from fastapi.responses import FileResponse
+    # SPA Admin — serve index.html for /admin2 and /admin2/*
+    from fastapi.responses import FileResponse, HTMLResponse
     from pathlib import Path as _Path
     _spa_path = _Path(__file__).resolve().parent.parent / "templates" / "spa"
     _spa_path.mkdir(exist_ok=True)
+    _spa_index = str(_spa_path / "index.html")
+
+    @app.get("/admin2", include_in_schema=False)
+    async def spa_admin_root():
+        return FileResponse(_spa_index)
 
     @app.get("/admin2/{full_path:path}", include_in_schema=False)
     async def spa_admin(full_path: str = ""):
-        return FileResponse(str(_spa_path / "index.html"))
+        return FileResponse(_spa_index)
 
     # Static files
     static_path = Path(__file__).resolve().parent.parent / "static"

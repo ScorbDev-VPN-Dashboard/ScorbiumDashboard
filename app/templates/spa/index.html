@@ -1,423 +1,1177 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-bs-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Admin</title>
+<link rel="shortcut icon" href="/static/img/favicon.ico" type="image/x-icon">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --bg:#0a0a0f;--surface:rgba(255,255,255,.04);--surface2:rgba(255,255,255,.07);
-  --border:rgba(255,255,255,.08);--text:#f0f0f5;--muted:#8892a4;
-  --accent:#7c6fff;--accent2:#a78bfa;--green:#22c55e;--red:#ef4444;--yellow:#eab308;
+:root {
+  --sw: 240px;
+  --accent: #6c63ff;
+  --accent2: #574fd6;
+  --bg: #080812;
+  --surface: #10101e;
+  --surface2: #16162a;
+  --border: rgba(255,255,255,.07);
+  --muted: #7a849a;
+  --text: #d0d8ea;
 }
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;min-height:100vh;overflow-x:hidden}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:var(--text);margin:0}
 
-/* Login */
-#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(ellipse at 50% 0%,rgba(124,111,255,.15) 0%,transparent 70%)}
-.login-box{background:rgba(255,255,255,.05);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:24px;padding:40px;width:100%;max-width:380px}
-.login-logo{text-align:center;margin-bottom:32px}
-.login-logo .icon{width:56px;height:56px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:16px;display:inline-flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:12px}
-.login-logo h1{font-size:22px;font-weight:700}
-.login-logo p{font-size:13px;color:var(--muted);margin-top:4px}
-.field{margin-bottom:16px}
-.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
-.field input{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:12px;padding:12px 16px;color:var(--text);font-size:14px;outline:none;transition:border-color .2s}
-.field input:focus{border-color:var(--accent)}
-.btn-login{width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;transition:opacity .2s;margin-top:8px}
-.btn-login:hover{opacity:.9}
-.login-err{color:var(--red);font-size:13px;text-align:center;margin-top:12px;display:none}
+/* ── Login ── */
+#login-screen{
+  align-items:center;justify-content:center;min-height:100vh;
+  background:radial-gradient(ellipse at 60% 0%,rgba(108,99,255,.12) 0%,transparent 60%),
+             radial-gradient(ellipse at 0% 80%,rgba(167,139,250,.08) 0%,transparent 50%),
+             var(--bg);
+}
+.login-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;
+  padding:2.5rem 2rem 2rem;width:100%;max-width:400px;
+  box-shadow:0 24px 80px rgba(0,0,0,.5);
+}
+.logo-icon{
+  width:64px;height:64px;border-radius:18px;
+  background:linear-gradient(135deg,var(--accent),#a78bfa);
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto .75rem;box-shadow:0 8px 32px rgba(108,99,255,.4);
+}
 
-/* App */
+/* ── App ── */
 #app{display:none;min-height:100vh}
-.layout{display:flex;min-height:100vh}
 
-/* Sidebar */
-.sidebar{width:240px;background:rgba(255,255,255,.03);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100}
-.sb-logo{padding:24px 20px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
-.sb-logo .dot{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
-.sb-logo span{font-size:15px;font-weight:700}
-.sb-nav{flex:1;padding:12px 10px;overflow-y:auto}
-.sb-section{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:8px 10px 4px}
-.sb-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:500;transition:all .15s;margin-bottom:2px;text-decoration:none}
-.sb-item:hover{background:var(--surface2);color:var(--text)}
-.sb-item.active{background:rgba(124,111,255,.15);color:var(--accent)}
-.sb-item .ico{width:18px;text-align:center;font-size:15px}
-.sb-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:20px}
-.sb-footer{padding:16px;border-top:1px solid var(--border)}
-.sb-user{display:flex;align-items:center;gap:10px}
-.sb-avatar{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff}
-.sb-uname{font-size:13px;font-weight:600}
-.sb-role{font-size:11px;color:var(--muted)}
-.sb-logout{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px;border-radius:6px;transition:color .15s}
-.sb-logout:hover{color:var(--red)}
+/* ── Sidebar ── */
+.sidebar{
+  width:var(--sw);min-height:100vh;height:100vh;
+  background:var(--surface);border-right:1px solid var(--border);
+  position:fixed;top:0;left:0;display:flex;flex-direction:column;
+  z-index:200;transition:transform .25s cubic-bezier(.4,0,.2,1);overflow:hidden;
+}
+.sidebar-brand{
+  padding:1.25rem 1.25rem .9rem;font-size:1.05rem;font-weight:700;color:#fff;
+  border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem;
+}
+.sidebar-brand .logo-sm{
+  width:32px;height:32px;border-radius:8px;
+  background:linear-gradient(135deg,var(--accent),#a78bfa);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.85rem;color:#fff;flex-shrink:0;
+}
+.sidebar-nav{padding:.5rem 0;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.nav-section{
+  font-size:.6rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--muted);padding:.9rem 1.25rem .3rem;
+}
+.sb-link{
+  display:flex;align-items:center;gap:.6rem;padding:.5rem 1.25rem;
+  color:var(--muted);text-decoration:none;font-size:.82rem;font-weight:500;
+  transition:all .15s;position:relative;cursor:pointer;
+  background:none;border:none;width:100%;text-align:left;
+}
+.sb-link:hover{color:#fff;background:rgba(108,99,255,.1)}
+.sb-link.active{color:#fff;background:rgba(108,99,255,.18);border-left:3px solid var(--accent);padding-left:calc(1.25rem - 3px)}
+.sb-link i{font-size:.95rem;width:1rem;text-align:center;flex-shrink:0}
+.sb-badge{
+  margin-left:auto;background:#ef4444;color:#fff;
+  font-size:.6rem;font-weight:700;padding:.15rem .4rem;border-radius:10px;line-height:1.4;
+}
+.sidebar-footer{padding:.9rem 1.25rem;border-top:1px solid var(--border)}
 
-/* Main */
-.main{margin-left:240px;flex:1;display:flex;flex-direction:column}
-.topbar{padding:20px 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:rgba(10,10,15,.8);backdrop-filter:blur(10px);position:sticky;top:0;z-index:50}
-.topbar-title{font-size:20px;font-weight:700}
-.topbar-right{display:flex;align-items:center;gap:12px}
-.tb-btn{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 14px;color:var(--text);font-size:13px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px}
-.tb-btn:hover{background:rgba(255,255,255,.1)}
-.content{padding:28px;flex:1}
+/* ── Overlay ── */
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199}
+.sidebar-overlay.show{display:block}
 
-/* Cards */
-.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px}
-.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;position:relative;overflow:hidden;transition:transform .2s,border-color .2s}
-.stat-card:hover{transform:translateY(-2px);border-color:rgba(124,111,255,.3)}
-.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));opacity:0;transition:opacity .2s}
-.stat-card:hover::before{opacity:1}
-.sc-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:14px}
-.sc-val{font-size:28px;font-weight:800;margin-bottom:4px}
-.sc-label{font-size:12px;color:var(--muted);font-weight:500}
-.sc-change{font-size:11px;margin-top:6px;display:flex;align-items:center;gap:4px}
-.sc-up{color:var(--green)}
-.sc-down{color:var(--red)}
+/* ── Main ── */
+.main-wrap{margin-left:var(--sw);min-height:100vh;display:flex;flex-direction:column}
+.topbar{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:.7rem 1.5rem;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;gap:.75rem;
+}
+.topbar-title{font-size:.95rem;font-weight:600;color:#fff}
+.hamburger{
+  display:none;background:none;border:none;color:var(--muted);
+  font-size:1.2rem;padding:.2rem .4rem;cursor:pointer;border-radius:6px;
+}
+.hamburger:hover{color:#fff;background:rgba(255,255,255,.06)}
+.page-content{padding:1.5rem;flex:1}
 
-/* Charts row */
-.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:28px}
-.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px}
-.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-.card-title{font-size:14px;font-weight:600}
-.card-sub{font-size:12px;color:var(--muted)}
+/* ── Stat cards ── */
+.stat-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:1.1rem 1.25rem;display:flex;align-items:center;gap:.9rem;
+  transition:border-color .2s,transform .2s;
+}
+.stat-card:hover{border-color:rgba(108,99,255,.3);transform:translateY(-1px)}
+.stat-icon{
+  width:46px;height:46px;border-radius:11px;
+  display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;
+}
+.stat-value{font-size:1.55rem;font-weight:700;line-height:1;color:#fff}
+.stat-label{font-size:.72rem;color:var(--muted);margin-top:.2rem}
+.stat-trend{font-size:.7rem;margin-top:.25rem}
 
-/* Bar chart */
-.bar-chart{display:flex;align-items:flex-end;gap:6px;height:120px}
-.bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
-.bar{width:100%;border-radius:6px 6px 0 0;background:linear-gradient(180deg,var(--accent),rgba(124,111,255,.3));transition:height .5s cubic-bezier(.4,0,.2,1);min-height:4px}
-.bar-label{font-size:10px;color:var(--muted)}
+/* ── Cards ── */
+.vpn-card{background:var(--surface);border:1px solid var(--border);border-radius:14px}
+.vpn-card-header{
+  background:transparent;border-bottom:1px solid var(--border);
+  font-weight:600;font-size:.82rem;color:var(--text);
+  padding:.75rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;
+}
 
-/* Donut */
-.donut-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%}
-svg.donut{transform:rotate(-90deg)}
-.donut-legend{margin-top:16px;display:flex;flex-direction:column;gap:8px;width:100%}
-.dl-item{display:flex;align-items:center;gap:8px;font-size:12px}
-.dl-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.dl-val{margin-left:auto;font-weight:600}
+/* ── Bar chart ── */
+.bar-chart-wrap{display:flex;align-items:flex-end;gap:6px;height:100px;padding-top:8px}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.bar-fill{
+  width:100%;border-radius:4px 4px 0 0;
+  background:linear-gradient(180deg,var(--accent),rgba(108,99,255,.25));
+  transition:height .6s cubic-bezier(.4,0,.2,1);min-height:3px;
+}
+.bar-lbl{font-size:.6rem;color:var(--muted)}
 
-/* Table */
-.table-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:28px}
-.table-head{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
-table{width:100%;border-collapse:collapse}
-th{padding:10px 20px;text-align:left;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
-td{padding:12px 20px;font-size:13px;border-bottom:1px solid rgba(255,255,255,.04)}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(255,255,255,.02)}
-.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600}
-.badge-green{background:rgba(34,197,94,.15);color:var(--green)}
-.badge-red{background:rgba(239,68,68,.12);color:var(--red)}
-.badge-yellow{background:rgba(234,179,8,.12);color:var(--yellow)}
-.badge-blue{background:rgba(124,111,255,.15);color:var(--accent)}
+/* ── Tables ── */
+.table{color:var(--text)}
+.table thead th{
+  font-size:.67rem;font-weight:700;letter-spacing:.9px;text-transform:uppercase;
+  color:var(--muted);border-color:var(--border);padding:.65rem 1rem;white-space:nowrap;
+}
+.table td{border-color:rgba(255,255,255,.04);padding:.65rem 1rem;vertical-align:middle;font-size:.83rem}
+.table tbody tr:hover{background:rgba(255,255,255,.025)}
+.table-search{
+  background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:8px;
+  padding:.4rem .75rem;color:var(--text);font-size:.8rem;outline:none;width:200px;transition:border-color .2s;
+}
+.table-search:focus{border-color:var(--accent)}
+.table-search::placeholder{color:var(--muted)}
 
-/* Loader */
-.loader{display:flex;align-items:center;justify-content:center;padding:60px;color:var(--muted)}
-.spin{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;margin-right:10px}
-@keyframes sp{to{transform:rotate(360deg)}}
+/* ── Badges ── */
+.badge-active  {background:rgba(34,197,94,.15);color:#22c55e}
+.badge-expired {background:rgba(239,68,68,.15);color:#ef4444}
+.badge-pending {background:rgba(234,179,8,.15);color:#eab308}
+.badge-open    {background:rgba(59,130,246,.15);color:#3b82f6}
+.badge-closed  {background:rgba(107,114,128,.15);color:#6b7280}
+.badge-custom  {padding:.22rem .55rem;border-radius:6px;font-size:.67rem;font-weight:700;letter-spacing:.3px}
 
-/* Toast */
-.toast-wrap{position:fixed;top:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:8px}
-.toast{background:rgba(30,30,40,.95);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:12px;padding:12px 16px;font-size:13px;display:flex;align-items:center;gap:8px;animation:tin .3s ease;min-width:220px}
-@keyframes tin{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
-.toast.ok{border-color:rgba(34,197,94,.3)}
-.toast.err{border-color:rgba(239,68,68,.3)}
+/* ── Buttons ── */
+.btn-accent{background:var(--accent);border:none;color:#fff;font-size:.78rem;font-weight:600;transition:background .15s,transform .1s}
+.btn-accent:hover{background:var(--accent2);color:#fff;transform:translateY(-1px)}
+.btn-sm-icon{
+  background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:7px;
+  padding:.3rem .6rem;color:var(--muted);font-size:.75rem;cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.btn-sm-icon:hover{background:rgba(255,255,255,.1);color:#fff}
+.btn-sm-icon.danger:hover{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#ef4444}
+.btn-sm-icon.success:hover{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3);color:#22c55e}
 
-/* Responsive */
+/* ── Forms ── */
+.form-control,.form-select{
+  background:rgba(255,255,255,.04);border-color:var(--border);
+  color:var(--text);font-size:.83rem;
+}
+.form-control:focus,.form-select:focus{
+  background:rgba(255,255,255,.06);border-color:var(--accent);
+  color:#fff;box-shadow:0 0 0 3px rgba(108,99,255,.18);
+}
+.form-control::placeholder{color:var(--muted)}
+.form-label{font-size:.77rem;color:var(--muted);font-weight:500;margin-bottom:.35rem}
+.form-select option{background:#1a1a2e}
+
+/* ── Pagination ── */
+.pg-wrap{display:flex;align-items:center;justify-content:center;gap:4px;padding:.75rem}
+.pg-btn{
+  background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:7px;
+  padding:.3rem .65rem;color:var(--muted);font-size:.78rem;cursor:pointer;transition:all .15s;
+}
+.pg-btn:hover:not(:disabled){background:rgba(255,255,255,.1);color:#fff}
+.pg-btn:disabled{opacity:.35;cursor:default}
+.pg-btn.active{background:rgba(108,99,255,.2);border-color:var(--accent);color:#fff}
+.pg-info{font-size:.72rem;color:var(--muted);padding:0 6px}
+
+/* ── Modal ── */
+.modal-content{background:var(--surface2);border:1px solid var(--border);border-radius:16px}
+.modal-header{border-bottom:1px solid var(--border);padding:1rem 1.25rem}
+.modal-footer{border-top:1px solid var(--border);padding:.75rem 1.25rem}
+.modal-title{font-size:.95rem;font-weight:700;color:#fff}
+.btn-close{filter:invert(1) opacity(.5)}
+.btn-close:hover{filter:invert(1) opacity(.8)}
+
+/* ── Detail grid ── */
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem}
+.detail-item{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:.75rem}
+.detail-label{font-size:.65rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem}
+.detail-val{font-size:.9rem;font-weight:600;color:#fff}
+
+/* ── Panel status ── */
+.ps-row{display:flex;align-items:center;justify-content:space-between;padding:.4rem 0;font-size:.82rem;border-bottom:1px solid rgba(255,255,255,.04)}
+.ps-row:last-child{border-bottom:none}
+
+/* ── Migrate ── */
+.migrate-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.25rem;margin-bottom:1rem}
+
+/* ── Toast ── */
+#toast-container{position:fixed;bottom:1.25rem;right:1.25rem;z-index:9999;max-width:320px}
+.vpn-toast{
+  background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  padding:.7rem 1rem;display:flex;align-items:center;gap:.6rem;
+  font-size:.82rem;color:#fff;margin-top:.4rem;
+  animation:slideIn .2s ease;box-shadow:0 8px 24px rgba(0,0,0,.4);
+}
+@keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:4px}
+
+/* ── Responsive ── */
 @media(max-width:768px){
-  .sidebar{transform:translateX(-100%);transition:transform .25s}
+  .sidebar{transform:translateX(-100%)}
   .sidebar.open{transform:translateX(0)}
-  .main{margin-left:0}
-  .charts-row{grid-template-columns:1fr}
-  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .main-wrap{margin-left:0}
+  .hamburger{display:flex;align-items:center}
+  .page-content{padding:1rem .75rem}
+  .topbar{padding:.6rem 1rem}
+  .detail-grid{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  .page-content{padding:.75rem .5rem}
 }
 </style>
 </head>
 <body>
 
 <!-- Login -->
-<div id="login-screen">
-  <div class="login-box">
-    <div class="login-logo">
-      <div class="icon">⚡</div>
-      <h1 id="login-title">Admin Panel</h1>
-      <p>Войдите в систему управления</p>
+<div id="login-screen" style="display:none">
+  <div class="login-card">
+    <div class="text-center mb-4">
+      <div class="logo-icon mb-3">
+        <i class="bi bi-shield-lock-fill" style="font-size:1.8rem;color:#fff"></i>
+      </div>
+      <div style="font-size:1.2rem;font-weight:700;color:#fff" id="login-title">Admin Panel</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-top:.25rem">Панель управления</div>
     </div>
-    <div class="field"><label>Логин</label><input type="text" id="l-user" placeholder="admin" autocomplete="username"></div>
-    <div class="field"><label>Пароль</label><input type="password" id="l-pass" placeholder="••••••••" autocomplete="current-password"></div>
-    <button class="btn-login" onclick="doLogin()">Войти →</button>
-    <div class="login-err" id="login-err">Неверный логин или пароль</div>
+    <div class="mb-3">
+      <label class="form-label">Логин</label>
+      <div class="input-group">
+        <span class="input-group-text" style="background:rgba(255,255,255,.04);border-color:var(--border);color:var(--muted)"><i class="bi bi-person"></i></span>
+        <input type="text" id="l-user" class="form-control" placeholder="admin" autocomplete="username">
+      </div>
+    </div>
+    <div class="mb-4">
+      <label class="form-label">Пароль</label>
+      <div class="input-group">
+        <span class="input-group-text" style="background:rgba(255,255,255,.04);border-color:var(--border);color:var(--muted)"><i class="bi bi-lock"></i></span>
+        <input type="password" id="l-pass" class="form-control" placeholder="••••••••" autocomplete="current-password">
+      </div>
+    </div>
+    <button class="btn btn-accent w-100 py-2" onclick="doLogin()">
+      <i class="bi bi-box-arrow-in-right me-2"></i>Войти в панель
+    </button>
+    <div id="login-err" class="mt-3 text-center" style="font-size:.8rem;color:#ef4444;display:none">
+      <i class="bi bi-exclamation-triangle me-1"></i><span id="login-err-text">Неверный логин или пароль</span>
+    </div>
+    <div class="text-center mt-4" style="font-size:.7rem;color:#4a5568">
+      Защищённый доступ · Только для администраторов
+    </div>
   </div>
 </div>
 
 <!-- App -->
-<div id="app">
-  <div class="layout">
-    <aside class="sidebar" id="sidebar">
-      <div class="sb-logo">
-        <div class="dot">⚡</div>
-        <span id="sb-appname">Admin</span>
-      </div>
-      <nav class="sb-nav">
-        <div class="sb-section">Обзор</div>
-        <a class="sb-item active" onclick="nav('dashboard')"><span class="ico">📊</span>Дашборд</a>
-        <div class="sb-section">Управление</div>
-        <a class="sb-item" onclick="nav('users')"><span class="ico">👥</span>Пользователи</a>
-        <a class="sb-item" onclick="nav('payments')"><span class="ico">💳</span>Платежи</a>
-        <a class="sb-item" onclick="nav('subscriptions')"><span class="ico">🔑</span>Подписки</a>
-        <a class="sb-item" onclick="nav('plans')"><span class="ico">📦</span>Тарифы</a>
-        <div class="sb-section">Сервис</div>
-        <a class="sb-item" onclick="nav('support')"><span class="ico">💬</span>Поддержка<span class="sb-badge" id="badge-tickets" style="display:none">0</span></a>
-        <a class="sb-item" onclick="nav('promos')"><span class="ico">🎁</span>Промокоды</a>
-        <a class="sb-item" onclick="nav('broadcasts')"><span class="ico">📢</span>Рассылки</a>
-        <div class="sb-section">Настройки</div>
-        <a class="sb-item" onclick="nav('telegram')"><span class="ico">🤖</span>Telegram</a>
-      </nav>
-      <div class="sb-footer">
-        <div class="sb-user">
-          <div class="sb-avatar" id="sb-av">A</div>
-          <div><div class="sb-uname" id="sb-uname">Admin</div><div class="sb-role">Администратор</div></div>
-          <button class="sb-logout" onclick="logout()" title="Выйти">⏻</button>
-        </div>
-      </div>
-    </aside>
+<div id="app" style="display:none">
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
-    <main class="main">
-      <div class="topbar">
-        <div style="display:flex;align-items:center;gap:12px">
-          <button class="tb-btn" id="menu-btn" onclick="toggleSidebar()" style="display:none">☰</button>
-          <div class="topbar-title" id="page-title">Дашборд</div>
-        </div>
-        <div class="topbar-right">
-          <button class="tb-btn" onclick="refreshPage()">↻ Обновить</button>
-          <button class="tb-btn" onclick="window.open('/panel/','_blank')">🔗 Старая панель</button>
-        </div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo-sm"><i class="bi bi-shield-lock-fill" style="font-size:.8rem"></i></div>
+      <span id="sb-appname" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Admin</span>
+      <button class="hamburger ms-auto" onclick="closeSidebar()" style="display:flex"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Обзор</div>
+      <button class="sb-link" data-page="dashboard" onclick="nav('dashboard')"><i class="bi bi-grid-1x2-fill"></i>Дашборд</button>
+
+      <div class="nav-section">Управление</div>
+      <button class="sb-link" data-page="users" onclick="nav('users')"><i class="bi bi-people-fill"></i>Пользователи</button>
+      <button class="sb-link" data-page="payments" onclick="nav('payments')"><i class="bi bi-credit-card-fill"></i>Платежи</button>
+      <button class="sb-link" data-page="subscriptions" onclick="nav('subscriptions')"><i class="bi bi-calendar-check-fill"></i>Подписки</button>
+      <button class="sb-link" data-page="plans" onclick="nav('plans')"><i class="bi bi-tags-fill"></i>Тарифы</button>
+
+      <div class="nav-section">Сервис</div>
+      <button class="sb-link" data-page="support" onclick="nav('support')"><i class="bi bi-headset"></i>Поддержка</button>
+      <button class="sb-link" data-page="broadcasts" onclick="nav('broadcasts')"><i class="bi bi-megaphone-fill"></i>Рассылки</button>
+      <button class="sb-link" data-page="promos" onclick="nav('promos')"><i class="bi bi-ticket-perforated-fill"></i>Промокоды</button>
+      <button class="sb-link" data-page="referrals" onclick="nav('referrals')"><i class="bi bi-diagram-3-fill"></i>Рефералка</button>
+      <button class="sb-link" data-page="vpnkeys" onclick="nav('vpnkeys')"><i class="bi bi-key-fill"></i>VPN ключи</button>
+
+      <div class="nav-section">Система</div>
+      <button class="sb-link" data-page="panel" onclick="nav('panel')"><i class="bi bi-hdd-network-fill" id="panel-ico"></i><span id="panel-nav-label">VPN Панель</span></button>
+      <button class="sb-link" data-page="migrate" onclick="nav('migrate')"><i class="bi bi-arrow-left-right"></i>Миграция</button>
+      <button class="sb-link" data-page="telegram" onclick="nav('telegram')"><i class="bi bi-telegram"></i>Telegram</button>
+      <button class="sb-link" data-page="backup" onclick="nav('backup')"><i class="bi bi-database-fill-down"></i>Резервная копия</button>
+
+      <div class="nav-section">Ссылки</div>
+      <button class="sb-link" onclick="window.open('/panel/','_blank')"><i class="bi bi-box-arrow-up-right"></i>Старая панель</button>
+      <button class="sb-link" onclick="window.open('/docs','_blank')"><i class="bi bi-code-slash"></i>API Docs</button>
+    </nav>
+    <div class="sidebar-footer">
+      <div style="font-size:.65rem;color:#4a5568;margin-bottom:.5rem;text-align:center" id="sb-version">v1.0.0</div>
+      <button class="sb-link" style="color:#ef4444;padding:.4rem 0" onclick="logout()">
+        <i class="bi bi-box-arrow-left"></i>Выйти
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-wrap">
+    <header class="topbar">
+      <div class="d-flex align-items-center gap-2">
+        <button class="hamburger" onclick="openSidebar()"><i class="bi bi-list"></i></button>
+        <span class="topbar-title" id="page-title">Дашборд</span>
       </div>
-      <div class="content" id="content">
-        <div class="loader"><div class="spin"></div>Загрузка...</div>
+      <div class="d-flex align-items-center gap-2" id="topbar-actions">
+        <span class="badge badge-custom badge-active" style="font-size:.65rem">
+          <i class="bi bi-circle-fill me-1" style="font-size:.4rem"></i>Online
+        </span>
+      </div>
+    </header>
+    <main class="page-content" id="content">
+      <div class="d-flex align-items-center justify-content-center" style="min-height:300px;color:var(--muted)">
+        <div class="spinner-border spinner-border-sm me-2" style="color:var(--accent)"></div>Загрузка...
       </div>
     </main>
   </div>
 </div>
 
-<div class="toast-wrap" id="toasts"></div>
+<!-- Modal -->
+<div class="modal fade" id="mainModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTitle">—</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer" id="modalFooter" style="display:none"></div>
+    </div>
+  </div>
+</div>
 
+<div id="toast-container"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-const API = '/api/v1';
-let token = localStorage.getItem('spa_token') || '';
+'use strict';
+// ── State ─────────────────────────────────────────────────────────────────────
 let currentPage = 'dashboard';
+let panelType = 'marzban';
+let _modal = null;
+
+// ── Bootstrap modal helper ────────────────────────────────────────────────────
+function getModal() {
+  if (!_modal) _modal = new bootstrap.Modal(document.getElementById('mainModal'));
+  return _modal;
+}
+function openModal(title, bodyHtml, footerHtml) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = bodyHtml;
+  const footer = document.getElementById('modalFooter');
+  if (footerHtml) { footer.innerHTML = footerHtml; footer.style.display = ''; }
+  else { footer.style.display = 'none'; }
+  getModal().show();
+}
+function closeModal() { getModal().hide(); }
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg, type = 'success') {
+  const id = 'toast-' + Date.now();
+  const cfg = {
+    success: {icon:'check-circle-fill', color:'#22c55e'},
+    error:   {icon:'x-circle-fill',     color:'#ef4444'},
+    warning: {icon:'exclamation-triangle-fill', color:'#eab308'},
+    info:    {icon:'info-circle-fill',   color:'#3b82f6'},
+  }[type] || {icon:'info-circle-fill', color:'#3b82f6'};
+  const el = document.createElement('div');
+  el.id = id; el.className = 'vpn-toast';
+  el.innerHTML = `<i class="bi bi-${cfg.icon}" style="color:${cfg.color};font-size:1rem;flex-shrink:0"></i><span style="flex:1">${msg}</span><button onclick="document.getElementById('${id}').remove()" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0"><i class="bi bi-x"></i></button>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el?.remove(), 4000);
+}
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function doLogin() {
-  const u = document.getElementById('l-user').value;
+  const u = document.getElementById('l-user').value.trim();
   const p = document.getElementById('l-pass').value;
-  const err = document.getElementById('login-err');
-  err.style.display = 'none';
+  const errWrap = document.getElementById('login-err');
+  const errText = document.getElementById('login-err-text');
+  errWrap.style.display = 'none';
   try {
     const r = await fetch('/panel/api/login', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({username: u, password: p}),
-      credentials: 'include',
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username:u, password:p}), credentials:'include',
     });
     const data = await r.json();
-    if (data.ok) {
-      showApp(data.username, data);
-    } else {
-      err.style.display = 'block';
-    }
-  } catch(e) {
-    err.style.display = 'block';
-  }
+    if (data.ok) { showApp(data.username, data); }
+    else { errText.textContent = data.error || 'Неверный логин или пароль'; errWrap.style.display = 'block'; }
+  } catch(e) { errText.textContent = 'Ошибка соединения'; errWrap.style.display = 'block'; }
 }
 
 function showApp(username, info) {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
-  document.getElementById('sb-uname').textContent = username || 'Admin';
-  document.getElementById('sb-av').textContent = (username || 'A')[0].toUpperCase();
-  if (info && info.app_name) {
+  if (info?.app_name) {
     document.getElementById('sb-appname').textContent = info.app_name;
     document.getElementById('login-title').textContent = info.app_name;
-    document.title = info.app_name + ' Admin';
+    document.title = info.app_name + ' — Admin';
   }
+  if (info?.app_version) document.getElementById('sb-version').textContent = 'v' + info.app_version;
+  if (info?.panel_type) setPanelType(info.panel_type);
   localStorage.setItem('spa_user', username || 'admin');
   nav('dashboard');
 }
 
-  } catch(e) {}
-}
-
-// ── API ───────────────────────────────────────────────────────────────────────
-async function apiFetch(url, opts = {}) {
-  const r = await fetch(url, {credentials: 'include', ...opts});
-  if (r.status === 401 || r.status === 302) { logout(); return null; }
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-}
-
-// ── Navigation ────────────────────────────────────────────────────────────────
-function nav(page) {
-  currentPage = page;
-  document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
-  const titles = {
-    dashboard: 'Дашборд', users: 'Пользователи', payments: 'Платежи',
-    subscriptions: 'Подписки', plans: 'Тарифы', support: 'Поддержка',
-    promos: 'Промокоды', broadcasts: 'Рассылки', telegram: 'Telegram',
-  };
-  document.getElementById('page-title').textContent = titles[page] || page;
-  // Mark active
-  document.querySelectorAll('.sb-item').forEach(i => {
-    if (i.getAttribute('onclick')?.includes(`'${page}'`)) i.classList.add('active');
-  });
-  if (page === 'dashboard') renderDashboard();
-  else renderComingSoon(page);
-}
-
-function refreshPage() { nav(currentPage); }
-
-function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
-}
-
-// ── Dashboard ─────────────────────────────────────────────────────────────────
-async function renderDashboard() {
-  const el = document.getElementById('content');
-  el.innerHTML = '<div class="loader"><div class="spin"></div>Загрузка данных...</div>';
-  try {
-    const [dash, payments] = await Promise.all([
-      apiFetch('/panel/api/dashboard'),
-      apiFetch('/api/v1/payments/?limit=8'),
-    ]);
-    if (!dash) return;
-    el.innerHTML = buildDashboard(dash, payments || []);
-    animateBars(dash.rev_week || []);
-  } catch(e) {
-    el.innerHTML = `<div class="loader" style="color:#ef4444">Ошибка загрузки: ${e.message}</div>`;
+function setPanelType(pt) {
+  panelType = pt || 'marzban';
+  const ico = document.getElementById('panel-ico');
+  const lbl = document.getElementById('panel-nav-label');
+  if (panelType === 'remnawave') {
+    if (ico) { ico.className = 'bi bi-tsunami'; }
+    if (lbl) lbl.textContent = 'Remnawave';
+  } else {
+    if (ico) { ico.className = 'bi bi-hdd-network-fill'; }
+    if (lbl) lbl.textContent = 'Marzban';
   }
 }
 
-function buildDashboard(d, payments) {
-  const s = d.stats || {};
-  const stats = [
-    {icon:'👥', val: s.total_users||0, label:'Пользователей', color:'rgba(124,111,255,.15)', change: `+${s.new_users_today||0} сегодня`, up: true},
-    {icon:'✅', val: s.active_subscriptions||0, label:'Активных подписок', color:'rgba(34,197,94,.12)', change: `${s.expired_keys||0} истекло`, up: false},
-    {icon:'💰', val: `${(s.total_revenue||0).toFixed(0)} ₽`, label:'Выручка всего', color:'rgba(234,179,8,.12)', change: `+${(s.revenue_today||0).toFixed(0)} ₽ сегодня`, up: true},
-    {icon:'⏳', val: s.pending_payments||0, label:'Ожидают оплаты', color:'rgba(239,68,68,.12)', change: `${s.open_tickets||0} тикетов`, up: false},
-  ];
+function logout() {
+  document.cookie = 'vpn_session=; Max-Age=0; path=/';
+  localStorage.removeItem('spa_user');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('l-pass').value = '';
+}
 
-  let statsHtml = stats.map(s => `
-    <div class="stat-card">
-      <div class="sc-icon" style="background:${s.color}">${s.icon}</div>
-      <div class="sc-val">${s.val}</div>
-      <div class="sc-label">${s.label}</div>
-      <div class="sc-change ${s.up ? 'sc-up' : 'sc-down'}">${s.up ? '↑' : '↓'} ${s.change}</div>
-    </div>`).join('');
+// ── API ───────────────────────────────────────────────────────────────────────
+async function api(url, opts = {}) {
+  const r = await fetch(url, {credentials:'include', ...opts});
+  if (r.status === 401) { logout(); return null; }
+  if (!r.ok) { const t = await r.text().catch(() => r.statusText); throw new Error(t || r.statusText); }
+  const ct = r.headers.get('content-type') || '';
+  return ct.includes('json') ? r.json() : null;
+}
+async function apiPost(url, body) {
+  return api(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+}
+async function apiDelete(url) { return api(url, {method:'DELETE'}); }
+async function apiPatch(url, body) {
+  return api(url, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body||{})});
+}
 
-  const days = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
-  const rev = d.rev_week || Array(7).fill(0);
-  const maxRev = Math.max(...rev, 1);
-  const barsHtml = rev.map((v, i) => `
-    <div class="bar-wrap">
-      <div class="bar" id="bar-${i}" style="height:0%" data-h="${Math.round(v/maxRev*100)}"></div>
-      <div class="bar-label">${days[i]}</div>
-    </div>`).join('');
+// ── Navigation ────────────────────────────────────────────────────────────────
+const PAGE_TITLES = {
+  dashboard:'Дашборд', users:'Пользователи', payments:'Платежи',
+  subscriptions:'Подписки', plans:'Тарифы', panel:'VPN Панель', migrate:'Миграция панели',
+  support:'Поддержка', broadcasts:'Рассылки', promos:'Промокоды',
+  referrals:'Рефералка', vpnkeys:'VPN ключи', telegram:'Telegram', backup:'Резервная копия',
+};
+const PAGE_FNS = {
+  dashboard: renderDashboard, users: renderUsers, payments: renderPayments,
+  subscriptions: renderSubscriptions, plans: renderPlans,
+  panel: renderPanel, migrate: renderMigrate,
+  support: () => renderOldPanel('support'),
+  broadcasts: () => renderOldPanel('broadcasts'),
+  promos: () => renderOldPanel('promos'),
+  referrals: () => renderOldPanel('referrals'),
+  vpnkeys: () => renderOldPanel('vpn'),
+  telegram: () => renderOldPanel('telegram'),
+  backup: () => renderOldPanel('backup'),
+};
 
-  const payRows = payments.slice(0, 8).map(p => {
-    const st = p.status;
-    const badge = st === 'succeeded' ? 'badge-green' : st === 'pending' ? 'badge-yellow' : 'badge-red';
-    const label = {succeeded:'✅ Успешно', pending:'⏳ Ожидание', failed:'❌ Отменён', refunded:'↩️ Возврат'}[st] || st;
-    const prov = {yookassa:'ЮКасса', telegram_stars:'⭐ Stars', cryptobot:'₿ Crypto', balance:'💰 Баланс', yookassa_sbp:'🏦 СБП'}[p.provider] || p.provider;
-    return `<tr>
-      <td><code style="color:var(--accent)">#${p.id}</code></td>
-      <td>${p.user_id}</td>
-      <td>${prov}</td>
-      <td><b>${p.amount} ${p.currency}</b></td>
-      <td><span class="badge ${badge}">${label}</span></td>
-    </tr>`;
-  }).join('');
+function nav(page) {
+  currentPage = page;
+  document.querySelectorAll('.sb-link[data-page]').forEach(el => {
+    el.classList.toggle('active', el.dataset.page === page);
+  });
+  document.getElementById('page-title').textContent = PAGE_TITLES[page] || page;
+  document.getElementById('topbar-actions').innerHTML = `
+    <span class="badge badge-custom badge-active" style="font-size:.65rem">
+      <i class="bi bi-circle-fill me-1" style="font-size:.4rem"></i>Online
+    </span>`;
+  setContent(loader());
+  (PAGE_FNS[page] || (() => renderComingSoon(page)))();
+}
 
-  return `
-    <div class="stats-grid">${statsHtml}</div>
-    <div class="charts-row">
-      <div class="chart-card">
-        <div class="card-header">
-          <div><div class="card-title">Выручка за 7 дней</div><div class="card-sub">Последние 7 дней</div></div>
-          <div style="font-size:20px;font-weight:800;color:var(--accent)">${(s.revenue_today||0).toFixed(0)} ₽</div>
+function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebarOverlay').classList.add('show'); }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('show'); }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function setContent(html) { document.getElementById('content').innerHTML = html; }
+function setActions(html) { document.getElementById('topbar-actions').innerHTML = html; }
+function loader() { return `<div class="d-flex align-items-center justify-content-center" style="min-height:300px;color:var(--muted)"><div class="spinner-border spinner-border-sm me-2" style="color:var(--accent)"></div>Загрузка...</div>`; }
+function errHtml(msg) { return `<div class="d-flex align-items-center justify-content-center" style="min-height:200px;color:#ef4444"><i class="bi bi-exclamation-triangle me-2"></i>${msg}</div>`; }
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('ru-RU') + ' ' + d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+}
+function fmtDateShort(iso) { return iso ? new Date(iso).toLocaleDateString('ru-RU') : '—'; }
+function fmtBytes(b) {
+  if (!b) return '0 B';
+  const gb = b/1073741824; if (gb>=1) return gb.toFixed(2)+' GB';
+  const mb = b/1048576; if (mb>=1) return mb.toFixed(1)+' MB';
+  return (b/1024).toFixed(0)+' KB';
+}
+
+function statusBadge(s) {
+  const map = {active:'active',succeeded:'active',enabled:'active',expired:'expired',failed:'expired',revoked:'expired',disabled:'expired',pending:'pending',cancelled:'pending'};
+  const lbl = {active:'Активна',succeeded:'Успешно',expired:'Истекла',failed:'Отменён',revoked:'Отозвана',pending:'Ожидание',cancelled:'Отменён',disabled:'Отключён',enabled:'Активен'};
+  return `<span class="badge badge-custom badge-${map[s]||'closed'}">${lbl[s]||s}</span>`;
+}
+function providerBadge(p) {
+  const m = {yookassa:'ЮКасса',yookassa_sbp:'СБП',cryptobot:'Crypto',telegram_stars:'Stars',balance:'Баланс'};
+  const ic = {yookassa:'bi-bank',yookassa_sbp:'bi-bank2',cryptobot:'bi-currency-bitcoin',telegram_stars:'bi-star-fill',balance:'bi-wallet2'};
+  return `<span style="font-size:.78rem;color:var(--muted)"><i class="bi ${ic[p]||'bi-credit-card'} me-1"></i>${m[p]||p}</span>`;
+}
+
+function paginator(page, pages, fn) {
+  if (pages <= 1) return '';
+  const prev = `<button class="pg-btn" onclick="${fn}(${page-1})" ${page<=1?'disabled':''}><i class="bi bi-chevron-left"></i></button>`;
+  const next = `<button class="pg-btn" onclick="${fn}(${page+1})" ${page>=pages?'disabled':''}><i class="bi bi-chevron-right"></i></button>`;
+  let nums = '';
+  const s = Math.max(1,page-2), e = Math.min(pages,page+2);
+  if (s>1) nums += `<button class="pg-btn" onclick="${fn}(1)">1</button>${s>2?'<span class="pg-info">…</span>':''}`;
+  for (let i=s;i<=e;i++) nums += `<button class="pg-btn ${i===page?'active':''}" onclick="${fn}(${i})">${i}</button>`;
+  if (e<pages) nums += `${e<pages-1?'<span class="pg-info">…</span>':''}<button class="pg-btn" onclick="${fn}(${pages})">${pages}</button>`;
+  return `<div class="pg-wrap">${prev}${nums}${next}<span class="pg-info">стр. ${page} из ${pages}</span></div>`;
+}
+</script>
+<script>
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+async function renderDashboard() {
+  setActions(`
+    <button class="btn btn-sm btn-accent" onclick="renderDashboard()"><i class="bi bi-arrow-clockwise me-1"></i>Обновить</button>
+    <span class="badge badge-custom badge-active" style="font-size:.65rem"><i class="bi bi-circle-fill me-1" style="font-size:.4rem"></i>Online</span>`);
+  try {
+    const [dash, pays] = await Promise.all([
+      api('/panel/api/dashboard'),
+      api('/panel/api/payments?page=1'),
+    ]);
+    if (!dash) return;
+    const s = dash.stats || {};
+    const rev = dash.rev_week || Array(7).fill(0);
+    const maxRev = Math.max(...rev, 1);
+    const days = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+
+    const statCards = [
+      {icon:'bi-people-fill',    bg:'rgba(108,99,255,.15)', color:'#a78bfa', val:s.total_users||0,              label:'Пользователей',     trend:`+${s.new_users_today||0} сегодня`, trendClass:'text-success'},
+      {icon:'bi-calendar-check', bg:'rgba(34,197,94,.12)',  color:'#22c55e', val:s.active_subscriptions||0,     label:'Активных подписок', trend:`${s.expired_keys||0} истекло`,    trendClass:'text-muted'},
+      {icon:'bi-cash-stack',     bg:'rgba(234,179,8,.12)',  color:'#eab308', val:`${(s.total_revenue||0).toFixed(0)} ₽`, label:'Выручка всего', trend:`+${(s.revenue_today||0).toFixed(0)} ₽ сегодня`, trendClass:'text-success'},
+      {icon:'bi-hourglass-split',bg:'rgba(239,68,68,.12)',  color:'#ef4444', val:s.pending_payments||0,          label:'Ожидают оплаты',   trend:`${s.open_tickets||0} тикетов`,    trendClass:'text-muted'},
+    ].map(c=>`
+      <div class="col-6 col-xl-3">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:${c.bg}"><i class="bi ${c.icon}" style="color:${c.color}"></i></div>
+          <div>
+            <div class="stat-value">${c.val}</div>
+            <div class="stat-label">${c.label}</div>
+            <div class="stat-trend ${c.trendClass}">${c.trend}</div>
+          </div>
         </div>
-        <div class="bar-chart">${barsHtml}</div>
-      </div>
-      <div class="chart-card">
-        <div class="card-header"><div class="card-title">Статус системы</div></div>
-        <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
-          ${statusRow('🤖 Бот', 'Online', 'badge-green')}
-          ${statusRow('🗄️ База данных', 'Healthy', 'badge-green')}
-          ${statusRow('💳 ЮКасса', s.pending_payments > 0 ? 'Активна' : 'Ожидание', 'badge-blue')}
-          ${statusRow('📊 Подписки', `${s.active_subscriptions||0} активных`, 'badge-green')}
+      </div>`).join('');
+
+    const bars = rev.map((v,i)=>`
+      <div class="bar-col">
+        <div class="bar-fill" id="bar-${i}" style="height:0" data-h="${Math.round(v/maxRev*100)}%"></div>
+        <div class="bar-lbl">${days[i]}</div>
+      </div>`).join('');
+
+    const panelLabel = panelType==='remnawave' ? '<i class="bi bi-tsunami me-1"></i>Remnawave' : '<i class="bi bi-hdd-network-fill me-1"></i>Marzban';
+    const psRows = [
+      {label:'Бот',         val:'Online',                          badge:'badge-active'},
+      {label:'База данных', val:'Healthy',                         badge:'badge-active'},
+      {label:panelLabel,    val:'Активна',                         badge:'badge-open'},
+      {label:'Подписки',    val:`${s.active_subscriptions||0} акт.`, badge:'badge-active'},
+    ].map(r=>`<div class="ps-row"><span style="color:var(--muted);font-size:.8rem">${r.label}</span><span class="badge badge-custom ${r.badge}">${r.val}</span></div>`).join('');
+
+    const payRows = (pays?.payments||[]).slice(0,8).map(p=>`<tr>
+      <td><code style="color:var(--accent);font-size:.78rem">#${p.id}</code></td>
+      <td style="color:var(--muted)">${p.user_id}</td>
+      <td>${providerBadge(p.provider)}</td>
+      <td><strong>${p.amount} ${p.currency}</strong></td>
+      <td>${statusBadge(p.status)}</td>
+    </tr>`).join('') || `<tr><td colspan="5" class="text-center py-4" style="color:var(--muted)">Нет платежей</td></tr>`;
+
+    setContent(`
+      <div class="row g-3 mb-4">${statCards}</div>
+      <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+          <div class="vpn-card h-100">
+            <div class="vpn-card-header">
+              <span><i class="bi bi-bar-chart-fill me-2" style="color:var(--accent)"></i>Выручка за 7 дней</span>
+              <strong style="color:var(--accent)">${(s.revenue_today||0).toFixed(0)} ₽ сегодня</strong>
+            </div>
+            <div class="p-3"><div class="bar-chart-wrap">${bars}</div></div>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="vpn-card h-100">
+            <div class="vpn-card-header"><i class="bi bi-activity me-2" style="color:var(--accent)"></i>Статус системы</div>
+            <div class="p-3">${psRows}</div>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="table-card">
-      <div class="table-head">
-        <div class="card-title">Последние платежи</div>
-        <button class="tb-btn" onclick="nav('payments')">Все платежи →</button>
+      <div class="vpn-card">
+        <div class="vpn-card-header">
+          <span><i class="bi bi-clock-history me-2" style="color:var(--accent)"></i>Последние платежи</span>
+          <button class="btn-sm-icon" onclick="nav('payments')">Все платежи <i class="bi bi-arrow-right ms-1"></i></button>
+        </div>
+        <div class="table-responsive">
+          <table class="table mb-0">
+            <thead><tr><th>#</th><th>Юзер</th><th>Метод</th><th>Сумма</th><th>Статус</th></tr></thead>
+            <tbody>${payRows}</tbody>
+          </table>
+        </div>
+      </div>`);
+
+    setTimeout(()=>{ rev.forEach((_,i)=>{ const el=document.getElementById('bar-'+i); if(el) el.style.height=el.dataset.h; }); }, 80);
+  } catch(e) { setContent(errHtml(e.message)); }
+}
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+let usersPage=1, usersQ='';
+
+async function renderUsers(page=1) {
+  usersPage = page;
+  setActions(`
+    <input class="table-search" placeholder="Поиск..." value="${usersQ}" oninput="usersQ=this.value" onkeydown="if(event.key==='Enter')renderUsers(1)">
+    <button class="btn btn-sm btn-accent" onclick="renderUsers(1)"><i class="bi bi-arrow-clockwise"></i></button>`);
+  try {
+    const data = await api(`/panel/api/users?page=${page}&q=${encodeURIComponent(usersQ)}`);
+    if (!data) return;
+    const rows = data.users.map(u=>`<tr>
+      <td><code style="color:var(--accent);font-size:.78rem">${u.id}</code></td>
+      <td>
+        <div style="font-weight:600;font-size:.83rem">${u.full_name||'—'}</div>
+        <div style="font-size:.72rem;color:var(--muted)">${u.username?'@'+u.username:''}</div>
+      </td>
+      <td>${u.is_banned?'<span class="badge badge-custom badge-expired">Забанен</span>':'<span class="badge badge-custom badge-active">Активен</span>'}</td>
+      <td><strong>${u.balance.toFixed(2)} ₽</strong></td>
+      <td style="color:var(--muted)">${u.keys_count}</td>
+      <td style="color:var(--muted)">${u.language||'—'}</td>
+      <td>
+        <div class="d-flex gap-1 flex-wrap">
+          <button class="btn-sm-icon" onclick="showUserDetail(${u.id})"><i class="bi bi-eye"></i></button>
+          ${u.is_banned
+            ? `<button class="btn-sm-icon success" onclick="unbanUser(${u.id})"><i class="bi bi-check-circle"></i></button>`
+            : `<button class="btn-sm-icon danger" onclick="banUser(${u.id})"><i class="bi bi-slash-circle"></i></button>`}
+        </div>
+      </td>
+    </tr>`).join('') || `<tr><td colspan="7" class="text-center py-4" style="color:var(--muted)">Нет пользователей</td></tr>`;
+
+    setContent(`
+      <div class="vpn-card">
+        <div class="vpn-card-header">
+          <span><i class="bi bi-people-fill me-2" style="color:var(--accent)"></i>Пользователи
+            <span style="color:var(--muted);font-weight:400;margin-left:.4rem">(${data.total})</span>
+          </span>
+        </div>
+        <div class="table-responsive">
+          <table class="table mb-0">
+            <thead><tr><th>ID</th><th>Имя</th><th>Статус</th><th>Баланс</th><th>Ключей</th><th>Язык</th><th>Действия</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        ${paginator(data.page, data.pages, 'renderUsers')}
+      </div>`);
+  } catch(e) { setContent(errHtml(e.message)); }
+}
+
+async function showUserDetail(userId) {
+  openModal('Загрузка...', loader());
+  try {
+    const u = await api(`/panel/api/users/${userId}`);
+    if (!u) return;
+    const keysRows = u.keys.map(k=>`<tr>
+      <td><code style="color:var(--accent);font-size:.75rem">#${k.id}</code></td>
+      <td style="font-size:.8rem">${k.name||'—'}</td>
+      <td>${statusBadge(k.status)}</td>
+      <td style="font-size:.78rem;color:var(--muted)">${fmtDateShort(k.expires_at)}</td>
+    </tr>`).join('') || `<tr><td colspan="4" class="text-center py-3" style="color:var(--muted)">Нет ключей</td></tr>`;
+
+    const paysRows = u.payments.slice(0,5).map(p=>`<tr>
+      <td><code style="color:var(--accent);font-size:.75rem">#${p.id}</code></td>
+      <td>${providerBadge(p.provider)}</td>
+      <td><strong>${p.amount} ${p.currency}</strong></td>
+      <td>${statusBadge(p.status)}</td>
+    </tr>`).join('') || `<tr><td colspan="4" class="text-center py-3" style="color:var(--muted)">Нет платежей</td></tr>`;
+
+    document.getElementById('modalTitle').innerHTML = `<i class="bi bi-person-circle me-2" style="color:var(--accent)"></i>Пользователь #${u.id}`;
+    document.getElementById('modalBody').innerHTML = `
+      <div class="detail-grid mb-3">
+        <div class="detail-item"><div class="detail-label">Имя</div><div class="detail-val">${u.full_name||'—'}</div></div>
+        <div class="detail-item"><div class="detail-label">Username</div><div class="detail-val">${u.username?'@'+u.username:'—'}</div></div>
+        <div class="detail-item"><div class="detail-label">Баланс</div><div class="detail-val">${u.balance.toFixed(2)} ₽</div></div>
+        <div class="detail-item"><div class="detail-label">Статус</div><div class="detail-val">${u.is_banned?'<span style="color:#ef4444"><i class="bi bi-slash-circle me-1"></i>Забанен</span>':'<span style="color:#22c55e"><i class="bi bi-check-circle me-1"></i>Активен</span>'}</div></div>
       </div>
-      <table>
-        <thead><tr><th>#</th><th>Юзер</th><th>Метод</th><th>Сумма</th><th>Статус</th></tr></thead>
-        <tbody>${payRows || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Нет платежей</td></tr>'}</tbody>
-      </table>
-    </div>`;
+      <div class="mb-3">
+        <label class="form-label">Пополнить баланс (₽)</label>
+        <div class="input-group input-group-sm">
+          <input type="number" id="add-bal-amt" class="form-control" placeholder="100" min="1">
+          <button class="btn btn-accent" onclick="addBalance(${u.id})"><i class="bi bi-plus-circle me-1"></i>Пополнить</button>
+        </div>
+      </div>
+      <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:.5rem">Подписки</div>
+      <div class="table-responsive mb-3">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>#</th><th>Название</th><th>Статус</th><th>Истекает</th></tr></thead>
+          <tbody>${keysRows}</tbody>
+        </table>
+      </div>
+      <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:.5rem">Платежи</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>#</th><th>Метод</th><th>Сумма</th><th>Статус</th></tr></thead>
+          <tbody>${paysRows}</tbody>
+        </table>
+      </div>`;
+    const footer = document.getElementById('modalFooter');
+    footer.style.display = '';
+    footer.innerHTML = `
+      <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+      ${u.is_banned
+        ? `<button class="btn btn-sm btn-success" onclick="unbanUser(${u.id},true)"><i class="bi bi-check-circle me-1"></i>Разбанить</button>`
+        : `<button class="btn btn-sm btn-danger" onclick="banUser(${u.id},true)"><i class="bi bi-slash-circle me-1"></i>Забанить</button>`}`;
+  } catch(e) {
+    document.getElementById('modalTitle').textContent = 'Ошибка';
+    document.getElementById('modalBody').innerHTML = errHtml(e.message);
+  }
 }
 
-function statusRow(label, val, badge) {
-  return `<div style="display:flex;align-items:center;justify-content:space-between">
-    <span style="font-size:13px">${label}</span>
-    <span class="badge ${badge}">${val}</span>
-  </div>`;
+async function banUser(id, fromModal=false) {
+  if (!confirm('Забанить пользователя?')) return;
+  try { await apiPost(`/panel/api/users/${id}/ban`,{}); showToast('Пользователь заблокирован'); if(fromModal) closeModal(); renderUsers(usersPage); }
+  catch(e) { showToast(e.message,'error'); }
+}
+async function unbanUser(id, fromModal=false) {
+  try { await apiPost(`/panel/api/users/${id}/unban`,{}); showToast('Пользователь разблокирован'); if(fromModal) closeModal(); renderUsers(usersPage); }
+  catch(e) { showToast(e.message,'error'); }
+}
+async function addBalance(id) {
+  const amt = parseFloat(document.getElementById('add-bal-amt').value);
+  if (!amt||amt<=0) { showToast('Введите сумму','warning'); return; }
+  try { await apiPost(`/panel/api/users/${id}/add-balance`,{amount:amt}); showToast(`Баланс пополнен на ${amt} ₽`); closeModal(); renderUsers(usersPage); }
+  catch(e) { showToast(e.message,'error'); }
+}
+</script>
+<script>
+// ── Payments ──────────────────────────────────────────────────────────────────
+let paymentsPage=1, paymentsStatus='';
+
+async function renderPayments(page=1) {
+  paymentsPage = page;
+  setActions(`
+    <select class="form-select form-select-sm" style="width:auto;background:rgba(255,255,255,.04);border-color:var(--border);color:var(--text)" onchange="paymentsStatus=this.value;renderPayments(1)">
+      <option value="" ${paymentsStatus===''?'selected':''}>Все статусы</option>
+      <option value="succeeded" ${paymentsStatus==='succeeded'?'selected':''}>Успешные</option>
+      <option value="pending"   ${paymentsStatus==='pending'?'selected':''}>Ожидание</option>
+      <option value="failed"    ${paymentsStatus==='failed'?'selected':''}>Отменённые</option>
+    </select>
+    <button class="btn btn-sm btn-accent" onclick="renderPayments(1)"><i class="bi bi-arrow-clockwise"></i></button>`);
+  try {
+    const data = await api(`/panel/api/payments?page=${page}&status=${paymentsStatus}`);
+    if (!data) return;
+    const rows = data.payments.map(p=>`<tr>
+      <td><code style="color:var(--accent);font-size:.78rem">#${p.id}</code></td>
+      <td style="color:var(--muted)">${p.user_id}</td>
+      <td>${providerBadge(p.provider)}</td>
+      <td><strong>${p.amount} ${p.currency}</strong></td>
+      <td>${statusBadge(p.status)}</td>
+      <td style="font-size:.75rem;color:var(--muted)">${fmtDate(p.created_at)}</td>
+    </tr>`).join('') || `<tr><td colspan="6" class="text-center py-4" style="color:var(--muted)">Нет платежей</td></tr>`;
+
+    setContent(`
+      <div class="vpn-card">
+        <div class="vpn-card-header">
+          <span><i class="bi bi-credit-card-fill me-2" style="color:var(--accent)"></i>Платежи
+            <span style="color:var(--muted);font-weight:400;margin-left:.4rem">(${data.total})</span>
+          </span>
+        </div>
+        <div class="table-responsive">
+          <table class="table mb-0">
+            <thead><tr><th>#</th><th>Юзер</th><th>Метод</th><th>Сумма</th><th>Статус</th><th>Дата</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        ${paginator(data.page, data.pages, 'renderPayments')}
+      </div>`);
+  } catch(e) { setContent(errHtml(e.message)); }
 }
 
-function animateBars(rev) {
-  setTimeout(() => {
-    rev.forEach((_, i) => {
-      const el = document.getElementById('bar-' + i);
-      if (el) el.style.height = el.dataset.h + '%';
-    });
-  }, 100);
+// ── Subscriptions ─────────────────────────────────────────────────────────────
+let subsPage=1;
+
+async function renderSubscriptions(page=1) {
+  subsPage = page;
+  setActions(`<button class="btn btn-sm btn-accent" onclick="renderSubscriptions(1)"><i class="bi bi-arrow-clockwise me-1"></i>Обновить</button>`);
+  try {
+    const data = await api(`/panel/api/subscriptions?page=${page}`);
+    if (!data) return;
+    const rows = data.subscriptions.map(k=>`<tr>
+      <td><code style="color:var(--accent);font-size:.78rem">#${k.id}</code></td>
+      <td style="color:var(--muted)">${k.user_id}</td>
+      <td style="font-size:.8rem">${k.name||'—'}</td>
+      <td>${statusBadge(k.status)}</td>
+      <td style="font-size:.78rem;color:var(--muted)">${fmtDateShort(k.expires_at)}</td>
+      <td><strong>${k.price.toFixed(0)} ₽</strong></td>
+      <td>
+        <div class="d-flex gap-1">
+          <button class="btn-sm-icon" onclick="extendSubModal(${k.id})"><i class="bi bi-calendar-plus"></i></button>
+          <button class="btn-sm-icon danger" onclick="cancelSub(${k.id})"><i class="bi bi-x-circle"></i></button>
+        </div>
+      </td>
+    </tr>`).join('') || `<tr><td colspan="7" class="text-center py-4" style="color:var(--muted)">Нет подписок</td></tr>`;
+
+    setContent(`
+      <div class="vpn-card">
+        <div class="vpn-card-header">
+          <span><i class="bi bi-calendar-check-fill me-2" style="color:var(--accent)"></i>Подписки
+            <span style="color:var(--muted);font-weight:400;margin-left:.4rem">(${data.total})</span>
+          </span>
+        </div>
+        <div class="table-responsive">
+          <table class="table mb-0">
+            <thead><tr><th>#</th><th>Юзер</th><th>Название</th><th>Статус</th><th>Истекает</th><th>Цена</th><th>Действия</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        ${paginator(data.page, data.pages, 'renderSubscriptions')}
+      </div>`);
+  } catch(e) { setContent(errHtml(e.message)); }
 }
 
+function extendSubModal(keyId) {
+  openModal('Продлить подписку',
+    `<div class="mb-3">
+      <label class="form-label">Количество дней</label>
+      <input type="number" id="ext-days" class="form-control" value="30" min="1">
+    </div>`,
+    `<button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Отмена</button>
+     <button class="btn btn-sm btn-accent" onclick="extendSub(${keyId})"><i class="bi bi-calendar-plus me-1"></i>Продлить</button>`);
+}
+async function extendSub(keyId) {
+  const days = parseInt(document.getElementById('ext-days').value);
+  if (!days||days<1) { showToast('Введите кол-во дней','warning'); return; }
+  try { await apiPost(`/panel/api/subscriptions/${keyId}/extend`,{days}); showToast(`Подписка #${keyId} продлена на ${days} дней`); closeModal(); renderSubscriptions(subsPage); }
+  catch(e) { showToast(e.message,'error'); }
+}
+async function cancelSub(keyId) {
+  if (!confirm('Отменить подписку?')) return;
+  try { await apiPost(`/panel/api/subscriptions/${keyId}/cancel`,{}); showToast(`Подписка #${keyId} отменена`); renderSubscriptions(subsPage); }
+  catch(e) { showToast(e.message,'error'); }
+}
+
+// ── Plans ─────────────────────────────────────────────────────────────────────
+async function renderPlans() {
+  setActions(`<button class="btn btn-sm btn-accent" onclick="createPlanModal()"><i class="bi bi-plus-circle me-1"></i>Новый тариф</button>`);
+  try {
+    const data = await api('/panel/api/plans');
+    if (!data) return;
+    if (!data.plans.length) {
+      setContent(`<div class="d-flex flex-column align-items-center justify-content-center" style="min-height:300px;color:var(--muted)"><i class="bi bi-tags" style="font-size:3rem;opacity:.3"></i><p class="mt-3">Нет тарифов</p></div>`);
+      return;
+    }
+    const cards = data.plans.map(p=>`
+      <div class="col-md-6 col-xl-4">
+        <div class="vpn-card h-100 p-3">
+          <div class="d-flex align-items-start justify-content-between mb-2">
+            <div>
+              <div style="font-weight:700;font-size:.95rem;color:#fff">${p.name}</div>
+              <code style="font-size:.7rem;color:var(--muted)">${p.slug}</code>
+            </div>
+            ${p.is_active?'<span class="badge badge-custom badge-active">Активен</span>':'<span class="badge badge-custom badge-closed">Отключён</span>'}
+          </div>
+          <div class="d-flex gap-3 mb-3" style="font-size:.8rem;color:var(--muted)">
+            <span><i class="bi bi-clock me-1"></i>${p.duration_days} дн.</span>
+            <span><i class="bi bi-currency-ruble me-1"></i>${p.price} ${p.currency}</span>
+          </div>
+          ${p.description?`<div style="font-size:.78rem;color:var(--muted);margin-bottom:.75rem">${p.description}</div>`:''}
+          <div class="d-flex gap-2 mt-auto">
+            <button class="btn-sm-icon" onclick="togglePlan(${p.id})" title="${p.is_active?'Отключить':'Включить'}">
+              <i class="bi bi-${p.is_active?'pause-circle':'play-circle'}"></i>
+            </button>
+            <button class="btn-sm-icon danger" onclick="deletePlan(${p.id})" title="Удалить">
+              <i class="bi bi-trash3"></i>
+            </button>
+          </div>
+        </div>
+      </div>`).join('');
+    setContent(`<div class="row g-3">${cards}</div>`);
+  } catch(e) { setContent(errHtml(e.message)); }
+}
+
+function createPlanModal() {
+  openModal('Новый тариф',
+    `<div class="mb-3"><label class="form-label">Название</label><input type="text" id="pl-name" class="form-control" placeholder="30 дней"></div>
+     <div class="row g-2 mb-3">
+       <div class="col"><label class="form-label">Цена (₽)</label><input type="number" id="pl-price" class="form-control" placeholder="299" min="0"></div>
+       <div class="col"><label class="form-label">Дней</label><input type="number" id="pl-days" class="form-control" placeholder="30" min="1"></div>
+     </div>
+     <div class="mb-3"><label class="form-label">Описание (необязательно)</label><input type="text" id="pl-desc" class="form-control" placeholder="Базовый план"></div>`,
+    `<button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Отмена</button>
+     <button class="btn btn-sm btn-accent" onclick="createPlan()"><i class="bi bi-plus-circle me-1"></i>Создать</button>`);
+}
+async function createPlan() {
+  const name=document.getElementById('pl-name').value.trim();
+  const price=parseFloat(document.getElementById('pl-price').value);
+  const days=parseInt(document.getElementById('pl-days').value);
+  const desc=document.getElementById('pl-desc').value.trim();
+  if (!name||!price||!days) { showToast('Заполните все поля','warning'); return; }
+  try { await apiPost('/panel/api/plans',{name,price,duration_days:days,description:desc||null}); showToast(`Тариф «${name}» создан`); closeModal(); renderPlans(); }
+  catch(e) { showToast(e.message,'error'); }
+}
+async function togglePlan(id) {
+  try { await apiPatch(`/panel/api/plans/${id}/toggle`); showToast('Статус тарифа обновлён'); renderPlans(); }
+  catch(e) { showToast(e.message,'error'); }
+}
+async function deletePlan(id) {
+  if (!confirm('Удалить тариф?')) return;
+  try { await apiDelete(`/panel/api/plans/${id}`); showToast('Тариф удалён'); renderPlans(); }
+  catch(e) { showToast(e.message,'error'); }
+}
+</script>
+<script>
+// ── VPN Panel stats ───────────────────────────────────────────────────────────
+async function renderPanel() {
+  setActions(`<button class="btn btn-sm btn-accent" onclick="renderPanel()"><i class="bi bi-arrow-clockwise me-1"></i>Обновить</button>`);
+  try {
+    const data = await api('/panel/api/panel-stats');
+    if (!data) return;
+    const pt = data.panel_type || 'marzban';
+    const isRemna = pt === 'remnawave';
+    const panelName = isRemna ? 'Remnawave' : 'Marzban / Pasarguard';
+    const panelIcon = isRemna ? 'bi-tsunami' : 'bi-hdd-network-fill';
+
+    if (!data.ok) {
+      setContent(`
+        <div class="vpn-card p-4">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="stat-icon" style="background:rgba(239,68,68,.12)"><i class="bi ${panelIcon}" style="color:#ef4444"></i></div>
+            <div>
+              <div style="font-size:1.1rem;font-weight:700;color:#fff">${panelName}</div>
+              <span class="badge badge-custom badge-expired">Нет подключения</span>
+            </div>
+          </div>
+          <div style="color:#ef4444;font-size:.85rem"><i class="bi bi-exclamation-triangle me-2"></i>${data.error||'Неизвестная ошибка'}</div>
+          <div style="color:var(--muted);font-size:.78rem;margin-top:.5rem">Проверьте настройки в .env файле</div>
+        </div>`);
+      return;
+    }
+
+    const s = data.stats || {};
+    const statItems = isRemna ? [
+      {icon:'bi-people-fill',    bg:'rgba(108,99,255,.15)',color:'#a78bfa', val:s.totalUsers??s.total_users??'—',          label:'Всего юзеров'},
+      {icon:'bi-wifi',           bg:'rgba(34,197,94,.12)', color:'#22c55e', val:s.onlineUsers??s.online_users??'—',         label:'Онлайн'},
+      {icon:'bi-arrow-down-circle',bg:'rgba(59,130,246,.12)',color:'#3b82f6',val:fmtBytes(s.incomingBandwidth??s.incoming_bandwidth??0),label:'Входящий'},
+      {icon:'bi-arrow-up-circle', bg:'rgba(239,68,68,.12)', color:'#ef4444',val:fmtBytes(s.outgoingBandwidth??s.outgoing_bandwidth??0),label:'Исходящий'},
+      {icon:'bi-memory',          bg:'rgba(234,179,8,.12)', color:'#eab308',val:fmtBytes(s.memUsed??s.mem_used??0),          label:'RAM'},
+      {icon:'bi-cpu',             bg:'rgba(108,99,255,.12)',color:'#a78bfa',val:`${(s.cpuUsage??s.cpu_usage??0).toFixed(1)}%`,label:'CPU'},
+    ] : [
+      {icon:'bi-people-fill',    bg:'rgba(108,99,255,.15)',color:'#a78bfa', val:s.total_user??'—',                          label:'Всего юзеров'},
+      {icon:'bi-wifi',           bg:'rgba(34,197,94,.12)', color:'#22c55e', val:s.users_active??'—',                        label:'Онлайн'},
+      {icon:'bi-arrow-down-circle',bg:'rgba(59,130,246,.12)',color:'#3b82f6',val:fmtBytes(s.incoming_bandwidth??0),          label:'Входящий'},
+      {icon:'bi-arrow-up-circle', bg:'rgba(239,68,68,.12)', color:'#ef4444',val:fmtBytes(s.outgoing_bandwidth??0),           label:'Исходящий'},
+      {icon:'bi-memory',          bg:'rgba(234,179,8,.12)', color:'#eab308',val:fmtBytes(s.mem_used??0),                     label:'RAM'},
+      {icon:'bi-cpu',             bg:'rgba(108,99,255,.12)',color:'#a78bfa',val:`${(s.cpu_usage??0).toFixed(1)}%`,            label:'CPU'},
+    ];
+
+    const cards = statItems.map(c=>`
+      <div class="col-6 col-md-4 col-xl-2">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:${c.bg}"><i class="bi ${c.icon}" style="color:${c.color}"></i></div>
+          <div><div class="stat-value" style="font-size:1.2rem">${c.val}</div><div class="stat-label">${c.label}</div></div>
+        </div>
+      </div>`).join('');
+
+    setContent(`
+      <div class="d-flex align-items-center gap-3 mb-4">
+        <div class="stat-icon" style="background:rgba(34,197,94,.12)"><i class="bi ${panelIcon}" style="color:#22c55e"></i></div>
+        <div>
+          <div style="font-size:1.1rem;font-weight:700;color:#fff">${panelName}</div>
+          <span class="badge badge-custom badge-active"><i class="bi bi-check-circle me-1"></i>Подключено</span>
+        </div>
+      </div>
+      <div class="row g-3 mb-4">${cards}</div>
+      <div style="font-size:.75rem;color:var(--muted)">
+        <i class="bi bi-info-circle me-1"></i>
+        Тип панели: <strong style="color:var(--text)">${pt}</strong> · 
+        Для смены измените <code style="color:var(--accent)">VPN_PANEL_TYPE</code> в .env
+      </div>`);
+  } catch(e) { setContent(errHtml(e.message)); }
+}
+
+// ── Migration ─────────────────────────────────────────────────────────────────
+async function renderMigrate() {
+  setActions('');
+  try {
+    const info = await api('/panel/api/app-info');
+    const pt = info?.panel_type || 'marzban';
+    const isRemna = pt === 'remnawave';
+    const fromIcon = isRemna ? 'bi-tsunami' : 'bi-hdd-network-fill';
+    const toIcon   = isRemna ? 'bi-hdd-network-fill' : 'bi-tsunami';
+    const fromName = isRemna ? 'Remnawave' : 'Marzban';
+    const toName   = isRemna ? 'Marzban' : 'Remnawave';
+    const direction = isRemna ? 'to_marzban' : 'to_remnawave';
+
+    setContent(`
+      <div class="row g-3">
+        <div class="col-lg-7">
+          <div class="vpn-card p-4 mb-3">
+            <div style="font-size:.95rem;font-weight:700;color:#fff;margin-bottom:.5rem">
+              <i class="bi bi-arrow-left-right me-2" style="color:var(--accent)"></i>Миграция ключей между панелями
+            </div>
+            <p style="font-size:.83rem;color:var(--muted);margin-bottom:1.25rem">
+              Переносит все активные VPN-ключи из одной панели в другую.
+              Пересоздаёт пользователей в целевой панели с теми же именами и сроками.
+            </p>
+            <div class="d-flex align-items-center gap-3 mb-4 p-3" style="background:rgba(255,255,255,.03);border-radius:10px;border:1px solid var(--border)">
+              <div class="text-center">
+                <div class="stat-icon mx-auto mb-1" style="background:rgba(108,99,255,.15)"><i class="bi ${fromIcon}" style="color:var(--accent)"></i></div>
+                <div style="font-size:.78rem;font-weight:600;color:#fff">${fromName}</div>
+                <div style="font-size:.68rem;color:var(--muted)">Источник</div>
+              </div>
+              <div style="flex:1;text-align:center;color:var(--muted)"><i class="bi bi-arrow-right" style="font-size:1.5rem"></i></div>
+              <div class="text-center">
+                <div class="stat-icon mx-auto mb-1" style="background:rgba(34,197,94,.12)"><i class="bi ${toIcon}" style="color:#22c55e"></i></div>
+                <div style="font-size:.78rem;font-weight:600;color:#fff">${toName}</div>
+                <div style="font-size:.68rem;color:var(--muted)">Цель</div>
+              </div>
+            </div>
+            <div class="alert py-2 px-3 mb-3" style="background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);border-radius:8px;font-size:.8rem;color:#eab308">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Убедитесь что целевая панель настроена в .env перед запуском
+            </div>
+            <button class="btn btn-accent" onclick="startMigration('${direction}','${toName}')">
+              <i class="bi bi-arrow-left-right me-2"></i>Начать миграцию ${fromName} → ${toName}
+            </button>
+          </div>
+          <div id="migrate-result"></div>
+        </div>
+        <div class="col-lg-5">
+          <div class="vpn-card p-4">
+            <div style="font-size:.82rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:.75rem">Конфигурация</div>
+            <div class="ps-row"><span style="color:var(--muted);font-size:.8rem">Активная панель</span><span class="badge badge-custom badge-open">${pt}</span></div>
+            <div class="ps-row"><span style="color:var(--muted);font-size:.8rem">Переменная</span><code style="font-size:.75rem;color:var(--accent)">VPN_PANEL_TYPE</code></div>
+            <div class="ps-row"><span style="color:var(--muted);font-size:.8rem">Значения</span><span style="font-size:.75rem;color:var(--text)">marzban | remnawave</span></div>
+            <div class="mt-3 p-2" style="background:rgba(255,255,255,.03);border-radius:8px;font-size:.75rem;color:var(--muted)">
+              После смены <code style="color:var(--accent)">VPN_PANEL_TYPE</code> перезапустите сервис:<br>
+              <code style="color:#22c55e">bash update.sh</code>
+            </div>
+          </div>
+        </div>
+      </div>`);
+  } catch(e) { setContent(errHtml(e.message)); }
+}
+
+async function startMigration(direction, toName) {
+  if (!confirm(`Начать миграцию в ${toName}? Это может занять несколько минут.`)) return;
+  const el = document.getElementById('migrate-result');
+  if (el) el.innerHTML = `<div class="vpn-card p-3 d-flex align-items-center gap-2" style="color:var(--muted)"><div class="spinner-border spinner-border-sm" style="color:var(--accent)"></div>Миграция выполняется...</div>`;
+  try {
+    const data = await apiPost('/panel/api/panel-migrate', {direction});
+    if (!data) return;
+    const ok = data.errors === 0;
+    if (el) el.innerHTML = `
+      <div class="vpn-card p-4" style="border-color:${ok?'rgba(34,197,94,.3)':'rgba(234,179,8,.3)'}">
+        <div style="font-size:.95rem;font-weight:700;color:${ok?'#22c55e':'#eab308'};margin-bottom:.75rem">
+          <i class="bi bi-${ok?'check-circle-fill':'exclamation-triangle-fill'} me-2"></i>
+          ${ok?'Миграция завершена успешно':'Миграция завершена с ошибками'}
+        </div>
+        <div class="row g-2">
+          <div class="col-4"><div class="detail-item text-center"><div class="detail-label">Всего</div><div class="detail-val">${data.total}</div></div></div>
+          <div class="col-4"><div class="detail-item text-center"><div class="detail-label">Перенесено</div><div class="detail-val" style="color:#22c55e">${data.migrated}</div></div></div>
+          <div class="col-4"><div class="detail-item text-center"><div class="detail-label">Ошибок</div><div class="detail-val" style="color:${data.errors>0?'#ef4444':'var(--muted)'}">${data.errors}</div></div></div>
+        </div>
+      </div>`;
+    showToast(`Миграция: ${data.migrated} перенесено, ${data.errors} ошибок`, ok?'success':'warning');
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="vpn-card p-3" style="border-color:rgba(239,68,68,.3);color:#ef4444"><i class="bi bi-x-circle me-2"></i>${e.message}</div>`;
+    showToast(e.message,'error');
+  }
+}
+
+// ── Old panel embed ───────────────────────────────────────────────────────────
+function renderOldPanel(section) {
+  const url = `/panel/${section}?embed=1`;
+  setContent(`
+    <div class="vpn-card" style="overflow:hidden">
+      <div class="vpn-card-header">
+        <span><i class="bi bi-window me-2" style="color:var(--accent)"></i>${PAGE_TITLES[currentPage] || section}</span>
+        <a href="/panel/${section}" target="_blank" class="btn btn-sm btn-accent">
+          <i class="bi bi-box-arrow-up-right me-1"></i>Открыть отдельно
+        </a>
+      </div>
+      <iframe
+        src="${url}"
+        id="panel-iframe"
+        style="width:100%;height:calc(100vh - 130px);border:none;display:block"
+        onload="hideIframeSidebar(this)"
+        title="${section}">
+      </iframe>
+    </div>`);
+}
+
+function hideIframeSidebar(iframe) {
+  try {
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+    const style = doc.createElement('style');
+    style.textContent = '.sidebar,.sidebar-overlay,.topbar .hamburger{display:none!important}.main-wrap{margin-left:0!important}';
+    doc.head.appendChild(style);
+  } catch(e) { /* cross-origin — ignore */ }
+}
+
+// ── Coming soon ───────────────────────────────────────────────────────────────
 function renderComingSoon(page) {
-  document.getElementById('content').innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;color:var(--muted)">
-      <div style="font-size:64px;margin-bottom:16px">🚧</div>
-      <div style="font-size:20px;font-weight:700;color:var(--text);margin-bottom:8px">В разработке</div>
-      <div style="font-size:14px">Страница «${page}» будет добавлена в следующей версии</div>
-      <button class="tb-btn" style="margin-top:24px" onclick="window.open('/panel/','_blank')">Открыть в старой панели →</button>
-    </div>`;
-}
-
-// ── Toast ─────────────────────────────────────────────────────────────────────
-function toast(msg, ok = true) {
-  const wrap = document.getElementById('toasts');
-  const el = document.createElement('div');
-  el.className = 'toast ' + (ok ? 'ok' : 'err');
-  el.innerHTML = `<span>${ok ? '✅' : '❌'}</span> ${msg}`;
-  wrap.appendChild(el);
-  setTimeout(() => el.remove(), 3000);
+  setContent(`
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:400px;color:var(--muted)">
+      <i class="bi bi-tools" style="font-size:3rem;opacity:.3;margin-bottom:1rem"></i>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:.5rem">В разработке</div>
+      <div style="font-size:.85rem">Страница «${page}» будет добавлена позже</div>
+      <button class="btn btn-sm btn-accent mt-4" onclick="window.open('/panel/','_blank')">
+        <i class="bi bi-box-arrow-up-right me-1"></i>Открыть в старой панели
+      </button>
+    </div>`);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {
-  // DEV MODE: skip auth, show dashboard directly
-  showApp('admin', {app_name: 'Admin Panel'});
+  // Show a blank loading state while checking auth
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  try {
+    const info = await api('/panel/api/app-info');
+    if (info) {
+      // Cookie valid — go straight to app
+      showApp(localStorage.getItem('spa_user') || 'admin', info);
+      return;
+    }
+  } catch(e) {}
+  // Not authenticated — show login
+  document.getElementById('login-screen').style.display = 'flex';
 })();
 
-// Enter key on login
-document.getElementById('l-pass').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doLogin();
-});
+document.getElementById('l-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+document.getElementById('l-user').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('l-pass').focus(); });
 
-// Responsive
-if (window.innerWidth <= 768) {
-  document.getElementById('menu-btn').style.display = 'flex';
-}
+if (window.innerWidth <= 768) document.querySelector('.hamburger').style.display = 'flex';
+window.addEventListener('resize', () => {
+  const btn = document.querySelector('.topbar .hamburger');
+  if (btn) btn.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
+});
 </script>
 </body>
 </html>

@@ -97,7 +97,13 @@ class VpnKeyService:
             return None
 
         sub_token = marz_user.get("subscription_url", "")
-        panel_base = str(config.pasarguard.pasarguard_admin_panel).rstrip("/")
+        # panel_base: use Marzban URL if available, else Remnawave URL
+        _pg = config.pasarguard
+        if _pg:
+            panel_base = str(_pg.pasarguard_admin_panel).rstrip("/")
+        else:
+            from app.core.configs.remnawave_config import remnawave as _rw
+            panel_base = (_rw.remnawave_url or "").rstrip("/")
         if sub_token:
             if sub_token.startswith("http"):
                 access_url = sub_token.rstrip("/")
