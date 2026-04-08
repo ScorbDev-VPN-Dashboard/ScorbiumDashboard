@@ -119,6 +119,7 @@ if [[ "$MODE" == "1" ]]; then
     [[ "$HTTPS_PORT" == "443" ]] && PANEL_URL="https://${DOMAIN}/panel/"
 else
     DOMAIN="localhost"
+    HTTPS_PORT=443
     TG_PROTOCOL=long
     WEBHOOK_URL="https://localhost/webhook/bot"
     ALLOWED_ORIGINS='["http://localhost:8000"]'
@@ -174,18 +175,91 @@ read -rp "Запустить? [Y/n]: " START; START=${START:-Y}
 if [[ "$MODE" == "1" ]]; then
     # ── ПРОДАКШЕН ─────────────────────────────────────────────────────────────
 
-    # Настраиваем nginx.conf под домен
-    if grep -q "YOUR_DOMAIN" nginx/nginx.conf 2>/dev/null; then
-        info "Настраиваю nginx для ${DOMAIN}..."
-        sed -i "s/YOUR_DOMAIN/${DOMAIN}/g" nginx/nginx.conf
-        success "nginx/nginx.conf обновлён"
-    elif [[ -f "nginx/nginx.conf.template" ]]; then
-        info "Настраиваю nginx для ${DOMAIN} из шаблона..."
-        sed "s/YOUR_DOMAIN/${DOMAIN}/g" nginx/nginx.conf.template > nginx/nginx.conf
-        success "nginx/nginx.conf создан из шаблона"
-    else
-        info "nginx.conf уже настроен (домен: ${DOMAIN})"
-    fi
+    # Настраиваем nginx.conf под домен и порт
+    info "Генерирую nginx.conf для ${DOMAIN}:${HTTPS_PORT}..."
+    cat > nginx/nginx.conf << NGINXEOF
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid /var/run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    sendfile on;
+    keepalive_timeout 65;
+    client_max_body_size 20M;
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript;
+
+    limit_req_zone \$binary_remote_addr zone=panel:10m rate=30r/m;
+    limit_req_zone \$binary_remote_addr zone=api:10m rate=60r/m;
+    limit_req_zone \$binary_remote_addr zone=webhook:10m rate=120r/m;
+
+    upstream vpn_app {
+        server app:8000;
+        keepalive 32;
+    }
+
+    server {
+        listen 80;
+        server_name ${DOMAIN};
+        location /.well-known/acme-challenge/ { root /var/www/certbot; }
+        location / { return 301 https://\$host:${HTTPS_PORT}\$request_uri; }
+    }
+
+    server {
+        listen ${HTTPS_PORT} ssl;
+        http2 on;
+        server_name ${DOMAIN};
+
+        ssl_certificate /etc/nginx/ssl/live/${DOMAIN}/fullchain.pem;
+        ssl_certificate_key /etc/nginx/ssl/live/${DOMAIN}/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_session_cache shared:SSL:10m;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 60s;
+        proxy_next_upstream error timeout http_502 http_503;
+        proxy_next_upstream_tries 3;
+
+        location /panel/ {
+            limit_req zone=panel burst=20 nodelay;
+            proxy_pass http://vpn_app;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Real-IP \$remote_addr;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+        }
+        location /app/ {
+            proxy_pass http://vpn_app;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+        }
+        location /webhook/ {
+            limit_req zone=webhook burst=50 nodelay;
+            proxy_pass http://vpn_app;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+        }
+        location /api/ {
+            limit_req zone=api burst=30 nodelay;
+            proxy_pass http://vpn_app;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+        }
+        location = / { return 301 /panel/; }
+        location / {
+            proxy_pass http://vpn_app;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+        }
+    }
+}
+NGINXEOF
+    success "nginx.conf создан (порт ${HTTPS_PORT})"
 
     # Останавливаем старые контейнеры
     docker compose -f docker-compose.prod.yml down 2>/dev/null || true
@@ -193,8 +267,18 @@ if [[ "$MODE" == "1" ]]; then
     # Запускаем db + app
     info "Запускаю db и app..."
     docker compose -f docker-compose.prod.yml up -d db app
-    info "Жду запуска приложения (10 сек)..."
-    sleep 10
+
+    # Ждём healthy
+    info "Жду готовности app (макс 90 сек)..."
+    for i in $(seq 1 18); do
+        STATUS=$(docker inspect --format='{{.State.Health.Status}}' vpn_app 2>/dev/null || echo "starting")
+        if [[ "$STATUS" == "healthy" ]]; then
+            success "App готов"
+            break
+        fi
+        [[ $i -eq 18 ]] && warn "App не стал healthy, продолжаю..."
+        sleep 5
+    done
 
     # Получаем SSL сертификат
     CERT_PATH="nginx/ssl/live/${DOMAIN}/fullchain.pem"
