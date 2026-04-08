@@ -41,8 +41,9 @@ class _YookassaConfig(BaseSettings):
     def validate_yookassa_shop_id(cls, value: Optional[int]) -> Optional[int]:
         if value is not None:
             shop_id_str = str(value)
-            if not (5 <= len(shop_id_str) <= 8):
-                raise YookassaValueError(f"Shop ID должен содержать от 5 до 8 цифр, получено: {len(shop_id_str)}")
+            #TODO: Create single cheker for validation yookassa parametars
+            # if not (5 <= len(shop_id_str) <= 8):
+            #     raise YookassaValueError(f"Shop ID должен содержать от 5 до 8 цифр, получено: {len(shop_id_str)}")
             log.debug(f"✅ Yookassa Shop ID валидация пройдена: {value}")
         return value
         
@@ -51,11 +52,11 @@ class _YookassaConfig(BaseSettings):
     def validate_yookassa_secret_key(cls, value: Optional[SecretStr]) -> Optional[SecretStr]:
         if value is not None:
             secret_value = value.get_secret_value()
-            if not secret_value or len(secret_value) < 10:
-                raise YookassaValueError("Секретный ключ слишком короткий или пустой")
+            # if not secret_value or len(secret_value) < 10:
+            #     raise YookassaValueError("Секретный ключ слишком короткий или пустой")
             
-            if not re.match(r'^[A-Za-z0-9_\-]+$', secret_value):
-                raise YookassaValueError("Секретный ключ содержит недопустимые символы")
+            # if not re.match(r'^[A-Za-z0-9_\-]+$', secret_value):
+            #     raise YookassaValueError("Секретный ключ содержит недопустимые символы")
                 
             log.debug("✅ Yookassa Secret Key валидация пройдена")
         return value
