@@ -76,10 +76,13 @@ class _YookassaConfig(BaseSettings):
 @lru_cache()
 def get_yookassa_config() -> _YookassaConfig:
     return _YookassaConfig()
-  
+
+
 try:
     yookassa = get_yookassa_config()
     log.success("✅ Yookassa config initialized successfully")
     log.debug(f"Yookassa: {yookassa}")
 except Exception as e:
-    log.error(f"❌ Failed to initialize Yookassa config: {e}. \n Error in {__file__}: {e}")
+    log.warning(f"⚠️ Yookassa config not loaded (payments disabled): {e}")
+    # Create a stub so imports don't fail — yookassa payments simply won't work
+    yookassa = None

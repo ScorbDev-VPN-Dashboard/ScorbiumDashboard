@@ -12,6 +12,8 @@ from app.utils.log import log
 
 
 def _configure_yookassa() -> bool:
+    if not config.yookassa:
+        return False
     auth = config.yookassa.get_auth
     if not auth:
         return False
