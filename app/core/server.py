@@ -203,12 +203,8 @@ def create_app() -> FastAPI:
             resp.headers["X-Content-Type-Options"] = "nosniff"
             resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
             path = request.url.path
-            if path.startswith("/admin2"):
-                # SPA itself cannot be framed
-                resp.headers["X-Frame-Options"] = "DENY"
-                resp.headers["Cache-Control"] = "no-store"
-            elif path.startswith("/panel"):
-                # Old panel can be framed from same origin (for SPA iframe)
+            if path.startswith("/panel"):
+                # Old panel can be framed from same origin
                 resp.headers["X-Frame-Options"] = "SAMEORIGIN"
             else:
                 resp.headers["X-Frame-Options"] = "DENY"
@@ -221,20 +217,7 @@ def create_app() -> FastAPI:
     from app.api.miniapp import get_miniapp_router
     app.include_router(get_miniapp_router())
 
-    # SPA Admin — serve index.html for /admin2 and /admin2/*
-    from fastapi.responses import FileResponse, HTMLResponse
-    from pathlib import Path as _Path
-    _spa_path = _Path(__file__).resolve().parent.parent / "templates" / "spa"
-    _spa_path.mkdir(exist_ok=True)
-    _spa_index = str(_spa_path / "index.html")
-
-    @app.get("/admin2", include_in_schema=False)
-    async def spa_admin_root():
-        return FileResponse(_spa_index)
-
-    @app.get("/admin2/{full_path:path}", include_in_schema=False)
-    async def spa_admin(full_path: str = ""):
-        return FileResponse(_spa_index)
+    # SPA Admin — removed
 
     # Static files
     static_path = Path(__file__).resolve().parent.parent / "static"

@@ -112,15 +112,15 @@ async def cmd_ping(message: Message) -> None:
 
 # ── /top — топ рефереров ──────────────────────────────────────────────────────
 
-@router.message(Command("top", "рейтинг"))
-async def cmd_top(message: Message) -> None:
+async def _build_top_text(user_id: int) -> str:
     async with AsyncSessionFactory() as session:
         top = await ReferralService(session).get_top(limit=10)
-        my_count = await ReferralService(session).count_referrals(message.from_user.id)
+        my_count = await ReferralService(session).count_referrals(user_id)
+        user = await UserService(session).get_by_id(user_id)
+        ref_code = user.referral_code if user else None
 
     if not top:
-        await message.answer("👥 Рейтинг пока пуст. Приглашай друзей первым!")
-        return
+        return "👥 Рейтинг пока пуст. Приглашай друзей первым!"
 
     medals = ["🥇", "🥈", "🥉"] + ["4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
     lines = ["🏆 <b>Топ рефереров</b>\n"]
@@ -128,21 +128,21 @@ async def cmd_top(message: Message) -> None:
     for i, r in enumerate(top):
         medal = medals[i] if i < len(medals) else f"{i+1}."
         uname = f"@{r['username']}" if r.get("username") else r.get("full_name") or f"id:{r['referrer_id']}"
-        is_me = " ← вы" if r["referrer_id"] == message.from_user.id else ""
+        is_me = " ← вы" if r["referrer_id"] == user_id else ""
         lines.append(f"{medal} {uname} — <b>{r['count']}</b> реф.{is_me}")
 
     lines.append(f"\n👤 Ваш результат: <b>{my_count}</b> рефералов")
 
-    async with AsyncSessionFactory() as session:
-        user = await UserService(session).get_by_id(message.from_user.id)
-        ref_code = user.referral_code if user else None
-
     if ref_code:
-        from app.core.config import config
-        # Get bot username from cache or skip
         lines.append(f"\n🔗 Ваш реф. код: <code>{ref_code}</code>")
 
-    await message.answer("\n".join(lines), parse_mode="HTML")
+    return "\n".join(lines)
+
+
+@router.message(Command("top", "рейтинг"))
+async def cmd_top(message: Message) -> None:
+    text = await _build_top_text(message.from_user.id)
+    await message.answer(text, parse_mode="HTML")
 
 
 # ── /gift — подарить подписку ─────────────────────────────────────────────────
@@ -330,7 +330,11 @@ async def cb_servers(callback: CallbackQuery) -> None:
 @router.callback_query(F.data == "top_referrers")
 async def cb_top(callback: CallbackQuery) -> None:
     await callback.answer()
-    await cmd_top(callback.message)
+    text = await _build_top_text(callback.from_user.id)
+    try:
+        await callback.message.edit_text(text, parse_mode="HTML")
+    except Exception:
+        await callback.message.answer(text, parse_mode="HTML")
 
 
 @router.callback_query(F.data == "status_cmd")

@@ -91,11 +91,6 @@
     }
     .sidebar-overlay.show { display: block; }
 
-    /* ── Embed mode (iframe from SPA) ── */
-    body.embed-mode .sidebar,
-    body.embed-mode .sidebar-overlay { display: none !important; }
-    body.embed-mode .main-wrap { margin-left: 0 !important; }
-
     /* ── Main ── */
     .main-wrap {
       margin-left: var(--sw); min-height: 100vh;
@@ -397,11 +392,6 @@
   document.body.addEventListener('showToast', (e) => {
     showToast(e.detail.msg, e.detail.type || 'success');
   });
-
-  // Embed mode — hide sidebar when loaded inside SPA iframe
-  if (window.self !== window.top || new URLSearchParams(window.location.search).get('embed') === '1') {
-    document.body.classList.add('embed-mode');
-  }
 </script>
 {% block scripts %}{% endblock %}
 </body>
