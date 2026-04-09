@@ -130,7 +130,12 @@ fi
 info "Генерирую .env..."
 cat > .env <<EOF
 APP_NAME=${APP_NAME}
-APP_VERSION=$(grep '^version' pyproject.toml | head -1 | sed 's/.*= *"\(.*\)"/\1/')
+if [[ -f "pyproject.toml" ]]; then
+    APP_VERSION=$(grep '^version' pyproject.toml | head -1 | sed 's/.*= *"\(.*\)"/\1/')
+else
+    APP_VERSION="1.0.0"
+    warn "pyproject.toml не найден, использую версию ${APP_VERSION}"
+fi
 SERVER_HOST=0.0.0.0
 SERVER_PORT=8000
 ALLOWED_ORIGINS=${ALLOWED_ORIGINS}

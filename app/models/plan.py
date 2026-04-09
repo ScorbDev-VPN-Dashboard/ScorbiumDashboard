@@ -10,8 +10,8 @@ class Plan(Base):
     __tablename__ = "plans"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(128), nullable=False, unique=True)          # "1 месяц", "3 месяца"
-    slug = Column(String(64), nullable=False, unique=True)           # "1_month", "3_months"
+    name = Column(String(128), nullable=False, unique=True) 
+    slug = Column(String(64), nullable=False, unique=True) 
     description = Column(Text, nullable=True)
     duration_days = Column(Integer, nullable=False)
     price = Column(Numeric(10, 2), nullable=False)

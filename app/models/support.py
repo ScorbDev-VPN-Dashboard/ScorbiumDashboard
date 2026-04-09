@@ -38,7 +38,7 @@ class TicketMessage(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     ticket_id = Column(Integer, ForeignKey("support_tickets.id", ondelete="CASCADE"), nullable=False)
-    sender_id = Column(BigInteger, nullable=False)   # telegram user_id или 0 для admin
+    sender_id = Column(BigInteger, nullable=False)
     is_admin = Column(Boolean, default=False, nullable=False)
     text = Column(Text, nullable=False)
 

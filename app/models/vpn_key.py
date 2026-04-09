@@ -12,10 +12,6 @@ class VpnKeyStatus(str, enum.Enum):
 
 
 class VpnKey(Base):
-    """
-    VPN-подписка пользователя.
-    Одна запись = одна подписка = один VPN-ключ в Marzban.
-    """
     __tablename__ = "vpn_keys"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

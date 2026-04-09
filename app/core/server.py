@@ -13,7 +13,6 @@ from app.api.panel import get_panel_router
 from app.api.middleware import RateLimitMiddleware
 from app.utils.log import log
 
-# Bot globals — set during lifespan
 _bot = None
 _dp = None
 
@@ -54,12 +53,10 @@ def _make_dp():
         "app.bot.handlers.trial",
     ]
 
-    # Force-reload each handler module so we get fresh Router instances
     for mod_name in handler_modules:
         if mod_name in sys.modules:
             importlib.reload(sys.modules[mod_name])
 
-    # Now import fresh references
     import app.bot.handlers.start as _start
     import app.bot.handlers.buy as _buy
     import app.bot.handlers.my_keys as _my_keys
@@ -124,7 +121,6 @@ async def _lifespan(app: FastAPI):
     asyncio.create_task(expire_loop())
     asyncio.create_task(sync_loop())
 
-    # Seed CryptoBot token from .env into bot_settings if not already set
     import os as _os
     _env_cryptobot = _os.environ.get("CRYPTOBOT_TOKEN", "").strip()
     if _env_cryptobot:
@@ -139,8 +135,7 @@ async def _lifespan(app: FastAPI):
 
     log.info("✅ Application ready")
 
-    # Set bot commands menu
-    from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeAllPrivateChats
+    from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats
     user_commands = [
         BotCommand(command="start",      description="🏠 Главное меню"),
         BotCommand(command="profile",    description="👤 Мой профиль"),
@@ -195,7 +190,6 @@ def create_app() -> FastAPI:
         log.error(f"Unhandled exception on {request.url}: {exc}")
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
-    # Security headers middleware
     from starlette.middleware.base import BaseHTTPMiddleware as _BHM
     class _SecurityHeaders(_BHM):
         async def dispatch(self, request: Request, call_next):
@@ -204,7 +198,6 @@ def create_app() -> FastAPI:
             resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
             path = request.url.path
             if path.startswith("/panel"):
-                # Old panel can be framed from same origin
                 resp.headers["X-Frame-Options"] = "SAMEORIGIN"
             else:
                 resp.headers["X-Frame-Options"] = "DENY"
@@ -217,9 +210,6 @@ def create_app() -> FastAPI:
     from app.api.miniapp import get_miniapp_router
     app.include_router(get_miniapp_router())
 
-    # SPA Admin — removed
-
-    # Static files
     static_path = Path(__file__).resolve().parent.parent / "static"
     static_path.mkdir(exist_ok=True)
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")

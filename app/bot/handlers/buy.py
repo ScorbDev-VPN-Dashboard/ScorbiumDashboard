@@ -1,6 +1,5 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
-
 from app.bot.keyboards.payments import plans_kb, payment_methods_kb
 from app.bot.utils.menu import get_main_menu_kb as _get_menu_kb
 from app.core.database import AsyncSessionFactory
@@ -51,11 +50,11 @@ async def select_plan(callback: CallbackQuery) -> None:
         plan = await PlanService(session).get_by_id(plan_id)
         user = await UserService(session).get_by_id(callback.from_user.id)
         settings = await BotSettingsService(session).get_all()
-        user_lang = user.language if user and user.language else None
-        lang = get_lang(settings, user_lang)
+        user_lang = user.language if user and str(user.language) else None
+        lang = get_lang(settings, str(user_lang))
         has_cryptobot = bool(settings.get("cryptobot_token", "").strip())
 
-    if not plan or not plan.is_active:
+    if not plan or plan.is_active is None:
         await callback.answer(t("no_plans", lang), show_alert=True)
         return
 

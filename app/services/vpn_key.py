@@ -1,13 +1,14 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.vpn_key import VpnKey, VpnKeyStatus
+from app.core.config import config
 from app.models.plan import Plan
+from app.models.vpn_key import VpnKey, VpnKeyStatus
 from app.services.pasarguard.pasarguard import get_vpn_panel
 from app.services.vpn_panel_interface import VpnPanelInterface
-from app.core.config import config
 from app.utils.log import log
 
 
@@ -26,10 +27,12 @@ class VpnKeyService:
 
     async def get_active_for_user(self, user_id: int) -> list[VpnKey]:
         result = await self.session.execute(
-            select(VpnKey).where(
+            select(VpnKey)
+            .where(
                 VpnKey.user_id == user_id,
                 VpnKey.status == VpnKeyStatus.ACTIVE,
-            ).order_by(VpnKey.created_at.desc())
+            )
+            .order_by(VpnKey.created_at.desc())
         )
         return list(result.scalars().all())
 
@@ -38,7 +41,8 @@ class VpnKeyService:
 
     async def get_all_for_user(self, user_id: int) -> list[VpnKey]:
         result = await self.session.execute(
-            select(VpnKey).where(VpnKey.user_id == user_id)
+            select(VpnKey)
+            .where(VpnKey.user_id == user_id)
             .order_by(VpnKey.created_at.desc())
         )
         return list(result.scalars().all())
@@ -55,7 +59,6 @@ class VpnKeyService:
         )
         return result.scalar_one()
 
-
     async def provision(self, user_id: int, plan: Plan) -> Optional[VpnKey]:
 
         expires_at = datetime.now(timezone.utc) + timedelta(days=plan.duration_days)
@@ -66,7 +69,7 @@ class VpnKeyService:
             expires_at=expires_at,
             name=f"{plan.name} — {plan.duration_days} дн.",
             status=VpnKeyStatus.ACTIVE.value,
-            access_url="pending"
+            access_url="pending",
         )
         self.session.add(key)
         await self.session.flush()
@@ -74,13 +77,19 @@ class VpnKeyService:
         username = _marzban_username(user_id, key.id)
 
         try:
-            from app.services.bot_settings import BotSettingsService
             import json as _json
+
+            from app.services.bot_settings import BotSettingsService
+
             group_ids: list[int] = []
             try:
                 raw_groups = await BotSettingsService(self.session).get("vpn_group_ids")
                 if raw_groups:
-                    group_ids = [int(x) for x in _json.loads(raw_groups) if str(x).strip().isdigit()]
+                    group_ids = [
+                        int(x)
+                        for x in _json.loads(raw_groups)
+                        if str(x).strip().isdigit()
+                    ]
             except Exception:
                 group_ids = []
 
@@ -103,6 +112,7 @@ class VpnKeyService:
             panel_base = str(_pg.pasarguard_admin_panel).rstrip("/")
         else:
             from app.core.configs.remnawave_config import remnawave as _rw
+
             panel_base = (_rw.remnawave_url or "").rstrip("/")
         if sub_token:
             if sub_token.startswith("http"):
@@ -110,11 +120,15 @@ class VpnKeyService:
             else:
                 access_url = f"{panel_base}{sub_token.rstrip('/')}"
         else:
-            # Fallback: try Remnawave uuid-based URL or Marzban username-based
             uuid = marz_user.get("uuid", "")
             if uuid:
                 from app.core.configs.remnawave_config import remnawave as _rw
-                access_url = f"{_rw.remnawave_url.rstrip('/')}/sub/{uuid}" if _rw.remnawave_url else f"{panel_base}/sub/{username}"
+
+                access_url = (
+                    f"{_rw.remnawave_url.rstrip('/')}/sub/{uuid}"
+                    if _rw.remnawave_url
+                    else f"{panel_base}/sub/{username}"
+                )
             else:
                 access_url = f"{panel_base}/sub/{username}"
 
@@ -124,7 +138,9 @@ class VpnKeyService:
         log.info(f"✅ VPN provisioned: user={user_id} key={key.id} marzban={username}")
         return key
 
-    async def provision_for_subscription(self, user_id: int, subscription_id: int, plan: Plan) -> Optional[VpnKey]:
+    async def provision_for_subscription(
+        self, user_id: int, subscription_id: int, plan: Plan
+    ) -> Optional[VpnKey]:
         return await self.provision(user_id, plan)
 
     # ── Management ───────────────────────────────────────────────────────────

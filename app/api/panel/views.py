@@ -3,31 +3,32 @@ import io
 import json
 import subprocess
 import tempfile
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
+from pathlib import Path
+from typing import Optional
+
 from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
-from pathlib import Path
 
 from app.api.dependencies import get_db
 from app.core.config import config
-from app.utils.log import log
 from app.models.payment import PaymentStatus
-from app.models.support import TicketStatus, TicketPriority
+from app.models.support import TicketPriority, TicketStatus
+from app.schemas.user import UserDetail, UserRead
+from app.services.bot_settings import BotSettingsService
 from app.services.broadcast import BroadcastService
 from app.services.payment import PaymentService
 from app.services.plan import PlanService
 from app.services.promo import PromoService
 from app.services.referral import ReferralService
-from app.services.vpn_key import VpnKeyService
 from app.services.support import SupportService
 from app.services.telegram_notify import TelegramNotifyService
 from app.services.user import UserService
-from app.services.bot_settings import BotSettingsService
-from app.schemas.user import UserDetail, UserRead
+from app.services.vpn_key import VpnKeyService
+from app.utils.log import log
 from app.utils.security import create_access_token
 
 router = APIRouter()
@@ -40,7 +41,9 @@ SESSION_COOKIE = "vpn_session"
 
 def _toast(resp: Response, message: str, kind: str = "success") -> None:
     """Unicode-safe toast via HX-Trigger JSON header."""
-    resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": message, "type": kind}})
+    resp.headers["HX-Trigger"] = json.dumps(
+        {"showToast": {"msg": message, "type": kind}}
+    )
 
 
 def _check_session(request: Request) -> bool:
@@ -48,20 +51,22 @@ def _check_session(request: Request) -> bool:
     if not token:
         return False
     from app.utils.security import decode_access_token
+
     return decode_access_token(token) is not None
 
 
 def _require_auth(request: Request) -> None:
     if not _check_session(request):
         is_htmx = request.headers.get("HX-Request") == "true"
-        # JSON API requests (Accept: application/json or /api/ path) → 401
         is_api = "/api/" in str(request.url.path)
         is_json = "application/json" in request.headers.get("accept", "")
         if is_api or is_json:
             from fastapi import HTTPException
+
             raise HTTPException(status_code=401, detail="Not authenticated")
         if is_htmx:
             from fastapi import HTTPException
+
             raise HTTPException(
                 status_code=200,
                 headers={"HX-Redirect": "/panel/login"},
@@ -71,6 +76,7 @@ def _require_auth(request: Request) -> None:
 
 def _redirect(url: str):
     from fastapi import HTTPException
+
     raise HTTPException(status_code=302, headers={"Location": url})
 
 
@@ -87,25 +93,26 @@ async def _base_ctx(request: Request, db: AsyncSession, active: str) -> dict:
         "app_version": config.web.app_version,
     }
 
+
 # ── Mini App auto-login ───────────────────────────────────────────────────────
 # One-time tokens stored in memory: {token: expiry_timestamp}
 import time as _time
+
 _miniapp_tokens: dict[str, float] = {}
 
 
 @router.get("/miniapp-token")
 async def get_miniapp_token(request: Request):
-    """Генерирует одноразовый токен для авто-входа из Mini App. Только для авторизованных."""
     _check_session(request) or _redirect("/panel/login")
     import secrets as _secrets
+
     token = _secrets.token_urlsafe(32)
-    _miniapp_tokens[token] = _time.time() + 300  # 5 минут
+    _miniapp_tokens[token] = _time.time() + 300
     return {"token": token}
 
 
 @router.get("/miniapp-login")
 async def miniapp_login(request: Request, token: str = ""):
-    """Авто-вход по одноразовому токену из Mini App."""
     now = _time.time()
     # Cleanup expired
     expired = [k for k, v in _miniapp_tokens.items() if v < now]
@@ -115,35 +122,53 @@ async def miniapp_login(request: Request, token: str = ""):
     if not token or token not in _miniapp_tokens or _miniapp_tokens[token] < now:
         return RedirectResponse(url="/panel/login", status_code=302)
 
-    del _miniapp_tokens[token]  # одноразовый
+    del _miniapp_tokens[token]
     session_token = create_access_token(subject=config.web.web_superadmin_username)
     resp = RedirectResponse(url="/panel/", status_code=302)
-    resp.set_cookie(SESSION_COOKIE, session_token, httponly=True, samesite="none", secure=True, max_age=3600)
+    resp.set_cookie(
+        SESSION_COOKIE,
+        session_token,
+        httponly=True,
+        samesite="none",
+        secure=True,
+        max_age=3600,
+    )
     return resp
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
+
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {
-        "request": request,
-        "error": None,
-        "app_name": config.web.app_name,
-        "app_version": config.web.app_version,
-    })
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "error": None,
+            "app_name": config.web.app_name,
+            "app_version": config.web.app_version,
+        },
+    )
 
 
 @router.post("/login")
-async def login_submit(request: Request, username: str = Form(...), password: str = Form(...)):
-    if username != config.web.web_superadmin_username or \
-       password != config.web.web_superadmin_password.get_secret_value():
-        return templates.TemplateResponse("login.html", {
-            "request": request,
-            "error": "Неверный логин или пароль",
-            "app_name": config.web.app_name,
-            "app_version": config.web.app_version,
-        })
+async def login_submit(
+    request: Request, username: str = Form(...), password: str = Form(...)
+):
+    if (
+        username != config.web.web_superadmin_username
+        or password != config.web.web_superadmin_password.get_secret_value()
+    ):
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "error": "Неверный логин или пароль",
+                "app_name": config.web.app_name,
+                "app_version": config.web.app_version,
+            },
+        )
     token = create_access_token(subject=username)
     resp = RedirectResponse(url="/panel/", status_code=302)
     resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
@@ -159,26 +184,29 @@ async def logout():
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
+
 @router.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     _require_auth(request)
     ctx = await _base_ctx(request, db, "dashboard")
 
-    from datetime import datetime, timezone, timedelta
-    from sqlalchemy import select, func
-    from app.models.user import User
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import func, select
+
     from app.models.payment import Payment, PaymentStatus
+    from app.models.user import User
     from app.models.vpn_key import VpnKey, VpnKeyStatus
 
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
 
-    # New users today
     new_today_r = await db.execute(
         select(func.count()).select_from(User).where(User.created_at >= today_start)
     )
     new_today = new_today_r.scalar_one()
 
-    # Revenue today
     rev_today_r = await db.execute(
         select(func.coalesce(func.sum(Payment.amount), 0)).where(
             Payment.status == PaymentStatus.SUCCEEDED.value,
@@ -187,13 +215,13 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     )
     rev_today = float(rev_today_r.scalar_one())
 
-    # Expired keys count
     expired_r = await db.execute(
-        select(func.count()).select_from(VpnKey).where(VpnKey.status == VpnKeyStatus.EXPIRED.value)
+        select(func.count())
+        .select_from(VpnKey)
+        .where(VpnKey.status == VpnKeyStatus.EXPIRED.value)
     )
     expired_count = expired_r.scalar_one()
 
-    # Revenue last 7 days
     rev_week = []
     for i in range(6, -1, -1):
         day_start = today_start - timedelta(days=i)
@@ -215,13 +243,16 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         "new_users_today": new_today,
         "revenue_today": rev_today,
         "expired_keys": expired_count,
-        "pending_payments": await PaymentService(db).count_by_status(PaymentStatus.PENDING),
+        "pending_payments": await PaymentService(db).count_by_status(
+            PaymentStatus.PENDING
+        ),
     }
     ctx["rev_week"] = rev_week
     ctx["recent_users"] = await UserService(db).get_all(limit=8)
     ctx["recent_payments"] = await PaymentService(db).get_all(limit=8)
 
     from app.services.pasarguard.pasarguard import get_vpn_panel
+
     try:
         marzban_stats = await get_vpn_panel().get_system_stats()
         ctx["marzban_stats"] = marzban_stats
@@ -231,8 +262,8 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     return templates.TemplateResponse("dashboard.html", ctx)
 
 
-
 # ── Users ─────────────────────────────────────────────────────────────────────
+
 
 @router.get("/users", response_class=HTMLResponse)
 async def users_page(request: Request, db: AsyncSession = Depends(get_db)):
@@ -245,23 +276,33 @@ async def users_page(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/users/search", response_class=HTMLResponse)
-async def users_search(request: Request, q: str = "", db: AsyncSession = Depends(get_db)):
+async def users_search(
+    request: Request, q: str = "", db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     raw = await UserService(db).get_all(limit=200)
     q = q.lower()
-    filtered = [u for u in raw if q in (u.full_name or "").lower() or q in (u.username or "").lower()]
+    filtered = [
+        u
+        for u in raw
+        if q in (u.full_name or "").lower() or q in (u.username or "").lower()
+    ]
     return templates.TemplateResponse(
-        "partials/users_rows.html", {"request": request, "users": [_to_detail(u) for u in filtered]}
+        "partials/users_rows.html",
+        {"request": request, "users": [_to_detail(u) for u in filtered]},
     )
 
 
 @router.get("/users/{user_id}", response_class=HTMLResponse)
-async def user_detail_page(user_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def user_detail_page(
+    user_id: int, request: Request, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     ctx = await _base_ctx(request, db, "users")
     from sqlalchemy import select
-    from app.models.vpn_key import VpnKey
+
     from app.models.payment import Payment
+    from app.models.vpn_key import VpnKey
 
     user = await UserService(db).get_by_id(user_id)
     if not user:
@@ -271,7 +312,9 @@ async def user_detail_page(user_id: int, request: Request, db: AsyncSession = De
         select(VpnKey).where(VpnKey.user_id == user_id).order_by(VpnKey.id.desc())
     )
     pays_result = await db.execute(
-        select(Payment).where(Payment.user_id == user_id).order_by(Payment.created_at.desc())
+        select(Payment)
+        .where(Payment.user_id == user_id)
+        .order_by(Payment.created_at.desc())
     )
 
     ctx["user"] = UserRead.model_validate(user)
@@ -283,7 +326,8 @@ async def user_detail_page(user_id: int, request: Request, db: AsyncSession = De
 
 @router.post("/users/{user_id}/deduct-balance", response_class=HTMLResponse)
 async def deduct_balance(
-    user_id: int, request: Request,
+    user_id: int,
+    request: Request,
     amount: Decimal = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -302,7 +346,9 @@ async def deduct_balance(
 
 
 @router.post("/users/{user_id}/ban", response_class=HTMLResponse)
-async def ban_user_view(user_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def ban_user_view(
+    user_id: int, request: Request, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     if user_id in config.telegram.telegram_admin_ids:
         resp = Response(status_code=400)
@@ -312,30 +358,43 @@ async def ban_user_view(user_id: int, request: Request, db: AsyncSession = Depen
     if not user:
         return HTMLResponse("", status_code=404)
     await db.commit()
-    ban_msg = await BotSettingsService(db).get("ban_message") or "🚫 Ваш аккаунт заблокирован."
+    ban_msg = (
+        await BotSettingsService(db).get("ban_message")
+        or "🚫 Ваш аккаунт заблокирован."
+    )
     await TelegramNotifyService().send_message(user_id, ban_msg)
-    resp = templates.TemplateResponse("partials/users_rows.html", {"request": request, "users": [_to_detail(user)]})
+    resp = templates.TemplateResponse(
+        "partials/users_rows.html", {"request": request, "users": [_to_detail(user)]}
+    )
     _toast(resp, "Пользователь заблокирован")
     return resp
 
 
 @router.post("/users/{user_id}/unban", response_class=HTMLResponse)
-async def unban_user_view(user_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def unban_user_view(
+    user_id: int, request: Request, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     user = await UserService(db).unban(user_id)
     if not user:
         return HTMLResponse("", status_code=404)
     await db.commit()
-    unban_msg = await BotSettingsService(db).get("unban_message") or "✅ Ваш аккаунт разблокирован. Добро пожаловать обратно!"
+    unban_msg = (
+        await BotSettingsService(db).get("unban_message")
+        or "✅ Ваш аккаунт разблокирован. Добро пожаловать обратно!"
+    )
     await TelegramNotifyService().send_message(user_id, unban_msg)
-    resp = templates.TemplateResponse("partials/users_rows.html", {"request": request, "users": [_to_detail(user)]})
+    resp = templates.TemplateResponse(
+        "partials/users_rows.html", {"request": request, "users": [_to_detail(user)]}
+    )
     _toast(resp, "Пользователь разблокирован")
     return resp
 
 
 @router.post("/users/{user_id}/gift-subscription", response_class=HTMLResponse)
 async def gift_subscription(
-    user_id: int, request: Request,
+    user_id: int,
+    request: Request,
     plan_id: int = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -352,14 +411,20 @@ async def gift_subscription(
             f"🔑 <b>Ссылка:</b>\n<code>{key.access_url}</code>",
         )
     resp = Response(status_code=200)
-    _toast(resp, f"Подписка «{plan.name}» подарена" if key else "Ошибка создания ключа в Marzban",
-           "success" if key else "error")
+    _toast(
+        resp,
+        f"Подписка «{plan.name}» подарена"
+        if key
+        else "Ошибка создания ключа в Marzban",
+        "success" if key else "error",
+    )
     return resp
 
 
 @router.post("/users/{user_id}/add-balance", response_class=HTMLResponse)
 async def add_balance(
-    user_id: int, request: Request,
+    user_id: int,
+    request: Request,
     amount: Decimal = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -399,19 +464,20 @@ def _render_messages(ticket) -> str:
             reply_btn = (
                 f'<div class="mt-1 text-end">'
                 f'<button class="btn btn-sm py-0 px-2" style="font-size:.65rem;color:#6c63ff;background:none;border:1px solid rgba(108,99,255,.3)" '
-                f'onclick="document.querySelector(\'[name=text]\').value=\'\'">✏️ Ответить</button>'
-                f'</div>'
+                f"onclick=\"document.querySelector('[name=text]').value=''\">✏️ Ответить</button>"
+                f"</div>"
             )
         msgs_html += (
             f'<div class="mb-3 d-flex {align}">'
             f'<div style="max-width:80%;background:{bg};border-radius:10px;padding:.6rem .9rem;font-size:.85rem;color:#c8d0e0">'
             f'<div style="font-size:.7rem;color:#8892a4;margin-bottom:.3rem">{sender}</div>'
-            f'{msg.text}{reply_btn}</div></div>'
+            f"{msg.text}{reply_btn}</div></div>"
         )
     return msgs_html
 
 
 # ── Plans ─────────────────────────────────────────────────────────────────────
+
 
 @router.get("/plans", response_class=HTMLResponse)
 async def plans_page(request: Request, db: AsyncSession = Depends(get_db)):
@@ -432,26 +498,34 @@ async def create_plan_view(
 ):
     _require_auth(request)
     import re
+
     slug = re.sub(r"[^a-z0-9]+", "_", name.lower().strip()).strip("_") or "plan"
     # ensure unique slug
     existing = await PlanService(db).get_by_slug(slug)
     if existing:
         import time
+
         slug = f"{slug}_{int(time.time()) % 10000}"
     await PlanService(db).create(
-        name=name, slug=slug, duration_days=duration_days,
-        price=price, description=description or None,
+        name=name,
+        slug=slug,
+        duration_days=duration_days,
+        price=price,
+        description=description or None,
     )
     await db.commit()
     plans = await PlanService(db).get_all()
-    resp = templates.TemplateResponse("partials/plans_grid.html", {"request": request, "plans": plans})
+    resp = templates.TemplateResponse(
+        "partials/plans_grid.html", {"request": request, "plans": plans}
+    )
     _toast(resp, f"Тариф «{name}» создан")
     return resp
 
 
 @router.post("/plans/{plan_id}/edit", response_class=HTMLResponse)
 async def edit_plan_view(
-    plan_id: int, request: Request,
+    plan_id: int,
+    request: Request,
     name: str = Form(...),
     price: Decimal = Form(...),
     duration_days: int = Form(...),
@@ -460,25 +534,32 @@ async def edit_plan_view(
 ):
     _require_auth(request)
     plan = await PlanService(db).update(
-        plan_id, name=name, price=price,
-        duration_days=duration_days, description=description or None,
+        plan_id,
+        name=name,
+        price=price,
+        duration_days=duration_days,
+        description=description or None,
     )
     await db.commit()
     plans = await PlanService(db).get_all()
-    resp = templates.TemplateResponse("partials/plans_grid.html", {"request": request, "plans": plans})
+    resp = templates.TemplateResponse(
+        "partials/plans_grid.html", {"request": request, "plans": plans}
+    )
     _toast(resp, f"Тариф «{plan.name if plan else plan_id}» обновлён")
     return resp
 
 
 @router.post("/plans/{plan_id}/toggle", response_class=HTMLResponse)
-async def toggle_plan_view(plan_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def toggle_plan_view(
+    plan_id: int, request: Request, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     plan = await PlanService(db).toggle_active(plan_id)
     if not plan:
         return HTMLResponse("", status_code=404)
-    status_label = "active" if plan.is_active else "closed"
-    status_text = "Активен" if plan.is_active else "Отключён"
-    icon = "pause" if plan.is_active else "play"
+    status_label = "active" if plan.is_active is True else "closed"
+    status_text = "Активен" if plan.is_active is True else "Отключён"
+    icon = "pause" if plan.is_active is True else "play"
     html = f"""<div class="col-md-6 col-xl-4" id="plan-{plan.id}">
       <div class="card h-100 p-3">
         <div class="d-flex align-items-start justify-content-between mb-2">
@@ -499,12 +580,14 @@ async def toggle_plan_view(plan_id: int, request: Request, db: AsyncSession = De
       </div>
     </div>"""
     resp = HTMLResponse(html)
-    _toast(resp, f"Tариф {'включён' if plan.is_active else 'отключён'}")
+    _toast(resp, f"Tариф {'включён' if plan.is_active is True else 'отключён'}")
     return resp
 
 
 @router.delete("/plans/{plan_id}", response_class=HTMLResponse)
-async def delete_plan_view(plan_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def delete_plan_view(
+    plan_id: int, request: Request, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     await PlanService(db).delete(plan_id)
     resp = HTMLResponse("")
@@ -514,8 +597,11 @@ async def delete_plan_view(plan_id: int, request: Request, db: AsyncSession = De
 
 # ── Payments ──────────────────────────────────────────────────────────────────
 
+
 @router.get("/payments", response_class=HTMLResponse)
-async def payments_page(request: Request, status: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def payments_page(
+    request: Request, status: Optional[str] = None, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     ctx = await _base_ctx(request, db, "payments")
     ps = PaymentStatus(status) if status else None
@@ -524,7 +610,9 @@ async def payments_page(request: Request, status: Optional[str] = None, db: Asyn
 
 
 @router.post("/payments/{payment_id}/refund", response_class=HTMLResponse)
-async def refund_payment_view(payment_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def refund_payment_view(
+    payment_id: int, request: Request, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     payment = await PaymentService(db).refund(payment_id)
     if not payment:
@@ -541,6 +629,7 @@ async def refund_payment_view(payment_id: int, request: Request, db: AsyncSessio
 
 
 # ── Subscriptions (VPN Keys) ──────────────────────────────────────────────────
+
 
 @router.get("/subscriptions", response_class=HTMLResponse)
 async def subscriptions_page(request: Request, db: AsyncSession = Depends(get_db)):
@@ -573,14 +662,18 @@ async def create_subscription(
             f"🔑 <b>Ссылка:</b>\n<code>{key.access_url}</code>",
         )
     resp = Response(status_code=200)
-    _toast(resp, f"Подписка «{plan.name}» создана" if key else "Ошибка создания ключа в Marzban",
-           "success" if key else "error")
+    _toast(
+        resp,
+        f"Подписка «{plan.name}» создана" if key else "Ошибка создания ключа в Marzban",
+        "success" if key else "error",
+    )
     return resp
 
 
 @router.post("/subscriptions/{key_id}/extend", response_class=HTMLResponse)
 async def extend_subscription(
-    key_id: int, request: Request,
+    key_id: int,
+    request: Request,
     days: int = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -591,7 +684,7 @@ async def extend_subscription(
         _toast(resp, "Подписка не найдена", "error")
         return resp
     await db.commit()
-    exp_str = key.expires_at.strftime('%d.%m.%Y') if key.expires_at else '—'
+    exp_str = key.expires_at.strftime("%d.%m.%Y") if key.expires_at is True else "—"
     await TelegramNotifyService().send_message(
         key.user_id,
         f"📅 <b>Ваша подписка продлена на {days} дней!</b>\n\nДействует до: {exp_str}",
@@ -602,7 +695,9 @@ async def extend_subscription(
 
 
 @router.post("/subscriptions/{key_id}/cancel", response_class=HTMLResponse)
-async def cancel_subscription(key_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def cancel_subscription(
+    key_id: int, request: Request, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     key = await VpnKeyService(db).revoke(key_id)
     if not key:
@@ -610,13 +705,16 @@ async def cancel_subscription(key_id: int, request: Request, db: AsyncSession = 
         _toast(resp, "Подписка не найдена", "error")
         return resp
     await db.commit()
-    await TelegramNotifyService().send_message(key.user_id, "❌ <b>Ваша подписка отменена.</b>")
+    await TelegramNotifyService().send_message(
+        key.user_id, "❌ <b>Ваша подписка отменена.</b>"
+    )
     resp = Response(status_code=200)
     _toast(resp, f"Подписка #{key_id} отменена")
     return resp
 
 
 # ── Promo codes ───────────────────────────────────────────────────────────────
+
 
 @router.get("/promos", response_class=HTMLResponse)
 async def promos_page(request: Request, db: AsyncSession = Depends(get_db)):
@@ -649,14 +747,17 @@ async def create_promo(
     promos = await PromoService(db).get_all()
     plans = await PlanService(db).get_all(only_active=True)
     resp = templates.TemplateResponse(
-        "partials/promos_table.html", {"request": request, "promos": promos, "plans": plans}
+        "partials/promos_table.html",
+        {"request": request, "promos": promos, "plans": plans},
     )
     _toast(resp, f"Промокод {code.upper()} создан")
     return resp
 
 
 @router.delete("/promos/{promo_id}", response_class=HTMLResponse)
-async def delete_promo(promo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def delete_promo(
+    promo_id: int, request: Request, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     await PromoService(db).delete(promo_id)
     await db.commit()
@@ -666,7 +767,9 @@ async def delete_promo(promo_id: int, request: Request, db: AsyncSession = Depen
 
 
 @router.post("/promos/{promo_id}/toggle", response_class=HTMLResponse)
-async def toggle_promo(promo_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def toggle_promo(
+    promo_id: int, request: Request, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     promo = await PromoService(db).toggle_active(promo_id)
     await db.commit()
@@ -675,13 +778,15 @@ async def toggle_promo(promo_id: int, request: Request, db: AsyncSession = Depen
     promos = await PromoService(db).get_all()
     plans = await PlanService(db).get_all(only_active=True)
     resp = templates.TemplateResponse(
-        "partials/promos_table.html", {"request": request, "promos": promos, "plans": plans}
+        "partials/promos_table.html",
+        {"request": request, "promos": promos, "plans": plans},
     )
     _toast(resp, "Статус промокода обновлён")
     return resp
 
 
 # ── Referrals ─────────────────────────────────────────────────────────────────
+
 
 @router.get("/referrals", response_class=HTMLResponse)
 async def referrals_page(request: Request, db: AsyncSession = Depends(get_db)):
@@ -694,8 +799,11 @@ async def referrals_page(request: Request, db: AsyncSession = Depends(get_db)):
 
 # ── Support ───────────────────────────────────────────────────────────────────
 
+
 @router.get("/support", response_class=HTMLResponse)
-async def support_page(request: Request, status: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def support_page(
+    request: Request, status: Optional[str] = None, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     ctx = await _base_ctx(request, db, "support")
     ts = TicketStatus(status) if status else None
@@ -707,7 +815,12 @@ async def support_page(request: Request, status: Optional[str] = None, db: Async
 
 
 @router.get("/support/{ticket_id}", response_class=HTMLResponse)
-async def support_ticket(ticket_id: int, request: Request, status: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def support_ticket(
+    ticket_id: int,
+    request: Request,
+    status: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
     _require_auth(request)
     ctx = await _base_ctx(request, db, "support")
     ts = TicketStatus(status) if status else None
@@ -720,7 +833,8 @@ async def support_ticket(ticket_id: int, request: Request, status: Optional[str]
 
 @router.post("/support/{ticket_id}/reply", response_class=HTMLResponse)
 async def support_reply(
-    ticket_id: int, request: Request,
+    ticket_id: int,
+    request: Request,
     text: str = Form(...),
     notify_user: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
@@ -743,7 +857,9 @@ async def support_reply(
 
 
 @router.post("/support/{ticket_id}/close", response_class=HTMLResponse)
-async def support_close(ticket_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def support_close(
+    ticket_id: int, request: Request, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     svc = SupportService(db)
     ticket = await svc.get_by_id(ticket_id)
@@ -764,7 +880,12 @@ async def support_close(ticket_id: int, request: Request, db: AsyncSession = Dep
 
 
 @router.patch("/support/{ticket_id}/status")
-async def support_status(ticket_id: int, request: Request, status: str = Form(...), db: AsyncSession = Depends(get_db)):
+async def support_status(
+    ticket_id: int,
+    request: Request,
+    status: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
     _require_auth(request)
     await SupportService(db).set_status(ticket_id, TicketStatus(status))
     await db.commit()
@@ -774,7 +895,12 @@ async def support_status(ticket_id: int, request: Request, status: str = Form(..
 
 
 @router.patch("/support/{ticket_id}/priority")
-async def support_priority(ticket_id: int, request: Request, priority: str = Form(...), db: AsyncSession = Depends(get_db)):
+async def support_priority(
+    ticket_id: int,
+    request: Request,
+    priority: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
     _require_auth(request)
     await SupportService(db).set_priority(ticket_id, TicketPriority(priority))
     await db.commit()
@@ -785,6 +911,7 @@ async def support_priority(ticket_id: int, request: Request, priority: str = For
 
 # ── VPN Keys ──────────────────────────────────────────────────────────────────
 
+
 @router.get("/vpn", response_class=HTMLResponse)
 async def vpn_page(request: Request, db: AsyncSession = Depends(get_db)):
     _require_auth(request)
@@ -794,24 +921,34 @@ async def vpn_page(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/vpn/{key_id}/revoke", response_class=HTMLResponse)
-async def revoke_vpn_key(key_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def revoke_vpn_key(
+    key_id: int, request: Request, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     key = await VpnKeyService(db).revoke(key_id)
     await db.commit()
     resp = Response(status_code=200)
-    _toast(resp, f"Ключ #{key_id} отозван" if key else "Ключ не найден",
-           "success" if key else "error")
+    _toast(
+        resp,
+        f"Ключ #{key_id} отозван" if key else "Ключ не найден",
+        "success" if key else "error",
+    )
     return resp
 
 
 @router.post("/vpn/{key_id}/delete", response_class=HTMLResponse)
-async def delete_vpn_key(key_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def delete_vpn_key(
+    key_id: int, request: Request, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     key = await VpnKeyService(db).delete_from_marzban(key_id)
     await db.commit()
     resp = HTMLResponse("")
-    _toast(resp, f"Ключ #{key_id} удалён из Marzban" if key else "Ключ не найден",
-           "success" if key else "error")
+    _toast(
+        resp,
+        f"Ключ #{key_id} удалён из Marzban" if key else "Ключ не найден",
+        "success" if key else "error",
+    )
     return resp
 
 
@@ -824,6 +961,7 @@ async def sync_vpn_keys(request: Request, db: AsyncSession = Depends(get_db)):
     _toast(resp, f"Синхронизировано: {result['synced']}, ошибок: {result['errors']}")
     return resp
 
+
 @router.get("/broadcasts", response_class=HTMLResponse)
 async def broadcasts_page(request: Request, db: AsyncSession = Depends(get_db)):
     _require_auth(request)
@@ -835,12 +973,16 @@ async def broadcasts_page(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/broadcasts", response_class=HTMLResponse)
 async def create_broadcast_view(
     request: Request,
-    title: str = Form(...), text: str = Form(...),
-    target: str = Form("all"), parse_mode: str = Form("HTML"),
+    title: str = Form(...),
+    text: str = Form(...),
+    target: str = Form("all"),
+    parse_mode: str = Form("HTML"),
     db: AsyncSession = Depends(get_db),
 ):
     _require_auth(request)
-    await BroadcastService(db).create(title=title, text=text, target=target, parse_mode=parse_mode)
+    await BroadcastService(db).create(
+        title=title, text=text, target=target, parse_mode=parse_mode
+    )
     resp = templates.TemplateResponse(
         "partials/broadcasts_list.html",
         {"request": request, "broadcasts": await BroadcastService(db).get_all()},
@@ -850,7 +992,9 @@ async def create_broadcast_view(
 
 
 @router.post("/broadcasts/{broadcast_id}/send", response_class=HTMLResponse)
-async def send_broadcast_view(broadcast_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def send_broadcast_view(
+    broadcast_id: int, request: Request, db: AsyncSession = Depends(get_db)
+):
     _require_auth(request)
     bc = await BroadcastService(db).send(broadcast_id)
     if not bc:
@@ -864,6 +1008,7 @@ async def send_broadcast_view(broadcast_id: int, request: Request, db: AsyncSess
 
 # ── Telegram ──────────────────────────────────────────────────────────────────
 
+
 @router.get("/telegram", response_class=HTMLResponse)
 async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
     _require_auth(request)
@@ -874,6 +1019,7 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
 
     # Keyboard editor data
     import json as _json
+
     ctx["all_buttons"] = _ALL_BUTTONS
     ctx["default_layout"] = _DEFAULT_LAYOUT
     raw = await BotSettingsService(db).get("keyboard_layout")
@@ -883,6 +1029,7 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
         ctx["layout"] = _DEFAULT_LAYOUT
 
     from app.services.pasarguard.pasarguard import PasarguardService
+
     marzban = PasarguardService()
     try:
         stats = await marzban.get_system_stats()
@@ -899,6 +1046,7 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
 async def test_marzban(request: Request):
     _require_auth(request)
     from app.services.pasarguard.pasarguard import PasarguardService
+
     marzban = PasarguardService()
     try:
         stats = await marzban.get_system_stats()
@@ -910,12 +1058,24 @@ async def test_marzban(request: Request):
         cpu = round(stats.get("cpu_usage", 0) or 0, 1)
 
         items = [
-            ("bi-wifi",            "rgba(34,197,94,.1)",   "#22c55e", "Онлайн",      users_active),
-            ("bi-people",          "rgba(108,99,255,.1)",  "#a78bfa", "Всего юзеров", total_user),
-            ("bi-arrow-down-circle","rgba(59,130,246,.1)", "#3b82f6", "Входящий",    f"{incoming} GB"),
-            ("bi-arrow-up-circle", "rgba(239,68,68,.1)",   "#ef4444", "Исходящий",   f"{outgoing} GB"),
-            ("bi-memory",          "rgba(234,179,8,.1)",   "#eab308", "RAM",          f"{ram_mb} MB"),
-            ("bi-cpu",             "rgba(108,99,255,.1)",  "#a78bfa", "CPU",          f"{cpu}%"),
+            ("bi-wifi", "rgba(34,197,94,.1)", "#22c55e", "Онлайн", users_active),
+            ("bi-people", "rgba(108,99,255,.1)", "#a78bfa", "Всего юзеров", total_user),
+            (
+                "bi-arrow-down-circle",
+                "rgba(59,130,246,.1)",
+                "#3b82f6",
+                "Входящий",
+                f"{incoming} GB",
+            ),
+            (
+                "bi-arrow-up-circle",
+                "rgba(239,68,68,.1)",
+                "#ef4444",
+                "Исходящий",
+                f"{outgoing} GB",
+            ),
+            ("bi-memory", "rgba(234,179,8,.1)", "#eab308", "RAM", f"{ram_mb} MB"),
+            ("bi-cpu", "rgba(108,99,255,.1)", "#a78bfa", "CPU", f"{cpu}%"),
         ]
 
         cards = ""
@@ -947,9 +1107,12 @@ async def get_marzban_groups(request: Request):
     """HTMX: возвращает список групп из Marzban для отображения чекбоксов."""
     _require_auth(request)
     from app.services.pasarguard.pasarguard import PasarguardService
+
     groups = await PasarguardService().get_groups()
     if not groups:
-        return HTMLResponse('<div style="color:#ef4444;font-size:.8rem"><i class="bi bi-x-circle me-1"></i>Не удалось загрузить группы</div>')
+        return HTMLResponse(
+            '<div style="color:#ef4444;font-size:.8rem"><i class="bi bi-x-circle me-1"></i>Не удалось загрузить группы</div>'
+        )
 
     html = ""
     for g in groups:
@@ -959,9 +1122,9 @@ async def get_marzban_groups(request: Request):
             f'<div class="form-check mb-2">'
             f'<input class="form-check-input" type="checkbox" name="group_id" value="{g["id"]}" id="grp{g["id"]}">'
             f'<label class="form-check-label" for="grp{g["id"]}" style="color:#c8d0e0;font-size:.85rem">'
-            f'<b>{g["name"]}</b>{disabled}'
-            f'<span style="color:#8892a4;font-size:.75rem;display:block">{inbounds} · {g.get("total_users",0)} юзеров</span>'
-            f'</label></div>'
+            f"<b>{g['name']}</b>{disabled}"
+            f'<span style="color:#8892a4;font-size:.75rem;display:block">{inbounds} · {g.get("total_users", 0)} юзеров</span>'
+            f"</label></div>"
         )
     return HTMLResponse(html)
 
@@ -971,6 +1134,7 @@ async def save_marzban_groups(request: Request, db: AsyncSession = Depends(get_d
     """Сохраняет выбранные group_ids в bot_settings."""
     _require_auth(request)
     import json as _json
+
     form = await request.form()
     group_ids = [int(v) for v in form.getlist("group_id") if str(v).isdigit()]
     await BotSettingsService(db).set("vpn_group_ids", _json.dumps(group_ids))
@@ -992,8 +1156,8 @@ async def upload_photo(
     Отправляет фото первому admin_id чтобы получить file_id от Telegram.
     """
     _require_auth(request)
-    from fastapi.responses import JSONResponse
     import httpx
+    from fastapi.responses import JSONResponse
 
     token = config.telegram.telegram_bot_token.get_secret_value()
     admin_ids = config.telegram.telegram_admin_ids
@@ -1009,11 +1173,16 @@ async def upload_photo(
             resp = await client.post(
                 f"https://api.telegram.org/bot{token}/sendPhoto",
                 data={"chat_id": chat_id, "caption": f"📎 Фото для раздела: {key}"},
-                files={"photo": (filename, content, photo.content_type or "image/jpeg")},
+                files={
+                    "photo": (filename, content, photo.content_type or "image/jpeg")
+                },
             )
         result = resp.json()
         if not result.get("ok"):
-            return JSONResponse({"detail": result.get("description", "Ошибка Telegram")}, status_code=400)
+            return JSONResponse(
+                {"detail": result.get("description", "Ошибка Telegram")},
+                status_code=400,
+            )
 
         # Берём наибольший размер фото
         photos = result["result"]["photo"]
@@ -1044,7 +1213,8 @@ async def save_miniapp(
 
 
 @router.post("/telegram/photo/clear")
-async def clear_photo(    request: Request,
+async def clear_photo(
+    request: Request,
     key: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1061,28 +1231,69 @@ async def save_bot_settings(request: Request, db: AsyncSession = Depends(get_db)
     _require_auth(request)
     form = await request.form()
     allowed_keys = {
-        "welcome_message", "btn_my_keys", "btn_buy", "btn_support",
-        "btn_balance", "btn_promo", "support_url",
-        "referral_bonus_days", "referral_bonus_type", "referral_bonus_value",
+        "welcome_message",
+        "btn_my_keys",
+        "btn_buy",
+        "btn_support",
+        "btn_balance",
+        "btn_promo",
+        "support_url",
+        "referral_bonus_days",
+        "referral_bonus_type",
+        "referral_bonus_value",
         "payment_success_message",
-        "ban_message", "bot_disabled_message",
-        "subscription_issued_message", "subscription_cancelled_message",
-        "referral_welcome_message", "about_text", "unban_message",
-        "required_channel_id", "required_channel_name",
-        "photo_welcome", "photo_buy", "photo_my_keys",
-        "photo_balance", "photo_about", "photo_support", "photo_profile",
-        "panel_url", "required_channel_id", "required_channel_name",
-        "btn_style_buy", "btn_style_my_keys", "btn_style_support",
-        "btn_style_balance", "btn_style_promo", "btn_style_back",
-        "btn_style_profile", "btn_style_connect", "btn_style_about",
-        "btn_style_servers", "btn_style_top_referrers", "btn_style_status", "btn_style_language",
-        "btn_emoji_buy", "btn_emoji_my_keys", "btn_emoji_support",
-        "btn_emoji_balance", "btn_emoji_promo",
-        "btn_emoji_profile", "btn_emoji_connect", "btn_emoji_about",
-        "btn_emoji_servers", "btn_emoji_top_referrers", "btn_emoji_status", "btn_emoji_language",
-        "bot_language", "cryptobot_token",
-        "trial_enabled", "trial_days", "trial_label",
-        "notify_expiry_enabled", "notify_expiry_days", "notify_expiry_message",
+        "ban_message",
+        "bot_disabled_message",
+        "subscription_issued_message",
+        "subscription_cancelled_message",
+        "referral_welcome_message",
+        "about_text",
+        "unban_message",
+        "required_channel_id",
+        "required_channel_name",
+        "photo_welcome",
+        "photo_buy",
+        "photo_my_keys",
+        "photo_balance",
+        "photo_about",
+        "photo_support",
+        "photo_profile",
+        "panel_url",
+        "required_channel_id",
+        "required_channel_name",
+        "btn_style_buy",
+        "btn_style_my_keys",
+        "btn_style_support",
+        "btn_style_balance",
+        "btn_style_promo",
+        "btn_style_back",
+        "btn_style_profile",
+        "btn_style_connect",
+        "btn_style_about",
+        "btn_style_servers",
+        "btn_style_top_referrers",
+        "btn_style_status",
+        "btn_style_language",
+        "btn_emoji_buy",
+        "btn_emoji_my_keys",
+        "btn_emoji_support",
+        "btn_emoji_balance",
+        "btn_emoji_promo",
+        "btn_emoji_profile",
+        "btn_emoji_connect",
+        "btn_emoji_about",
+        "btn_emoji_servers",
+        "btn_emoji_top_referrers",
+        "btn_emoji_status",
+        "btn_emoji_language",
+        "bot_language",
+        "cryptobot_token",
+        "trial_enabled",
+        "trial_days",
+        "trial_label",
+        "notify_expiry_enabled",
+        "notify_expiry_days",
+        "notify_expiry_message",
     }
     data = {k: v for k, v in form.items() if k in allowed_keys}
     await BotSettingsService(db).set_many(data)
@@ -1102,17 +1313,53 @@ async def save_lang_strings(request: Request, db: AsyncSession = Depends(get_db)
         return Response(status_code=400)
     # Whitelist of allowed i18n keys
     allowed_i18n_keys = {
-        "welcome", "welcome_back", "btn_my_keys", "btn_buy", "btn_balance",
-        "btn_promo", "btn_support", "btn_language", "choose_plan",
-        "payment_success", "no_keys", "choose_language", "language_set",
-        "main_menu", "enter_promo", "support_title", "support_no_tickets",
-        "support_tickets", "new_ticket", "ticket_subject", "ticket_message",
-        "ticket_created", "ticket_closed", "ticket_reply_sent", "ticket_not_found",
-        "write_reply", "close_ticket", "payment_error", "payment_pending",
-        "payment_failed", "payment_go", "payment_check", "pay_card",
-        "pay_stars", "pay_crypto", "pay_balance", "no_plans", "key_error",
-        "subscription_url", "balance_title", "referrals_count", "referral_bonus",
-        "referral_link", "promo_balance", "promo_days", "promo_discount", "promo_invalid",
+        "welcome",
+        "welcome_back",
+        "btn_my_keys",
+        "btn_buy",
+        "btn_balance",
+        "btn_promo",
+        "btn_support",
+        "btn_language",
+        "choose_plan",
+        "payment_success",
+        "no_keys",
+        "choose_language",
+        "language_set",
+        "main_menu",
+        "enter_promo",
+        "support_title",
+        "support_no_tickets",
+        "support_tickets",
+        "new_ticket",
+        "ticket_subject",
+        "ticket_message",
+        "ticket_created",
+        "ticket_closed",
+        "ticket_reply_sent",
+        "ticket_not_found",
+        "write_reply",
+        "close_ticket",
+        "payment_error",
+        "payment_pending",
+        "payment_failed",
+        "payment_go",
+        "payment_check",
+        "pay_card",
+        "pay_stars",
+        "pay_crypto",
+        "pay_balance",
+        "no_plans",
+        "key_error",
+        "subscription_url",
+        "balance_title",
+        "referrals_count",
+        "referral_bonus",
+        "referral_link",
+        "promo_balance",
+        "promo_days",
+        "promo_discount",
+        "promo_invalid",
     }
     svc = BotSettingsService(db)
     for key, value in form.items():
@@ -1144,15 +1391,22 @@ async def bot_toggle(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/telegram/send")
-async def telegram_send_view(request: Request, chat_id: int = Form(...), text: str = Form(...)):
+async def telegram_send_view(
+    request: Request, chat_id: int = Form(...), text: str = Form(...)
+):
     _require_auth(request)
     ok = await TelegramNotifyService().send_message(chat_id, text)
     resp = Response(status_code=200)
-    _toast(resp, "Сообщение отправлено" if ok else "Ошибка отправки", "success" if ok else "error")
+    _toast(
+        resp,
+        "Сообщение отправлено" if ok else "Ошибка отправки",
+        "success" if ok else "error",
+    )
     return resp
 
 
 # ── Backup ────────────────────────────────────────────────────────────────────
+
 
 @router.get("/backup", response_class=HTMLResponse)
 async def backup_page(request: Request, db: AsyncSession = Depends(get_db)):
@@ -1171,10 +1425,14 @@ async def backup_export(request: Request, format: str = "sql"):
     }
     cmd = [
         "pg_dump",
-        "-h", db_cfg.db_host,
-        "-p", str(db_cfg.db_port),
-        "-U", db_cfg.db_user,
-        "-d", db_cfg.db_name,
+        "-h",
+        db_cfg.db_host,
+        "-p",
+        str(db_cfg.db_port),
+        "-U",
+        db_cfg.db_user,
+        "-d",
+        db_cfg.db_name,
         "--no-password",
     ]
 
@@ -1185,7 +1443,10 @@ async def backup_export(request: Request, format: str = "sql"):
             return Response(content=f"pg_dump error: {err}", status_code=500)
         sql_bytes = result.stdout
     except FileNotFoundError:
-        return Response(content="pg_dump not found. Install postgresql-client on the server.", status_code=500)
+        return Response(
+            content="pg_dump not found. Install postgresql-client on the server.",
+            status_code=500,
+        )
     except subprocess.TimeoutExpired:
         return Response(content="pg_dump timed out", status_code=500)
 
@@ -1199,7 +1460,9 @@ async def backup_export(request: Request, format: str = "sql"):
         return StreamingResponse(
             buf,
             media_type="application/gzip",
-            headers={"Content-Disposition": f'attachment; filename="backup_{ts}.sql.gz"'},
+            headers={
+                "Content-Disposition": f'attachment; filename="backup_{ts}.sql.gz"'
+            },
         )
 
     return StreamingResponse(
@@ -1240,15 +1503,21 @@ async def backup_import(
     }
     cmd = [
         "psql",
-        "-h", db_cfg.db_host,
-        "-p", str(db_cfg.db_port),
-        "-U", db_cfg.db_user,
-        "-d", db_cfg.db_name,
+        "-h",
+        db_cfg.db_host,
+        "-p",
+        str(db_cfg.db_port),
+        "-U",
+        db_cfg.db_user,
+        "-d",
+        db_cfg.db_name,
         "--no-password",
     ]
 
     try:
-        result = subprocess.run(cmd, input=content, capture_output=True, env=env, timeout=300)
+        result = subprocess.run(
+            cmd, input=content, capture_output=True, env=env, timeout=300
+        )
         if result.returncode != 0:
             err = result.stderr.decode(errors="replace")[:400]
             resp = Response(status_code=500)
@@ -1270,12 +1539,14 @@ async def backup_import(
 
 # ── PasarGuard / Marzban ──────────────────────────────────────────────────────
 
+
 @router.get("/pasarguard", response_class=HTMLResponse)
 async def pasarguard_page(request: Request, db: AsyncSession = Depends(get_db)):
     _require_auth(request)
     ctx = await _base_ctx(request, db, "pasarguard")
     ctx["bot_settings"] = await BotSettingsService(db).get_all()
     from app.services.pasarguard.pasarguard import PasarguardService
+
     try:
         ctx["marzban_stats"] = await PasarguardService().get_system_stats()
         ctx["marzban_ok"] = True
@@ -1289,6 +1560,7 @@ async def pasarguard_page(request: Request, db: AsyncSession = Depends(get_db)):
 async def pg_users(request: Request):
     _require_auth(request)
     from app.services.pasarguard.pasarguard import PasarguardService
+
     try:
         data = await PasarguardService().get_users(limit=50)
         users = data.get("users", []) if isinstance(data, dict) else data
@@ -1301,15 +1573,17 @@ async def pg_users(request: Request):
     rows = ""
     for u in users:
         status = u.get("status", "")
-        color = {"active": "#22c55e", "expired": "#ef4444", "disabled": "#eab308"}.get(status, "#8892a4")
+        color = {"active": "#22c55e", "expired": "#ef4444", "disabled": "#eab308"}.get(
+            status, "#8892a4"
+        )
         used = round((u.get("used_traffic", 0) or 0) / 1073741824, 2)
         limit = u.get("data_limit", 0) or 0
-        limit_str = f"{round(limit/1073741824,1)} GB" if limit else "∞"
+        limit_str = f"{round(limit / 1073741824, 1)} GB" if limit else "∞"
         rows += f"""<tr class="user-row">
-          <td><code style="color:var(--accent)">{u.get('username','')}</code></td>
+          <td><code style="color:var(--accent)">{u.get("username", "")}</code></td>
           <td><span style="color:{color};font-size:.75rem">{status}</span></td>
           <td style="font-size:.78rem;color:#8892a4">{used} / {limit_str}</td>
-          <td style="font-size:.75rem;color:#8892a4">{u.get('expire','—') or '—'}</td>
+          <td style="font-size:.75rem;color:#8892a4">{u.get("expire", "—") or "—"}</td>
         </tr>"""
 
     return HTMLResponse(f"""
@@ -1324,6 +1598,7 @@ async def pg_users(request: Request):
 async def pg_groups(request: Request):
     _require_auth(request)
     from app.services.pasarguard.pasarguard import PasarguardService
+
     try:
         groups = await PasarguardService().get_groups()
     except Exception as e:
@@ -1337,11 +1612,11 @@ async def pg_groups(request: Request):
         disabled = "🔴" if g.get("is_disabled") else "🟢"
         inbounds = ", ".join(g.get("inbound_tags", []))
         rows += f"""<tr>
-          <td><code style="color:var(--accent)">{g['id']}</code></td>
-          <td class="text-white">{g['name']}</td>
+          <td><code style="color:var(--accent)">{g["id"]}</code></td>
+          <td class="text-white">{g["name"]}</td>
           <td style="font-size:.75rem;color:#8892a4">{inbounds}</td>
           <td>{disabled}</td>
-          <td style="color:#8892a4">{g.get('total_users',0)}</td>
+          <td style="color:#8892a4">{g.get("total_users", 0)}</td>
         </tr>"""
 
     return HTMLResponse(f"""
@@ -1356,6 +1631,7 @@ async def pg_groups(request: Request):
 async def pg_nodes(request: Request):
     _require_auth(request)
     from app.services.pasarguard.pasarguard import PasarguardService
+
     try:
         data = await PasarguardService().get_nodes()
         nodes = data.get("nodes", []) if isinstance(data, dict) else data
@@ -1368,11 +1644,15 @@ async def pg_nodes(request: Request):
     rows = ""
     for n in nodes:
         status = n.get("status", "")
-        color = {"connected": "#22c55e", "connecting": "#eab308", "error": "#ef4444"}.get(status, "#8892a4")
+        color = {
+            "connected": "#22c55e",
+            "connecting": "#eab308",
+            "error": "#ef4444",
+        }.get(status, "#8892a4")
         rows += f"""<tr>
-          <td><code style="color:var(--accent)">{n.get('id','')}</code></td>
-          <td class="text-white">{n.get('name','')}</td>
-          <td style="color:#8892a4;font-size:.8rem">{n.get('address','')}</td>
+          <td><code style="color:var(--accent)">{n.get("id", "")}</code></td>
+          <td class="text-white">{n.get("name", "")}</td>
+          <td style="color:#8892a4;font-size:.8rem">{n.get("address", "")}</td>
           <td><span style="color:{color};font-size:.75rem">{status}</span></td>
         </tr>"""
 
@@ -1388,33 +1668,39 @@ async def pg_nodes(request: Request):
 
 # All available buttons definition
 _ALL_BUTTONS = [
-    {"id": "my_keys",       "label": "🔑 Мои подписки",    "callback": "my_keys"},
-    {"id": "buy",           "label": "💳 Купить",           "callback": "buy"},
-    {"id": "profile",       "label": "👤 Профиль",          "callback": "profile"},
-    {"id": "balance",       "label": "💰 Баланс",           "callback": "balance"},
-    {"id": "promo",         "label": "🎁 Промокод",         "callback": "enter_promo"},
-    {"id": "support",       "label": "💬 Поддержка",        "callback": "support"},
-    {"id": "connect",       "label": "📲 Как подключить",   "callback": "connect:menu"},
-    {"id": "about",         "label": "ℹ️ О проекте",        "callback": "about"},
-    {"id": "servers",       "label": "🌐 Серверы",          "callback": "servers"},
-    {"id": "top_referrers", "label": "🏆 Топ рефереров",    "callback": "top_referrers"},
-    {"id": "status",        "label": "📊 Статус",           "callback": "status_cmd"},
-    {"id": "language",      "label": "🌐 Язык",             "callback": "language"},
-    {"id": "trial",         "label": "🎁 Пробный период",   "callback": "trial"},
-    {"id": "miniapp",       "label": "📱 Scr", "callback": "miniapp"},
+    {"id": "my_keys", "label": "🔑 Мои подписки", "callback": "my_keys"},
+    {"id": "buy", "label": "💳 Купить", "callback": "buy"},
+    {"id": "profile", "label": "👤 Профиль", "callback": "profile"},
+    {"id": "balance", "label": "💰 Баланс", "callback": "balance"},
+    {"id": "promo", "label": "🎁 Промокод", "callback": "enter_promo"},
+    {"id": "support", "label": "💬 Поддержка", "callback": "support"},
+    {"id": "connect", "label": "📲 Как подключить", "callback": "connect:menu"},
+    {"id": "about", "label": "ℹ️ О проекте", "callback": "about"},
+    {"id": "servers", "label": "🌐 Серверы", "callback": "servers"},
+    {"id": "top_referrers", "label": "🏆 Топ рефереров", "callback": "top_referrers"},
+    {"id": "status", "label": "📊 Статус", "callback": "status_cmd"},
+    {"id": "language", "label": "🌐 Язык", "callback": "language"},
+    {"id": "trial", "label": "🎁 Пробный период", "callback": "trial"},
+    {"id": "miniapp", "label": "📱 Scr", "callback": "miniapp"},
 ]
 
 _DEFAULT_LAYOUT = [
-    [{"id": "my_keys",  "label": "🔑 Мои подписки",  "callback": "my_keys"}],
-    [{"id": "buy",      "label": "💳 Купить",         "callback": "buy"}],
-    [{"id": "balance",  "label": "💰 Баланс",         "callback": "balance"},
-     {"id": "promo",    "label": "🎁 Промокод",       "callback": "enter_promo"}],
-    [{"id": "connect",  "label": "📲 Как подключить", "callback": "connect:menu"},
-     {"id": "about",    "label": "ℹ️ О проекте",      "callback": "about"}],
-    [{"id": "profile",  "label": "👤 Профиль",        "callback": "profile"},
-     {"id": "servers",  "label": "🌐 Серверы",        "callback": "servers"}],
+    [{"id": "my_keys", "label": "🔑 Мои подписки", "callback": "my_keys"}],
+    [{"id": "buy", "label": "💳 Купить", "callback": "buy"}],
+    [
+        {"id": "balance", "label": "💰 Баланс", "callback": "balance"},
+        {"id": "promo", "label": "🎁 Промокод", "callback": "enter_promo"},
+    ],
+    [
+        {"id": "connect", "label": "📲 Как подключить", "callback": "connect:menu"},
+        {"id": "about", "label": "ℹ️ О проекте", "callback": "about"},
+    ],
+    [
+        {"id": "profile", "label": "👤 Профиль", "callback": "profile"},
+        {"id": "servers", "label": "🌐 Серверы", "callback": "servers"},
+    ],
     [{"id": "top_referrers", "label": "🏆 Топ рефереров", "callback": "top_referrers"}],
-    [{"id": "support",  "label": "💬 Поддержка",      "callback": "support"}],
+    [{"id": "support", "label": "💬 Поддержка", "callback": "support"}],
 ]
 
 
@@ -1428,6 +1714,7 @@ async def keyboard_editor(request: Request, db: AsyncSession = Depends(get_db)):
 
     # Load saved layout
     import json as _json
+
     raw = await BotSettingsService(db).get("keyboard_layout")
     try:
         layout = _json.loads(raw) if raw else _DEFAULT_LAYOUT
@@ -1435,7 +1722,10 @@ async def keyboard_editor(request: Request, db: AsyncSession = Depends(get_db)):
         layout = _DEFAULT_LAYOUT
 
     ctx["layout"] = layout
-    ctx["welcome_text"] = await BotSettingsService(db).get("welcome_message") or "👋 Привет! Выбери действие:"
+    ctx["welcome_text"] = (
+        await BotSettingsService(db).get("welcome_message")
+        or "👋 Привет! Выбери действие:"
+    )
 
     # Used IDs
     used_ids = [b["id"] for row in layout for b in row]
@@ -1449,6 +1739,7 @@ async def keyboard_save(request: Request, db: AsyncSession = Depends(get_db)):
     if not _check_session(request):
         return {"ok": False, "detail": "Unauthorized"}
     import json as _json
+
     body = await request.json()
     layout = body.get("layout", _DEFAULT_LAYOUT)
     await BotSettingsService(db).set("keyboard_layout", _json.dumps(layout))

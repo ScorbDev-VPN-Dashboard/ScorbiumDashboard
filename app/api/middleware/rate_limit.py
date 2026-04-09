@@ -1,17 +1,18 @@
 import time
 from collections import defaultdict, deque
+
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # ── Config ────────────────────────────────────────────────────────────────────
-PANEL_WINDOW = 60     
-PANEL_MAX_REQUESTS = 120 
+PANEL_WINDOW = 60
+PANEL_MAX_REQUESTS = 120
 API_WINDOW = 60
-API_MAX_REQUESTS = 60 
-LOGIN_WINDOW = 300    # 5 минут
-LOGIN_MAX_ATTEMPTS = 10  # макс 10 попыток логина за 5 мин
-BLOCK_DURATION = 300  # 5 минут блокировки
+API_MAX_REQUESTS = 60
+LOGIN_WINDOW = 300
+LOGIN_MAX_ATTEMPTS = 10
+BLOCK_DURATION = 300
 
 
 _WHITELIST_PREFIXES = ("/docs", "/redoc", "/openapi")
@@ -49,9 +50,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 return True
             del self._blocked[ip]
 
-        # Strict limit on login endpoint
         if path in ("/panel/api/login", "/panel/login") and method == "POST":
-            return self._check(self._login_hits[ip], LOGIN_WINDOW, LOGIN_MAX_ATTEMPTS, ip)
+            return self._check(
+                self._login_hits[ip], LOGIN_WINDOW, LOGIN_MAX_ATTEMPTS, ip
+            )
 
         is_api = path.startswith("/api/")
         if is_api:
@@ -65,7 +67,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         ip = self._get_ip(request)
         if self._is_rate_limited(ip, path, request.method):
-            if path.startswith("/api/") or request.headers.get("accept","").startswith("application/json"):
+            if path.startswith("/api/") or request.headers.get("accept", "").startswith(
+                "application/json"
+            ):
                 return JSONResponse(
                     {"detail": "Too many requests. Try again later."},
                     status_code=429,

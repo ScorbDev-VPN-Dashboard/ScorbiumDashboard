@@ -45,7 +45,6 @@ async def check_pending_yookassa_payments() -> None:
         try:
             yk_payment = yk.get_payment(pd["external_id"])
             if yk_payment.status == "succeeded":
-                # Extract plan_id from meta
                 plan_id = None
                 if pd["meta"]:
                     try:
@@ -105,7 +104,6 @@ async def payment_polling_loop() -> None:
 
 
 async def expire_old_pending_payments() -> None:
-    """Отменяет pending платежи старше 15 минут и уведомляет пользователей."""
     try:
         async with AsyncSessionFactory() as session:
             from app.services.payment import PaymentService

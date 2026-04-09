@@ -11,8 +11,6 @@ class BroadcastStatus(str, enum.Enum):
 
 
 class Broadcast(Base):
-    """Рассылка сообщений через бота из панели."""
-
     __tablename__ = "broadcasts"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

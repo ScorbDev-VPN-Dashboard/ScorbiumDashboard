@@ -320,12 +320,6 @@ async def cmd_autorenew(message: Message) -> None:
 
 # ── Callback кнопки из главного меню ─────────────────────────────────────────
 
-@router.callback_query(F.data == "servers")
-async def cb_servers(callback: CallbackQuery) -> None:
-    await callback.answer()
-    # Reuse cmd_ping logic
-    await cmd_ping(callback.message)
-
 
 @router.callback_query(F.data == "top_referrers")
 async def cb_top(callback: CallbackQuery) -> None:

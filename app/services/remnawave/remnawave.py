@@ -185,7 +185,6 @@ class RemnawaveService(VpnPanelInterface):
         try:
             data = await self._client.get("/api/users", params={"username": username})
             users = data.get("response", {})
-            # If it's a list, find by username
             if isinstance(users, list):
                 for u in users:
                     if u.get("username") == username:

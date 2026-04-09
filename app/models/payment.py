@@ -31,7 +31,7 @@ class Payment(Base):
     amount = Column(Numeric(10, 2), nullable=False)
     currency = Column(String(8), default="RUB", nullable=False)
     status = Column(String(16), default=PaymentStatus.PENDING.value, nullable=False)
-    meta = Column(Text, nullable=True)  # JSON строка с доп. данными
+    meta = Column(Text, nullable=True)
 
     user = relationship("User", back_populates="payments")
 

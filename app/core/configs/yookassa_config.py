@@ -39,27 +39,31 @@ class _YookassaConfig(BaseSettings):
     @field_validator("yookassa_shop_id")
     @classmethod
     def validate_yookassa_shop_id(cls, value: Optional[int]) -> Optional[int]:
-        if value is not None:
-            shop_id_str = str(value)
-            #TODO: Create single cheker for validation yookassa parametars
-            # if not (5 <= len(shop_id_str) <= 8):
-            #     raise YookassaValueError(f"Shop ID должен содержать от 5 до 8 цифр, получено: {len(shop_id_str)}")
-            log.debug(f"✅ Yookassa Shop ID валидация пройдена: {value}")
-        return value
+        if value is None:
+            return None
         
-    @field_validator("yookassa_secret_key")
+        shop_id_str = str(value)
+        if not (5 <= len(shop_id_str) <= 8):
+            raise YookassaValueError(f"Shop ID can be from 5 to 8 numbers, values: {len(shop_id_str)}")
+        
+        return value  
+        
+    @field_validator("yookassa_secret_key", mode="after")
     @classmethod
     def validate_yookassa_secret_key(cls, value: Optional[SecretStr]) -> Optional[SecretStr]:
-        if value is not None:
-            secret_value = value.get_secret_value()
-            # if not secret_value or len(secret_value) < 10:
-            #     raise YookassaValueError("Секретный ключ слишком короткий или пустой")
-            
-            # if not re.match(r'^[A-Za-z0-9_\-]+$', secret_value):
-            #     raise YookassaValueError("Секретный ключ содержит недопустимые символы")
-                
-            log.debug("✅ Yookassa Secret Key валидация пройдена")
+        if value is None:
+            return None
+        
+        secret_value = value.get_secret_value()
+        if len(secret_value) < 10:
+            raise YookassaValueError("Secret key must be at least 10 characters")
+        
+        if not re.match(r'^[A-Za-z0-9_\-]+$', secret_value):
+            raise YookassaValueError("Secret key contains invalid characters")
+        
         return value
+    
+
     
     @property
     def get_auth(self) -> Optional[dict]:
@@ -69,10 +73,12 @@ class _YookassaConfig(BaseSettings):
                 "shop_id": self.yookassa_shop_id,
                 "secret_key": self.yookassa_secret_key.get_secret_value()
             }
-            
-        log.warning("⚠️ Not using Yookassa Payment, check '.env'")
         return None
-
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if not self.yookassa_shop_id or not self.yookassa_secret_key:
+            log.warning("⚠️ Yookassa config incomplete (payments disabled)")
 @lru_cache()
 def get_yookassa_config() -> _YookassaConfig:
     return _YookassaConfig()
@@ -84,5 +90,4 @@ try:
     log.debug(f"Yookassa: {yookassa}")
 except Exception as e:
     log.warning(f"⚠️ Yookassa config not loaded (payments disabled): {e}")
-    # Create a stub so imports don't fail — yookassa payments simply won't work
     yookassa = None

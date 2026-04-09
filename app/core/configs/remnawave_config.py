@@ -16,7 +16,6 @@ class _RemnawaveConfig(BaseSettings):
         frozen=True,
     )
 
-    # Which panel backend to use: "marzban" (default) or "remnawave"
     vpn_panel_type: str = Field(
         default="marzban",
         validation_alias="VPN_PANEL_TYPE",

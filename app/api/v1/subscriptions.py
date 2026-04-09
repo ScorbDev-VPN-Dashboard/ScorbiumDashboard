@@ -1,14 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_db, get_current_admin
+from app.api.dependencies import get_current_admin, get_db
 from app.schemas.vpn import VpnKeyRead
 from app.services.vpn_key import VpnKeyService
 
 router = APIRouter()
 
 
-@router.get("/", response_model=list[VpnKeyRead], summary="List all VPN keys (subscriptions)")
+@router.get(
+    "/", response_model=list[VpnKeyRead], summary="List all VPN keys (subscriptions)"
+)
 async def list_subscriptions(
     limit: int = 100,
     offset: int = 0,

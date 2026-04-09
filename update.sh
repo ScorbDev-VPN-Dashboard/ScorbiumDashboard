@@ -9,10 +9,13 @@ error()   { echo -e "${RED}[ERR]${RESET}  $*"; exit 1; }
 
 # ── Читаем .env ───────────────────────────────────────────────────────────────
 [[ ! -f .env ]] && error ".env не найден. Запустите setup.sh сначала."
+[[ ! -f "docker-compose.prod.yml" ]] && error "Запустите скрипт из корня проекта"
 
-DOMAIN=$(grep "^DOMAIN=" .env | cut -d= -f2)
+DOMAIN=$(grep "^DOMAIN=" .env | sed -E 's/^DOMAIN=//' | sed -E 's/[[:space:]]*#.*//' | xargs)
 HTTPS_PORT=$(grep "^HTTPS_PORT=" .env | cut -d= -f2)
-HTTPS_PORT=${HTTPS_PORT:-8443}
+if [[ -z "$HTTPS_PORT" ]]; then
+    HTTPS_PORT=443 
+fi
 
 [[ -z "$DOMAIN" || "$DOMAIN" == "localhost" ]] && error "DOMAIN не задан в .env"
 
@@ -20,7 +23,9 @@ info "Домен: ${DOMAIN}, HTTPS порт: ${HTTPS_PORT}"
 
 # ── git pull ──────────────────────────────────────────────────────────────────
 info "[1/4] Обновляю код..."
-git pull
+if ! git pull; then
+    error "git pull failed. Есть локальные изменения? Проверьте: git status"
+fi
 
 # ── APP_VERSION ───────────────────────────────────────────────────────────────
 NEW_VER=$(grep '^version' pyproject.toml | head -1 | sed 's/.*= *"\(.*\)"/\1/')

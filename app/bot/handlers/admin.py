@@ -80,7 +80,6 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
         from app.services.bot_settings import BotSettingsService
         panel_url = (await BotSettingsService(session).get("panel_url") or "").rstrip("/")
 
-    # Build mini app URL with one-time token
     miniapp_url = ""
     if panel_url:
         import secrets as _sec
@@ -122,7 +121,7 @@ async def _show_user_detail(callback: CallbackQuery, user_id: int) -> None:
     uname = f"@{username}" if username else f"id:{user_id}"
     text = (
         f"👤 <b>{full_name}</b> ({uname})\n\n"
-        f"Статус: {'🚫 Забанен' if is_banned else '✅ Активен'}\n"
+        f"Статус: {'🚫 Забанен' if bool(is_banned) else '✅ Активен'}\n"
         f"💰 Баланс: <b>{balance:.2f} ₽</b>\n"
         f"🔑 Подписок: {keys_count} (активных: {len(active_keys)})\n"
     )
@@ -130,7 +129,7 @@ async def _show_user_detail(callback: CallbackQuery, user_id: int) -> None:
         text += f"📅 Активна до: {active_exp}\n"
 
     builder = InlineKeyboardBuilder()
-    if is_banned:
+    if bool(is_banned):
         builder.row(InlineKeyboardButton(text="✅ Разбанить", callback_data=f"adm:unban:{user_id}"))
     else:
         builder.row(InlineKeyboardButton(text="🚫 Забанить", callback_data=f"adm:ban:{user_id}"))
@@ -286,7 +285,7 @@ async def _show_users_page(callback: CallbackQuery, page: int = 0) -> None:
     builder = InlineKeyboardBuilder()
 
     for u in users:
-        status = "🚫" if u.is_banned else "✅"
+        status = "🚫" if bool(u.is_banned) else "✅"
         uname = f"@{u.username}" if u.username else f"id:{u.id}"
         label = f"{status} {u.full_name[:18]} ({uname[:12]})"
         builder.row(InlineKeyboardButton(
@@ -311,7 +310,7 @@ async def _show_users_page(callback: CallbackQuery, page: int = 0) -> None:
         f"Страница {page+1} из {total_pages}\n\n"
     )
     for u in users:
-        status = "🚫" if u.is_banned else "✅"
+        status = "🚫" if bool(u.is_banned) else "✅"
         uname = f"@{u.username}" if u.username else f"id:{u.id}"
         text += f"{status} <b>{u.full_name}</b> ({uname}) — {float(u.balance or 0):.0f}₽\n"
 
@@ -533,7 +532,7 @@ async def admin_promos(callback: CallbackQuery) -> None:
 
     lines = [f"🎁 <b>Промокоды</b> (всего: {len(promos)})\n"]
     for p in promos[:15]:
-        active = "✅" if p.is_active else "❌"
+        active = "✅" if bool(p.is_active) else "❌"
         uses = f"{p.current_uses}/{p.max_uses}" if p.max_uses else f"{p.current_uses}/∞"
         lines.append(f"{active} <code>{p.code}</code> — {p.promo_type} {p.value} ({uses})")
 
