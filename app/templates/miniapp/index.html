@@ -318,7 +318,7 @@ const tg = window.Telegram.WebApp;
 tg.ready(); tg.expand();
 const B = '/app';
 let U = null, plans = [], selPlan = null, cur = 'home';
-let HAS_YOOKASSA = false, HAS_CRYPTOBOT = false;
+let HAS_YOOKASSA = false, HAS_CRYPTOBOT = false, BOT_USERNAME = '';
 const su = '{{ support_url }}';
 
 // ── Theme ──────────────────────────────────────────────────────────────────
@@ -352,6 +352,7 @@ async function init() {
     if (sd.ok) {
       HAS_YOOKASSA = sd.has_yookassa || false;
       HAS_CRYPTOBOT = sd.has_cryptobot || false;
+      BOT_USERNAME = sd.bot_username || '';
     }
 
     const r = await fetch(B + '/auth', {
@@ -684,8 +685,9 @@ async function loadProfile() {
     const d = await r.json();
     if (!d.ok) return;
     const u = d.user;
-    const bu = tg.initDataUnsafe?.user?.username || '';
-    const rl = u.referral_code && bu ? `https://t.me/${bu}?start=${u.referral_code}` : null;
+    const rl = u.referral_code && BOT_USERNAME
+        ? `https://t.me/${BOT_USERNAME}?start=${u.referral_code}`
+        : null;
     const initials = (u.full_name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
     el.innerHTML = `
@@ -715,8 +717,14 @@ async function loadProfile() {
       <div class="sl2">🎁 Реферальная программа</div>
       <div style="font-size:13px;color:var(--hi);margin-bottom:10px">Приглашай друзей и получай бонусы за каждого</div>
       <div class="rb"><div class="rl">${rl}</div></div>
-      <button class="btn bo" style="margin-top:10px" onclick="cp('${rl}')">📋 Скопировать ссылку</button>
-    </div>` : ''}
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn bp" style="flex:1" onclick="cp('${rl}')">📋 Скопировать</button>
+        <button class="btn bo" style="flex:1" onclick="tg.openLink('${rl}')">🔗 Открыть</button>
+      </div>
+    </div>` : `<div class="card">
+      <div class="sl2">🎁 Реферальная программа</div>
+      <div style="font-size:13px;color:var(--hi)">Реферальный код: <code>${u.referral_code || '—'}</code></div>
+    </div>`}
 
     ${su ? `<div class="card"><button class="btn bo" onclick="tg.openLink('${su}')">💬 Написать в поддержку</button></div>` : ''}
     `;

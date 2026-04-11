@@ -435,6 +435,17 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
     has_yookassa = bool(_yk and _yk.yookassa_shop_id and _yk.yookassa_secret_key)
     has_cryptobot = bool(s.get("cryptobot_token", "").strip())
 
+    # Получаем username бота
+    bot_username = ""
+    try:
+        from app.core.server import get_bot
+        bot = get_bot()
+        if bot:
+            me = await bot.get_me()
+            bot_username = me.username or ""
+    except Exception:
+        pass
+
     return JSONResponse(
         {
             "ok": True,
@@ -443,5 +454,6 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
             "support_url": s.get("support_url", ""),
             "has_yookassa": has_yookassa,
             "has_cryptobot": has_cryptobot,
+            "bot_username": bot_username,
         }
     )
