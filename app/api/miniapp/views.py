@@ -194,7 +194,6 @@ async def get_profile(request: Request, db: AsyncSession = Depends(get_db)):
         }
     )
 
-
 @router.post("/pay/balance")
 async def pay_balance(request: Request, db: AsyncSession = Depends(get_db)):
     """Pay with internal balance."""

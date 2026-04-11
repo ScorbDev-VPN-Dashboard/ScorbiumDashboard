@@ -19,7 +19,13 @@ def _marzban_username(user_id: int, key_id: int) -> str:
 class VpnKeyService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
-        self._marzban: VpnPanelInterface = get_vpn_panel()
+        self._marzban: Optional[VpnPanelInterface] = None
+
+    def _get_panel(self) -> VpnPanelInterface:
+        """Lazy init VPN panel — не падает при старте если панель не сконфигурирована."""
+        if self._marzban is None:
+            self._marzban = get_vpn_panel()
+        return self._marzban
 
     async def get_by_id(self, key_id: int) -> Optional[VpnKey]:
         result = await self.session.execute(select(VpnKey).where(VpnKey.id == key_id))
@@ -30,7 +36,7 @@ class VpnKeyService:
             select(VpnKey)
             .where(
                 VpnKey.user_id == user_id,
-                VpnKey.status == VpnKeyStatus.ACTIVE,
+                VpnKey.status == VpnKeyStatus.ACTIVE.value,
             )
             .order_by(VpnKey.created_at.desc())
         )
@@ -93,7 +99,7 @@ class VpnKeyService:
             except Exception:
                 group_ids = []
 
-            marz_user = await self._marzban.create_user(
+            marz_user = await self._get_panel().create_user(
                 username=username,
                 expire_days=plan.duration_days,
                 data_limit_gb=0,
@@ -150,7 +156,7 @@ class VpnKeyService:
             return None
         if key.pasarguard_key_id:
             try:
-                await self._marzban.disable_user(key.pasarguard_key_id)
+                await self._get_panel().disable_user(key.pasarguard_key_id)
             except Exception as e:
                 log.warning(f"Marzban disable failed: {e}")
         key.status = VpnKeyStatus.REVOKED.value
@@ -168,7 +174,7 @@ class VpnKeyService:
         key.status = VpnKeyStatus.ACTIVE.value
         if key.pasarguard_key_id:
             try:
-                await self._marzban.extend_user(key.pasarguard_key_id, days)
+                await self._get_panel().extend_user(key.pasarguard_key_id, days)
             except Exception as e:
                 log.warning(f"Marzban extend failed: {e}")
         await self.session.flush()
@@ -180,7 +186,7 @@ class VpnKeyService:
             return None
         if key.pasarguard_key_id:
             try:
-                await self._marzban.delete_user(key.pasarguard_key_id)
+                await self._get_panel().delete_user(key.pasarguard_key_id)
             except Exception as e:
                 log.warning(f"Marzban delete failed: {e}")
         key.status = VpnKeyStatus.REVOKED.value
@@ -192,7 +198,7 @@ class VpnKeyService:
         for key in keys:
             if key.pasarguard_key_id:
                 try:
-                    await self._marzban.disable_user(key.pasarguard_key_id)
+                    await self._get_panel().disable_user(key.pasarguard_key_id)
                 except Exception:
                     pass
             key.status = VpnKeyStatus.REVOKED.value
@@ -209,7 +215,7 @@ class VpnKeyService:
         )
         for key in result.scalars().all():
             try:
-                marz_user = await self._marzban.get_user(key.pasarguard_key_id)
+                marz_user = await self._get_panel().get_user(key.pasarguard_key_id)
                 if not marz_user:
                     key.status = VpnKeyStatus.REVOKED.value
                 else:
@@ -231,7 +237,7 @@ class VpnKeyService:
         now = datetime.now(timezone.utc)
         result = await self.session.execute(
             select(VpnKey).where(
-                VpnKey.status == VpnKeyStatus.ACTIVE,
+                VpnKey.status == VpnKeyStatus.ACTIVE.value,
                 VpnKey.expires_at < now,
             )
         )
@@ -240,7 +246,7 @@ class VpnKeyService:
             key.status = VpnKeyStatus.EXPIRED.value
             if key.pasarguard_key_id:
                 try:
-                    await self._marzban.disable_user(key.pasarguard_key_id)
+                    await self._get_panel().disable_user(key.pasarguard_key_id)
                 except Exception:
                     pass
         await self.session.flush()
