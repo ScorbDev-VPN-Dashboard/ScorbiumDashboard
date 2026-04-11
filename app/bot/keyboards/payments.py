@@ -62,7 +62,6 @@ def payment_methods_kb(
             text=bal_labels.get(lang, bal_labels["ru"]),
             callback_data=f"pay:balance:{plan_id}",
         ))
-
     back_labels = {"ru": "◀️ Назад", "en": "◀️ Back", "fa": "◀️ بازگشت"}
     builder.row(InlineKeyboardButton(text=back_labels.get(lang, "◀️ Назад"), callback_data="buy"))
     return builder.as_markup()

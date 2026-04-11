@@ -318,6 +318,7 @@ const tg = window.Telegram.WebApp;
 tg.ready(); tg.expand();
 const B = '/app';
 let U = null, plans = [], selPlan = null, cur = 'home';
+let HAS_YOOKASSA = false, HAS_CRYPTOBOT = false;
 const su = '{{ support_url }}';
 
 // ── Theme ──────────────────────────────────────────────────────────────────
@@ -345,6 +346,14 @@ function go(t) {
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
   try {
+    // Загружаем настройки (флаги платёжных систем)
+    const sr = await fetch(B + '/settings');
+    const sd = await sr.json();
+    if (sd.ok) {
+      HAS_YOOKASSA = sd.has_yookassa || false;
+      HAS_CRYPTOBOT = sd.has_cryptobot || false;
+    }
+
     const r = await fetch(B + '/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -541,21 +550,30 @@ function renderBuy() {
 
   if (selPlan) {
     const bal = U?.balance || 0;
-    h += `<div class="sl2">Способ оплаты</div>
-    <div class="card" style="padding:12px">
-      <button class="pb" onclick="payYK()">
+    let payButtons = '';
+    if (HAS_YOOKASSA) {
+      payButtons += `<button class="pb" onclick="payYK()">
         <div class="pb-icon" style="background:rgba(108,99,255,.12)">💳</div>
         <div><div style="font-weight:700">Банковская карта</div><div style="font-size:12px;color:var(--hi)">ЮКасса · Visa, MC, МИР</div></div>
       </button>
       <button class="pb" onclick="paySBP()">
         <div class="pb-icon" style="background:rgba(34,197,94,.1)">🏦</div>
         <div><div style="font-weight:700">СБП</div><div style="font-size:12px;color:var(--hi)">Система быстрых платежей</div></div>
-      </button>
-      ${bal >= selPlan.price ? `<button class="pb" onclick="payBal()" style="border-color:rgba(34,197,94,.3)">
+      </button>`;
+    }
+    if (HAS_CRYPTOBOT) {
+      payButtons += `<button class="pb" onclick="payCrypto()">
+        <div class="pb-icon" style="background:rgba(234,179,8,.1)">₿</div>
+        <div><div style="font-weight:700">Криптовалюта</div><div style="font-size:12px;color:var(--hi)">CryptoBot · USDT и др.</div></div>
+      </button>`;
+    }
+    if (bal >= selPlan.price) {
+      payButtons += `<button class="pb" onclick="payBal()" style="border-color:rgba(34,197,94,.3)">
         <div class="pb-icon" style="background:rgba(34,197,94,.1)">💰</div>
         <div><div style="font-weight:700">Баланс</div><div style="font-size:12px;color:#22c55e">${bal.toFixed(2)} ₽ доступно</div></div>
-      </button>` : ''}
-    </div>`;
+      </button>`;
+    }
+    h += `<div class="sl2">Способ оплаты</div><div class="card" style="padding:12px">${payButtons}</div>`;
   }
   el.innerHTML = h;
 }

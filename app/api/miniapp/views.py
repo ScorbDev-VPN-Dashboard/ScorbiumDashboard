@@ -429,11 +429,19 @@ async def check_payment(
 async def get_settings(db: AsyncSession = Depends(get_db)):
     """Get public bot settings for Mini App."""
     s = await BotSettingsService(db).get_all()
+
+    from app.core.config import config as _cfg
+    _yk = _cfg.yookassa
+    has_yookassa = bool(_yk and _yk.yookassa_shop_id and _yk.yookassa_secret_key)
+    has_cryptobot = bool(s.get("cryptobot_token", "").strip())
+
     return JSONResponse(
         {
             "ok": True,
             "lang": s.get("bot_language", "ru"),
             "about_text": s.get("about_text", ""),
             "support_url": s.get("support_url", ""),
+            "has_yookassa": has_yookassa,
+            "has_cryptobot": has_cryptobot,
         }
     )
