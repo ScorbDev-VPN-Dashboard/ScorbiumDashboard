@@ -30,7 +30,6 @@ git pull || error "git pull failed. Проверьте: git status"
 NEW_VER=$(grep '^version' pyproject.toml 2>/dev/null | head -1 | sed 's/.*= *"\(.*\)"/\1/' || true)
 if [[ -n "$NEW_VER" ]]; then
     if grep -q "^APP_VERSION=" .env; then
-        # Кросс-платформенный sed (GNU Linux vs BSD macOS)
         if sed --version 2>/dev/null | grep -q GNU; then
             sed -i "s/^APP_VERSION=.*/APP_VERSION=${NEW_VER}/" .env
         else
@@ -40,6 +39,24 @@ if [[ -n "$NEW_VER" ]]; then
         echo "APP_VERSION=${NEW_VER}" >> .env
     fi
     info "APP_VERSION → ${NEW_VER}"
+fi
+
+# ── Синхронизируем TELEGRAM_WEBHOOK_URL с портом ──────────────────────────────
+CURRENT_WEBHOOK=$(grep "^TELEGRAM_WEBHOOK_URL=" .env | cut -d= -f2- | xargs)
+if [[ "$HTTPS_PORT" == "443" ]]; then
+    CORRECT_WEBHOOK="https://${DOMAIN}/webhook/bot"
+else
+    CORRECT_WEBHOOK="https://${DOMAIN}:${HTTPS_PORT}/webhook/bot"
+fi
+if [[ "$CURRENT_WEBHOOK" != "$CORRECT_WEBHOOK" ]]; then
+    warn "TELEGRAM_WEBHOOK_URL устарел: ${CURRENT_WEBHOOK}"
+    info "Обновляю → ${CORRECT_WEBHOOK}"
+    if sed --version 2>/dev/null | grep -q GNU; then
+        sed -i "s|^TELEGRAM_WEBHOOK_URL=.*|TELEGRAM_WEBHOOK_URL=${CORRECT_WEBHOOK}|" .env
+    else
+        sed -i '' "s|^TELEGRAM_WEBHOOK_URL=.*|TELEGRAM_WEBHOOK_URL=${CORRECT_WEBHOOK}|" .env
+    fi
+    success "TELEGRAM_WEBHOOK_URL обновлён"
 fi
 
 # ── [2/4] nginx.conf ──────────────────────────────────────────────────────────

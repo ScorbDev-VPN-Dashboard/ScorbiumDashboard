@@ -50,12 +50,12 @@ def payment_methods_kb(
             callback_data=f"pay:crypto:{plan_id}",
         ))
 
-    # Баланс
-    if user_balance >= plan_price and plan_price > 0:
+    # Баланс — показываем если хватает денег
+    if user_balance > 0 and user_balance >= plan_price:
         bal_labels = {
-            "ru": f"💰 Оплатить с баланса ({user_balance:.0f} ₽)",
-            "en": f"💰 Pay from balance ({user_balance:.0f} ₽)",
-            "fa": f"💰 پرداخت از موجودی ({user_balance:.0f} ₽)",
+            "ru": f"💰 Оплатить с баланса ({user_balance:.2f} ₽)",
+            "en": f"💰 Pay from balance ({user_balance:.2f} ₽)",
+            "fa": f"💰 پرداخت از موجودی ({user_balance:.2f} ₽)",
         }
         builder.row(InlineKeyboardButton(
             text=bal_labels.get(lang, bal_labels["ru"]),

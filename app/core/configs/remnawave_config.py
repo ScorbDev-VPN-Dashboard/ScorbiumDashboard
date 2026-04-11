@@ -33,6 +33,10 @@ class _RemnawaveConfig(BaseSettings):
         default=None,
         validation_alias="REMNAWAVE_PASSWORD",
     )
+    remnawave_api_key: Optional[SecretStr] = Field(
+        default=None,
+        validation_alias="REMNAWAVE_API_KEY",
+    )
 
 
 @lru_cache()

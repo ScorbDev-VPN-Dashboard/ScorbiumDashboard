@@ -1702,9 +1702,7 @@ async def rw_users(request: Request):
     from app.services.remnawave.remnawave import RemnawaveService
     try:
         svc = RemnawaveService()
-        data = await svc._client.get("/api/users", params={"limit": 50})
-        users_raw = data.get("response", data)
-        users = users_raw if isinstance(users_raw, list) else users_raw.get("users", [])
+        users = await svc.get_all_users(size=100)
     except Exception as e:
         return HTMLResponse(f'<div style="color:#ef4444">Ошибка: {e}</div>')
 
@@ -1714,27 +1712,27 @@ async def rw_users(request: Request):
     rows = ""
     for u in users:
         status = u.get("status", "")
-        color = {"ACTIVE": "#22c55e", "EXPIRED": "#ef4444", "DISABLED": "#eab308"}.get(status, "#8892a4")
-        used = round((u.get("usedTrafficBytes", 0) or 0) / 1073741824, 2)
+        color = {"ACTIVE": "#22c55e", "EXPIRED": "#ef4444", "DISABLED": "#eab308", "LIMITED": "#f97316"}.get(status, "#8892a4")
+        traffic = u.get("userTraffic", {}) or {}
+        used = round((traffic.get("usedTrafficBytes", 0) or 0) / 1073741824, 2)
         limit = u.get("trafficLimitBytes", 0) or 0
         limit_str = f"{round(limit / 1073741824, 1)} GB" if limit else "∞"
-        expire = u.get("expireAt", "—") or "—"
-        if expire and expire != "—":
-            try:
-                expire = expire[:10]
-            except Exception:
-                pass
+        expire = (u.get("expireAt") or "—")[:10]
+        online_at = traffic.get("onlineAt")
+        online_dot = '<span style="color:#22c55e;font-size:.6rem">●</span> ' if online_at else ""
+        sub_url = u.get("subscriptionUrl", "")
         rows += f"""<tr>
-          <td><code style="color:var(--accent)">{u.get("username", "")}</code></td>
+          <td><code style="color:var(--accent)">{online_dot}{u.get("username", "")}</code></td>
           <td><span style="color:{color};font-size:.75rem">{status}</span></td>
           <td style="font-size:.78rem;color:#8892a4">{used} / {limit_str}</td>
           <td style="font-size:.75rem;color:#8892a4">{expire}</td>
+          <td style="font-size:.7rem"><a href="{sub_url}" target="_blank" style="color:#6c63ff">sub</a></td>
         </tr>"""
 
     return HTMLResponse(f"""
     <div class="table-responsive">
     <table class="table mb-0">
-      <thead><tr><th>Username</th><th>Статус</th><th>Трафик</th><th>Истекает</th></tr></thead>
+      <thead><tr><th>Username</th><th>Статус</th><th>Трафик</th><th>Истекает</th><th>Sub</th></tr></thead>
       <tbody>{rows}</tbody>
     </table></div>""")
 
@@ -1746,20 +1744,19 @@ async def test_remnawave(request: Request):
     try:
         svc = RemnawaveService()
         stats = await svc.get_system_stats()
-        users_online = stats.get("onlineUsersCount", stats.get("users_active", 0))
-        total_users = stats.get("totalUsers", stats.get("total_user", 0))
-        incoming = round((stats.get("incomingTraffic", stats.get("incoming_bandwidth", 0)) or 0) / 1073741824, 2)
-        outgoing = round((stats.get("outgoingTraffic", stats.get("outgoing_bandwidth", 0)) or 0) / 1073741824, 2)
-        cpu = round(stats.get("cpuUsage", stats.get("cpu_usage", 0)) or 0, 1)
-        ram_mb = (stats.get("memUsed", stats.get("mem_used", 0)) or 0) // 1048576
+        users_online = stats.get("onlineNow", 0)
+        total_users = stats.get("totalUsers", 0)
+        nodes_online = stats.get("totalOnlineNodes", 0)
+        traffic = stats.get("totalBytesLifetime", "0")
+        status_counts = stats.get("statusCounts", {})
 
         items = [
             ("bi-wifi", "rgba(34,197,94,.1)", "#22c55e", "Онлайн", users_online),
             ("bi-people", "rgba(108,99,255,.1)", "#a78bfa", "Всего юзеров", total_users),
-            ("bi-arrow-down-circle", "rgba(59,130,246,.1)", "#3b82f6", "Входящий", f"{incoming} GB"),
-            ("bi-arrow-up-circle", "rgba(239,68,68,.1)", "#ef4444", "Исходящий", f"{outgoing} GB"),
-            ("bi-memory", "rgba(234,179,8,.1)", "#eab308", "RAM", f"{ram_mb} MB"),
-            ("bi-cpu", "rgba(108,99,255,.1)", "#a78bfa", "CPU", f"{cpu}%"),
+            ("bi-server", "rgba(59,130,246,.1)", "#3b82f6", "Нод онлайн", nodes_online),
+            ("bi-hdd", "rgba(239,68,68,.1)", "#ef4444", "Трафик всего", traffic),
+            ("bi-check-circle", "rgba(34,197,94,.1)", "#22c55e", "Активных", status_counts.get("ACTIVE", 0)),
+            ("bi-x-circle", "rgba(239,68,68,.1)", "#ef4444", "Истекших", status_counts.get("EXPIRED", 0)),
         ]
         cards = ""
         for icon, bg, color, label, val in items:

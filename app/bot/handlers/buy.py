@@ -54,7 +54,7 @@ async def select_plan(callback: CallbackQuery) -> None:
         lang = get_lang(settings, str(user_lang))
         has_cryptobot = bool(settings.get("cryptobot_token", "").strip())
 
-    if not plan or plan.is_active is None:
+    if not plan or not plan.is_active:
         await callback.answer(t("no_plans", lang), show_alert=True)
         return
 

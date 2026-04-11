@@ -76,9 +76,23 @@ if [[ "$PANEL_CHOICE" == "2" ]]; then
     echo -e "${BOLD}── Remnawave ────────────────────────────────────────${RESET}"
     read -rp "URL Remnawave (например: https://panel.example.com): " REMNAWAVE_URL
     [[ -z "$REMNAWAVE_URL" ]] && error "URL Remnawave обязателен"
-    read -rp "Логин Remnawave [admin]: " REMNAWAVE_LOGIN; REMNAWAVE_LOGIN=${REMNAWAVE_LOGIN:-admin}
-    read -rsp "Пароль Remnawave: " REMNAWAVE_PASS; echo ""
-    [[ -z "$REMNAWAVE_PASS" ]] && error "Пароль Remnawave обязателен"
+    echo ""
+    echo "Метод авторизации:"
+    echo "  1) API Key (рекомендуется) — создать в Remnawave → Settings → API Tokens"
+    echo "  2) Логин / Пароль"
+    read -rp "Выбор [1/2]: " RW_AUTH_CHOICE
+    RW_AUTH_CHOICE=${RW_AUTH_CHOICE:-1}
+    if [[ "$RW_AUTH_CHOICE" == "1" ]]; then
+        read -rp "API Key: " REMNAWAVE_API_KEY
+        [[ -z "$REMNAWAVE_API_KEY" ]] && error "API Key обязателен"
+        REMNAWAVE_LOGIN=""
+        REMNAWAVE_PASS=""
+    else
+        REMNAWAVE_API_KEY=""
+        read -rp "Логин Remnawave [admin]: " REMNAWAVE_LOGIN; REMNAWAVE_LOGIN=${REMNAWAVE_LOGIN:-admin}
+        read -rsp "Пароль Remnawave: " REMNAWAVE_PASS; echo ""
+        [[ -z "$REMNAWAVE_PASS" ]] && error "Пароль Remnawave обязателен"
+    fi
     PASAR_URL="http://localhost:8012"
     PASAR_LOGIN="admin"
     PASAR_PASS="unused"
@@ -125,7 +139,11 @@ if [[ "$MODE" == "1" ]]; then
         HTTPS_PORT=443
     fi
     TG_PROTOCOL=webhook
-    WEBHOOK_URL="https://${DOMAIN}/webhook/bot"
+    if [[ "$HTTPS_PORT" == "443" ]]; then
+        WEBHOOK_URL="https://${DOMAIN}/webhook/bot"
+    else
+        WEBHOOK_URL="https://${DOMAIN}:${HTTPS_PORT}/webhook/bot"
+    fi
     ALLOWED_ORIGINS='["https://'"${DOMAIN}"'"]'
     if [[ "$HTTPS_PORT" == "443" ]]; then
         PANEL_URL="https://${DOMAIN}/panel/"
@@ -174,6 +192,7 @@ VPN_PANEL_TYPE=${VPN_PANEL_TYPE}
 REMNAWAVE_URL=${REMNAWAVE_URL}
 REMNAWAVE_LOGIN=${REMNAWAVE_LOGIN}
 REMNAWAVE_PASSWORD=${REMNAWAVE_PASS}
+REMNAWAVE_API_KEY=${REMNAWAVE_API_KEY:-}
 YOOKASSA_SHOP_ID=${YK_SHOP}
 YOOKASSA_SECRET_KEY=${YK_SECRET}
 CRYPTOBOT_TOKEN=${CRYPTOBOT_TOKEN}

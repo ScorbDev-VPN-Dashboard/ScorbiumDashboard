@@ -16,6 +16,7 @@ _DEFAULT_LAYOUT = [
      {"id": "servers",  "label": "🌐 Серверы",        "callback": "servers"}],
     [{"id": "top_referrers", "label": "🏆 Топ рефереров", "callback": "top_referrers"}],
     [{"id": "support",  "label": "💬 Поддержка",      "callback": "support"}],
+    [{"id": "miniapp",  "label": "🌐 Mini App",       "callback": "miniapp"}],
 ]
 
 
