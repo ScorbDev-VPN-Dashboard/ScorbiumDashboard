@@ -20,23 +20,24 @@ def payment_methods_kb(
     user_balance: float = 0.0,
     plan_price: float = 0.0,
     has_cryptobot: bool = False,
+    has_yookassa: bool = True,
     lang: str = "ru",
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
-    # ЮКасса — карта
-    card_labels = {"ru": "💳 Банковская карта", "en": "💳 Bank card", "fa": "💳 کارت بانکی"}
-    builder.row(InlineKeyboardButton(
-        text=card_labels.get(lang, card_labels["ru"]),
-        callback_data=f"pay:yookassa:{plan_id}",
-    ))
+    # ЮКасса — только если настроена
+    if has_yookassa:
+        card_labels = {"ru": "💳 Банковская карта", "en": "💳 Bank card", "fa": "💳 کارت بانکی"}
+        builder.row(InlineKeyboardButton(
+            text=card_labels.get(lang, card_labels["ru"]),
+            callback_data=f"pay:yookassa:{plan_id}",
+        ))
 
-    # СБП
-    sbp_labels = {"ru": "🏦 СБП (Система быстрых платежей)", "en": "🏦 SBP (Fast Payment)", "fa": "🏦 پرداخت سریع"}
-    builder.row(InlineKeyboardButton(
-        text=sbp_labels.get(lang, sbp_labels["ru"]),
-        callback_data=f"pay:sbp:{plan_id}",
-    ))
+        sbp_labels = {"ru": "🏦 СБП (Система быстрых платежей)", "en": "🏦 SBP (Fast Payment)", "fa": "🏦 پرداخت سریع"}
+        builder.row(InlineKeyboardButton(
+            text=sbp_labels.get(lang, sbp_labels["ru"]),
+            callback_data=f"pay:sbp:{plan_id}",
+        ))
 
     # Telegram Stars
     stars_label = f"⭐ Telegram Stars ({stars_amount} ⭐)" if stars_amount else "⭐ Telegram Stars"

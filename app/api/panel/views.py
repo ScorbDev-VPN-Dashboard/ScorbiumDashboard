@@ -1774,8 +1774,11 @@ async def test_remnawave(request: Request):
         resp = HTMLResponse(html)
         _toast(resp, "Remnawave подключён")
     except Exception as e:
+        import traceback
+        err_detail = str(e)
+        log.error(f"Remnawave test failed: {traceback.format_exc()}")
         html = f"""<div class="d-flex align-items-center gap-2" style="color:#ef4444;font-size:.85rem">
-          <i class="bi bi-x-circle-fill"></i><span>Ошибка: {str(e)[:80]}</span>
+          <i class="bi bi-x-circle-fill"></i><span>Ошибка: {err_detail[:120]}</span>
         </div>"""
         resp = HTMLResponse(html)
         _toast(resp, "Нет подключения к Remnawave", "error")
