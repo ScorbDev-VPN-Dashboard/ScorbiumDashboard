@@ -207,7 +207,7 @@ async def pay_balance(request: Request, db: AsyncSession = Depends(get_db)):
     user_id = tg_user["id"]
 
     plan = await PlanService(db).get_by_id(plan_id)
-    if not plan or not plan.is_active is True:
+    if not plan or not plan.is_active:
         return JSONResponse({"ok": False, "error": "Plan not found"}, status_code=404)
 
     user = await UserService(db).get_by_id(user_id)
@@ -223,7 +223,7 @@ async def pay_balance(request: Request, db: AsyncSession = Depends(get_db)):
     payment = await PaymentService(db).create_pending(
         user_id=user_id, plan=plan, provider=PaymentProvider.BALANCE
     )
-    payment.status = PaymentStatus.SUCCEEDED
+    payment.status = PaymentStatus.SUCCEEDED.value
     await db.flush()
 
     key = await VpnKeyService(db).provision(user_id=user_id, plan=plan)
@@ -236,7 +236,7 @@ async def pay_balance(request: Request, db: AsyncSession = Depends(get_db)):
             {
                 "ok": True,
                 "access_url": key.access_url,
-                "expires_at": key.expires_at.isoformat() if key.expires_at is True else None,
+                "expires_at": key.expires_at.isoformat() if key.expires_at is not None else None,
                 "plan_name": plan.name,
                 "days": plan.duration_days,
             }
@@ -258,7 +258,7 @@ async def pay_yookassa(request: Request, db: AsyncSession = Depends(get_db)):
     user_id = tg_user["id"]
 
     plan = await PlanService(db).get_by_id(plan_id)
-    if not plan or not plan.is_active is True:
+    if not plan or not plan.is_active:
         return JSONResponse({"ok": False, "error": "Plan not found"}, status_code=404)
 
     try:
@@ -287,7 +287,7 @@ async def pay_yookassa(request: Request, db: AsyncSession = Depends(get_db)):
             {
                 "ok": True,
                 "payment_id": payment.id,
-                "confirm_url": yk_payment.confirmation.confirmation_url if yk_payment.confirmation else None,,
+                "confirm_url": yk_payment.confirmation.confirmation_url if yk_payment.confirmation else None,
             }
         )
     except Exception as e:
@@ -361,49 +361,38 @@ async def check_payment(
         )
 
     if payment.status == PaymentStatus.SUCCEEDED.value:
-
         from sqlalchemy import select
-
         from app.models.vpn_key import VpnKey
-
         result = await db.execute(select(VpnKey).where(VpnKey.id == payment.vpn_key_id))
         key = result.scalar_one_or_none()
-        return JSONResponse(
-            {
-                "ok": True,
-                "status": "succeeded",
-                "access_url": key.access_url if key else None,
-                "expires_at": key.expires_at.isoformat()
-                if key and key.expires_at is not None
-                else None,
-            }
-        )
+        return JSONResponse({
+            "ok": True, "status": "succeeded",
+            "access_url": key.access_url if key else None,
+            "expires_at": key.expires_at.isoformat() if key and key.expires_at is not None else None,
+        })
 
     if payment.status == PaymentStatus.FAILED.value:
         return JSONResponse({"ok": True, "status": "failed"})
 
-    if payment.external_id is not None:
+    # Still pending — check with YooKassa
+    if not payment.external_id:
         return JSONResponse({"ok": True, "status": "pending"})
 
     try:
         from app.services.yookassa import YookassaService
-
         yk_payment = YookassaService().get_payment(str(payment.external_id))
         if yk_payment.status == "succeeded":
             payment.status = PaymentStatus.SUCCEEDED.value
             await db.flush()
 
-            # Get plan_id from meta or from yk metadata
             import json as _json
-
             plan_id = None
-            if payment.meta is not None:
+            if payment.meta:
                 try:
                     meta = _json.loads(payment.meta)
                     plan_id = int(meta.get("plan_id", 0)) or None
                 except Exception:
                     pass
-            # Fallback: try yk payment metadata
             if plan_id is None:
                 try:
                     yk_meta = yk_payment.metadata or {}
@@ -414,22 +403,15 @@ async def check_payment(
             if plan_id is not None:
                 plan = await PlanService(db).get_by_id(plan_id)
                 if plan:
-                    key = await VpnKeyService(db).provision(
-                        user_id=tg_user["id"], plan=plan
-                    )
+                    key = await VpnKeyService(db).provision(user_id=tg_user["id"], plan=plan)
                     if key:
                         payment.vpn_key_id = key.id
                     await db.commit()
-                    return JSONResponse(
-                        {
-                            "ok": True,
-                            "status": "succeeded",
-                            "access_url": key.access_url if key else None,
-                            "expires_at": key.expires_at.isoformat()
-                            if key and key.expires_at is not None
-                            else None,
-                        }
-                    )
+                    return JSONResponse({
+                        "ok": True, "status": "succeeded",
+                        "access_url": key.access_url if key else None,
+                        "expires_at": key.expires_at.isoformat() if key and key.expires_at is not None else None,
+                    })
             await db.commit()
             return JSONResponse({"ok": True, "status": "succeeded", "access_url": None})
 

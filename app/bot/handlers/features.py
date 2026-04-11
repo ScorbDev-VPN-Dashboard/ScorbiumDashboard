@@ -85,7 +85,13 @@ async def cmd_ping(message: Message) -> None:
         try:
             import httpx
             from app.core.config import config
-            base = str(config.pasarguard.pasarguard_admin_panel).rstrip("/")
+            from app.services.pasarguard.pasarguard import get_vpn_panel
+            _pg = config.pasarguard
+            if _pg:
+                base = str(_pg.pasarguard_admin_panel).rstrip("/")
+            else:
+                from app.core.configs.remnawave_config import remnawave as _rw
+                base = (_rw.remnawave_url or "").rstrip("/")
             start = asyncio.get_event_loop().time()
             async with httpx.AsyncClient(timeout=5, verify=False) as client:
                 await client.get(f"{base}/api/system")
@@ -143,9 +149,6 @@ async def _build_top_text(user_id: int) -> str:
 async def cmd_top(message: Message) -> None:
     text = await _build_top_text(message.from_user.id)
     await message.answer(text, parse_mode="HTML")
-
-
-# ── /gift — подарить подписку ─────────────────────────────────────────────────
 
 @router.message(Command("gift"))
 async def cmd_gift(message: Message) -> None:
@@ -316,9 +319,6 @@ async def cmd_autorenew(message: Message) -> None:
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="back_main"))
 
     await message.answer("\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML")
-
-
-# ── Callback кнопки из главного меню ─────────────────────────────────────────
 
 
 @router.callback_query(F.data == "top_referrers")

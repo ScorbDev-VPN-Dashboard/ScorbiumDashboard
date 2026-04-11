@@ -22,12 +22,12 @@ async def expire_outdated_keys() -> None:
 
 
 async def sync_keys_from_marzban() -> None:
-    """Sync VPN key statuses from Marzban panel."""
+    """Sync VPN key statuses from the configured VPN panel."""
     try:
         async with AsyncSessionFactory() as session:
             result = await VpnKeyService(session).sync_from_marzban()
             await session.commit()
-            log.info(f"[vpn_tasks] Marzban sync: {result}")
+            log.info(f"[vpn_tasks] VPN panel sync: {result}")
     except Exception as e:
         log.error(f"[vpn_tasks] sync_keys_from_marzban error: {e}")
 

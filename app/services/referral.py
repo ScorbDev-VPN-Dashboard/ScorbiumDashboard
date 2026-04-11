@@ -98,7 +98,7 @@ class ReferralService:
             await user_svc.add_balance(ref.referrer_id, bonus_value)
         elif bonus_type == ReferralBonusType.DAYS.value:
             from app.models.vpn_key import VpnKey, VpnKeyStatus
-            from app.services.pasarguard.pasarguard import PasarguardService
+            from app.services.pasarguard.pasarguard import get_vpn_panel
             key_result = await self.session.execute(
                 select(VpnKey).where(
                     VpnKey.user_id == ref.referrer_id,
@@ -111,7 +111,7 @@ class ReferralService:
                 key.expires_at = key.expires_at + timedelta(days=int(bonus_value))
                 if key.pasarguard_key_id:
                     try:
-                        await PasarguardService().extend_user(key.pasarguard_key_id, int(bonus_value))
+                        await get_vpn_panel().extend_user(key.pasarguard_key_id, int(bonus_value))
                     except Exception:
                         pass
 

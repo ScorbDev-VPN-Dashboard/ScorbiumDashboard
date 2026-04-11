@@ -6,348 +6,724 @@
 <title>{{ app_name }}</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-:root{--a:#6c63ff;--a2:#a78bfa;--r:14px;--rs:10px;}
-.dark{--bg:#1a1a2e;--bg2:#16213e;--bg3:#0f3460;--tx:#e8eaf0;--hi:#8892a4;--br:rgba(255,255,255,.08);--cb:rgba(255,255,255,.04);--ib:rgba(255,255,255,.07);}
-.light{--bg:#f0f2f5;--bg2:#fff;--bg3:#e4e6eb;--tx:#1a1a2e;--hi:#6b7280;--br:rgba(0,0,0,.08);--cb:#fff;--ib:#f5f5f5;}
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;transition:background .2s,color .2s;}
-.scr{display:none;padding:16px 16px 88px;max-width:500px;margin:0 auto;}
-.scr.on{display:block;}
-.nav{display:flex;background:var(--bg2);border-top:1px solid var(--br);position:fixed;bottom:0;left:0;right:0;z-index:100;padding-bottom:env(safe-area-inset-bottom,0);}
-.nb{flex:1;padding:10px 4px 8px;text-align:center;cursor:pointer;color:var(--hi);font-size:10px;font-weight:500;border:none;background:none;transition:color .2s;}
-.nb.on{color:var(--a);}
-.nb svg{display:block;margin:0 auto 3px;width:22px;height:22px;}
-.card{background:var(--cb);border-radius:var(--r);padding:16px;margin-bottom:12px;border:1px solid var(--br);}
-.ct{font-size:11px;color:var(--hi);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;}
-.btn{display:block;width:100%;padding:14px;border-radius:var(--r);border:none;font-size:15px;font-weight:600;cursor:pointer;transition:opacity .15s,transform .1s;text-align:center;}
-.btn:active{opacity:.85;transform:scale(.98);}
-.bp{background:var(--a);color:#fff;}
-.bo{background:transparent;border:1.5px solid var(--a);color:var(--a);}
-.bs{padding:9px 16px;font-size:13px;border-radius:var(--rs);display:inline-block;width:auto;}
-.bi{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;background:var(--ib);color:var(--tx);font-size:16px;flex-shrink:0;}
-.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
-.ba{background:rgba(34,197,94,.15);color:#22c55e;}
-.be{background:rgba(239,68,68,.12);color:#ef4444;}
-.br2{background:rgba(100,100,100,.12);color:var(--hi);}
-.sr{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--br);}
-.sr:last-child{border-bottom:none;}
-.sl{font-size:14px;color:var(--hi);}
-.sv{font-size:14px;font-weight:600;}
-.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-top:4px;}
-.pt{font-size:22px;font-weight:800;}
-.av{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--a2));display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;flex-shrink:0;}
-.pc{background:var(--cb);border-radius:var(--r);padding:16px;margin-bottom:10px;border:1.5px solid var(--br);cursor:pointer;transition:border-color .2s;}
-.pc.sel{border-color:var(--a);background:rgba(108,99,255,.06);}
-.pn{font-size:16px;font-weight:700;margin-bottom:4px;}
-.pp{font-size:24px;font-weight:800;color:var(--a);}
-.pd{font-size:13px;color:var(--hi);margin-top:5px;}
-.kc{background:var(--cb);border-radius:var(--r);padding:14px;margin-bottom:10px;border:1px solid var(--br);}
-.kn{font-size:15px;font-weight:600;margin-bottom:4px;}
-.ke{font-size:12px;color:var(--hi);margin-bottom:8px;}
-.ku{font-size:11px;color:var(--a);word-break:break-all;background:rgba(108,99,255,.08);padding:10px;border-radius:var(--rs);cursor:pointer;border:1px solid rgba(108,99,255,.2);}
-.db{height:4px;background:var(--br);border-radius:2px;margin-top:8px;overflow:hidden;}
-.df{height:100%;border-radius:2px;background:var(--a);}
-.df.w{background:#eab308;}
-.df.d{background:#ef4444;}
-.pb{width:100%;padding:14px 16px;border-radius:var(--rs);border:1.5px solid var(--br);background:var(--cb);color:var(--tx);font-size:14px;font-weight:500;cursor:pointer;text-align:left;transition:border-color .2s;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
-.pb:hover{border-color:var(--a);}
-.rb{background:rgba(108,99,255,.08);border-radius:var(--rs);padding:12px;border:1px solid rgba(108,99,255,.2);}
-.rl{font-size:12px;color:var(--a);word-break:break-all;}
-.ld{text-align:center;padding:48px 16px;color:var(--hi);}
-.ls{width:32px;height:32px;border:3px solid var(--br);border-top-color:var(--a);border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 12px;}
-@keyframes sp{to{transform:rotate(360deg)}}
-.em{text-align:center;padding:40px 16px;color:var(--hi);}
-.ei{font-size:48px;margin-bottom:12px;}
-.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#22c55e;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;}
-.toast.on{opacity:1;}
-.toast.err{background:#ef4444;}
-.sl2{font-size:11px;color:var(--hi);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px;}
+:root {
+  --a: #6c63ff; --a2: #a78bfa; --a3: rgba(108,99,255,.15);
+  --r: 16px; --rs: 10px; --tr: .18s cubic-bezier(.4,0,.2,1);
+}
+.dark {
+  --bg: #0d0d1a; --bg2: #13132a; --bg3: #1a1a35;
+  --tx: #e8eaf0; --hi: #7a849a; --br: rgba(255,255,255,.07);
+  --cb: rgba(255,255,255,.04); --ib: rgba(255,255,255,.06);
+  --sh: 0 4px 24px rgba(0,0,0,.4);
+}
+.light {
+  --bg: #f0f2f8; --bg2: #fff; --bg3: #e8eaf0;
+  --tx: #1a1a2e; --hi: #6b7280; --br: rgba(0,0,0,.07);
+  --cb: #fff; --ib: rgba(0,0,0,.04);
+  --sh: 0 4px 24px rgba(0,0,0,.08);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg); color: var(--tx);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  min-height: 100vh; overflow-x: hidden;
+  transition: background var(--tr), color var(--tr);
+}
+
+/* ── Screens ── */
+.scr { display: none; padding: 16px 16px 96px; max-width: 520px; margin: 0 auto; animation: fadeIn .2s ease; }
+.scr.on { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ── Nav ── */
+.nav {
+  display: flex; background: var(--bg2); border-top: 1px solid var(--br);
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.nb {
+  flex: 1; padding: 10px 4px 8px; text-align: center; cursor: pointer;
+  color: var(--hi); font-size: 10px; font-weight: 600; border: none;
+  background: none; transition: color var(--tr); position: relative;
+}
+.nb.on { color: var(--a); }
+.nb.on::after {
+  content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 20px; height: 2px; background: var(--a); border-radius: 2px 2px 0 0;
+}
+.nb svg { display: block; margin: 0 auto 3px; width: 22px; height: 22px; transition: transform var(--tr); }
+.nb.on svg { transform: scale(1.1); }
+
+/* ── Cards ── */
+.card {
+  background: var(--bg2); border-radius: var(--r); padding: 16px;
+  margin-bottom: 12px; border: 1px solid var(--br); box-shadow: var(--sh);
+}
+.card-glass {
+  background: var(--cb); border-radius: var(--r); padding: 16px;
+  margin-bottom: 12px; border: 1px solid var(--br);
+  backdrop-filter: blur(8px);
+}
+
+/* ── Hero card ── */
+.hero {
+  background: linear-gradient(135deg, #6c63ff 0%, #a78bfa 50%, #c084fc 100%);
+  border-radius: var(--r); padding: 20px; margin-bottom: 12px;
+  position: relative; overflow: hidden; box-shadow: 0 8px 32px rgba(108,99,255,.35);
+}
+.hero::before {
+  content: ''; position: absolute; top: -40px; right: -40px;
+  width: 140px; height: 140px; border-radius: 50%;
+  background: rgba(255,255,255,.08);
+}
+.hero::after {
+  content: ''; position: absolute; bottom: -30px; left: -20px;
+  width: 100px; height: 100px; border-radius: 50%;
+  background: rgba(255,255,255,.05);
+}
+
+/* ── Section label ── */
+.sl2 {
+  font-size: 11px; color: var(--hi); font-weight: 700;
+  text-transform: uppercase; letter-spacing: .8px; margin: 16px 0 8px;
+}
+
+/* ── Buttons ── */
+.btn {
+  display: block; width: 100%; padding: 14px; border-radius: var(--r);
+  border: none; font-size: 15px; font-weight: 700; cursor: pointer;
+  transition: opacity var(--tr), transform var(--tr); text-align: center;
+}
+.btn:active { opacity: .85; transform: scale(.97); }
+.bp { background: linear-gradient(135deg, var(--a), var(--a2)); color: #fff; box-shadow: 0 4px 16px rgba(108,99,255,.35); }
+.bo { background: transparent; border: 1.5px solid var(--a); color: var(--a); }
+.bs { padding: 10px 18px; font-size: 13px; border-radius: var(--rs); display: inline-block; width: auto; }
+.bi {
+  width: 38px; height: 38px; border-radius: 50%; display: flex;
+  align-items: center; justify-content: center; border: none; cursor: pointer;
+  background: var(--ib); color: var(--tx); font-size: 16px; flex-shrink: 0;
+  transition: background var(--tr);
+}
+.bi:active { background: var(--a3); }
+
+/* ── Badges ── */
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+.ba { background: rgba(34,197,94,.15); color: #22c55e; }
+.be { background: rgba(239,68,68,.12); color: #ef4444; }
+.br2 { background: rgba(100,100,100,.12); color: var(--hi); }
+.bw { background: rgba(234,179,8,.12); color: #eab308; }
+
+/* ── Rows ── */
+.sr { display: flex; justify-content: space-between; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--br); }
+.sr:last-child { border-bottom: none; }
+.sr-label { font-size: 13px; color: var(--hi); display: flex; align-items: center; gap: 6px; }
+.sr-val { font-size: 14px; font-weight: 600; }
+
+/* ── Profile header ── */
+.ph { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-top: 4px; }
+.pt { font-size: 22px; font-weight: 800; }
+.av {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--a), var(--a2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 800; color: #fff; flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(108,99,255,.4);
+}
+
+/* ── Plan cards ── */
+.pc {
+  background: var(--bg2); border-radius: var(--r); padding: 16px;
+  margin-bottom: 10px; border: 1.5px solid var(--br); cursor: pointer;
+  transition: border-color var(--tr), box-shadow var(--tr), transform var(--tr);
+  position: relative; overflow: hidden;
+}
+.pc:active { transform: scale(.98); }
+.pc.sel {
+  border-color: var(--a); background: var(--a3);
+  box-shadow: 0 0 0 3px rgba(108,99,255,.12);
+}
+.pc.sel::before {
+  content: '✓'; position: absolute; top: 12px; right: 14px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--a); color: #fff; font-size: 12px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+.pc-popular::after {
+  content: '🔥 Популярный'; position: absolute; top: 0; right: 0;
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  color: #fff; font-size: 10px; font-weight: 700; padding: 3px 10px;
+  border-radius: 0 var(--r) 0 var(--rs);
+}
+.pn { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.pp { font-size: 26px; font-weight: 800; color: var(--a); }
+.pd { font-size: 12px; color: var(--hi); margin-top: 5px; }
+
+/* ── Key cards ── */
+.kc {
+  background: var(--bg2); border-radius: var(--r); padding: 14px;
+  margin-bottom: 10px; border: 1px solid var(--br);
+  transition: border-color var(--tr);
+}
+.kc.active-key { border-left: 3px solid #22c55e; }
+.kn { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.ke { font-size: 12px; color: var(--hi); margin-bottom: 8px; }
+.ku {
+  font-size: 11px; color: var(--a); word-break: break-all;
+  background: var(--a3); padding: 10px 12px; border-radius: var(--rs);
+  cursor: pointer; border: 1px solid rgba(108,99,255,.2);
+  transition: background var(--tr);
+}
+.ku:active { background: rgba(108,99,255,.25); }
+
+/* ── Progress bar ── */
+.db { height: 4px; background: var(--br); border-radius: 2px; margin-top: 10px; overflow: hidden; }
+.df { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--a), var(--a2)); transition: width .5s ease; }
+.df.w { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+.df.d { background: #ef4444; }
+
+/* ── Payment buttons ── */
+.pb {
+  width: 100%; padding: 13px 16px; border-radius: var(--rs);
+  border: 1.5px solid var(--br); background: var(--bg2); color: var(--tx);
+  font-size: 14px; font-weight: 600; cursor: pointer; text-align: left;
+  transition: border-color var(--tr), background var(--tr), transform var(--tr);
+  margin-bottom: 8px; display: flex; align-items: center; gap: 12px;
+}
+.pb:active { transform: scale(.98); border-color: var(--a); }
+.pb-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+
+/* ── Referral block ── */
+.rb {
+  background: var(--a3); border-radius: var(--rs); padding: 12px 14px;
+  border: 1px solid rgba(108,99,255,.2);
+}
+.rl { font-size: 12px; color: var(--a); word-break: break-all; font-weight: 500; }
+
+/* ── Stats grid ── */
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.stat-item {
+  background: var(--bg2); border-radius: var(--rs); padding: 14px;
+  border: 1px solid var(--br); text-align: center;
+}
+.stat-val { font-size: 22px; font-weight: 800; color: var(--a); }
+.stat-lbl { font-size: 11px; color: var(--hi); margin-top: 2px; font-weight: 600; }
+
+/* ── Loading / Empty ── */
+.ld { text-align: center; padding: 56px 16px; color: var(--hi); }
+.ls {
+  width: 36px; height: 36px; border: 3px solid var(--br);
+  border-top-color: var(--a); border-radius: 50%;
+  animation: sp .7s linear infinite; margin: 0 auto 14px;
+}
+@keyframes sp { to { transform: rotate(360deg); } }
+.em { text-align: center; padding: 48px 16px; color: var(--hi); }
+.ei { font-size: 52px; margin-bottom: 12px; }
+.em-title { font-size: 16px; font-weight: 700; color: var(--tx); margin-bottom: 6px; }
+.em-sub { font-size: 13px; margin-bottom: 20px; }
+
+/* ── Toast ── */
+.toast {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%) translateY(-8px);
+  background: #22c55e; color: #fff; padding: 10px 20px; border-radius: 24px;
+  font-size: 13px; font-weight: 700; z-index: 999; opacity: 0;
+  transition: opacity .25s, transform .25s; pointer-events: none;
+  white-space: nowrap; box-shadow: 0 4px 16px rgba(0,0,0,.2);
+}
+.toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.err { background: #ef4444; }
+.toast.info { background: var(--a); }
+
+/* ── Countdown chip ── */
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+}
+.chip-ok { background: rgba(34,197,94,.12); color: #22c55e; }
+.chip-warn { background: rgba(234,179,8,.12); color: #eab308; }
+.chip-danger { background: rgba(239,68,68,.12); color: #ef4444; }
+
+/* ── Divider ── */
+.div { height: 1px; background: var(--br); margin: 12px 0; }
+
+/* ── Speed test ── */
+.speed-ring {
+  width: 80px; height: 80px; border-radius: 50%;
+  background: conic-gradient(var(--a) 0%, var(--br) 0%);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; margin: 0 auto 8px;
+  box-shadow: 0 0 0 4px var(--bg2), 0 0 0 5px var(--br);
+}
+.speed-inner {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: var(--bg2); display: flex; align-items: center;
+  justify-content: center; flex-direction: column;
+}
 </style>
 </head>
 <body class="dark">
+
+<!-- ── HOME ── -->
 <div id="s-home" class="scr on">
-  <div class="ph"><div class="pt" id="app-title">{{ app_name }}</div><button class="bi" onclick="toggleTheme()" id="tbtn">🌙</button></div>
-  <div id="home-c"><div class="ld"><div class="ls"></div>Загрузка...</div></div>
+  <div class="ph">
+    <div class="pt" id="app-title">{{ app_name }}</div>
+    <button class="bi" onclick="toggleTheme()" id="tbtn" title="Сменить тему">🌙</button>
+  </div>
+  <div id="home-c"><div class="ld"><div class="ls"></div></div></div>
 </div>
+
+<!-- ── SUBS ── -->
 <div id="s-subs" class="scr">
   <div class="ph"><div class="pt">🔑 Подписки</div></div>
   <div id="subs-c"><div class="ld"><div class="ls"></div></div></div>
 </div>
+
+<!-- ── BUY ── -->
 <div id="s-buy" class="scr">
   <div class="ph"><div class="pt">💳 Купить</div></div>
   <div id="buy-c"><div class="ld"><div class="ls"></div></div></div>
 </div>
+
+<!-- ── PROFILE ── -->
 <div id="s-profile" class="scr">
   <div class="ph"><div class="pt">👤 Профиль</div></div>
   <div id="profile-c"><div class="ld"><div class="ls"></div></div></div>
 </div>
+
+<!-- ── NAV ── -->
 <nav class="nav">
-  <button class="nb on" onclick="go('home')" id="n-home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Главная</button>
-  <button class="nb" onclick="go('subs')" id="n-subs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Подписки</button>
-  <button class="nb" onclick="go('buy')" id="n-buy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>Купить</button>
-  <button class="nb" onclick="go('profile')" id="n-profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Профиль</button>
+  <button class="nb on" onclick="go('home')" id="n-home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    Главная
+  </button>
+  <button class="nb" onclick="go('subs')" id="n-subs">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+    Подписки
+  </button>
+  <button class="nb" onclick="go('buy')" id="n-buy">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+    Купить
+  </button>
+  <button class="nb" onclick="go('profile')" id="n-profile">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    Профиль
+  </button>
 </nav>
+
 <div class="toast" id="toast"></div>
+
 <script>
-const tg=window.Telegram.WebApp;
-tg.ready();tg.expand();
-const B='/app';
-let U=null,plans=[],selPlan=null,cur='home';
-const su='{{ support_url }}';
+const tg = window.Telegram.WebApp;
+tg.ready(); tg.expand();
+const B = '/app';
+let U = null, plans = [], selPlan = null, cur = 'home';
+const su = '{{ support_url }}';
 
-// Theme
-const saved=localStorage.getItem('theme')||(tg.colorScheme==='light'?'light':'dark');
+// ── Theme ──────────────────────────────────────────────────────────────────
+const saved = localStorage.getItem('theme') || (tg.colorScheme === 'light' ? 'light' : 'dark');
 setTheme(saved);
-function setTheme(t){document.body.className=t;localStorage.setItem('theme',t);document.getElementById('tbtn').textContent=t==='dark'?'🌙':'☀️';}
-function toggleTheme(){setTheme(document.body.className==='dark'?'light':'dark');}
+function setTheme(t) {
+  document.body.className = t;
+  localStorage.setItem('theme', t);
+  document.getElementById('tbtn').textContent = t === 'dark' ? '🌙' : '☀️';
+}
+function toggleTheme() { setTheme(document.body.className === 'dark' ? 'light' : 'dark'); }
 
-// Nav
-function go(t){
-  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
-  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
-  document.getElementById('s-'+t).classList.add('on');
-  document.getElementById('n-'+t).classList.add('on');
-  cur=t;
-  if(t==='subs')loadSubs();
-  if(t==='buy')renderBuy();
-  if(t==='profile')loadProfile();
+// ── Nav ────────────────────────────────────────────────────────────────────
+function go(t) {
+  document.querySelectorAll('.scr').forEach(s => s.classList.remove('on'));
+  document.querySelectorAll('.nb').forEach(b => b.classList.remove('on'));
+  document.getElementById('s-' + t).classList.add('on');
+  document.getElementById('n-' + t).classList.add('on');
+  cur = t;
+  if (t === 'subs') loadSubs();
+  if (t === 'buy') renderBuy();
+  if (t === 'profile') loadProfile();
 }
 
-// Init
-async function init(){
-  try{
-    const r=await fetch(B+'/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tg.initData})});
-    const d=await r.json();
-    if(!d.ok){showErr('Ошибка авторизации');return;}
-    U=d.user;
+// ── Init ───────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const r = await fetch(B + '/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData: tg.initData })
+    });
+    const d = await r.json();
+    if (!d.ok) { showErr('Ошибка авторизации'); return; }
+    U = d.user;
     renderHome();
     loadPlans();
-    const pid=localStorage.getItem('ppid');
-    if(pid){go('buy');showCheck(+pid);}
-  }catch(e){showErr('Нет соединения');}
+    const pid = localStorage.getItem('ppid');
+    if (pid) { go('buy'); showCheck(+pid); }
+  } catch (e) { showErr('Нет соединения'); }
 }
 
-// Home
-function renderHome(){
-  if(!U)return;
-  document.getElementById('home-c').innerHTML=`
-  <div class="card" style="display:flex;align-items:center;gap:14px">
-    <div class="av">${(U.full_name||'U')[0].toUpperCase()}</div>
-    <div style="flex:1">
-      <div style="font-size:17px;font-weight:700">${U.full_name}</div>
-      ${U.username?`<div style="font-size:13px;color:var(--hi)">@${U.username}</div>`:''}
+// ── Home ───────────────────────────────────────────────────────────────────
+function renderHome() {
+  if (!U) return;
+  const initials = (U.full_name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  document.getElementById('home-c').innerHTML = `
+  <div class="hero">
+    <div style="display:flex;align-items:center;gap:14px;position:relative;z-index:1">
+      <div class="av" style="background:rgba(255,255,255,.2);backdrop-filter:blur(8px);box-shadow:none;font-size:18px">${initials}</div>
+      <div style="flex:1">
+        <div style="font-size:18px;font-weight:800;color:#fff">${U.full_name}</div>
+        ${U.username ? `<div style="font-size:13px;color:rgba(255,255,255,.7)">@${U.username}</div>` : ''}
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:16px;position:relative;z-index:1">
+      <div style="flex:1;background:rgba(255,255,255,.12);border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:800;color:#fff">${U.balance.toFixed(2)} ₽</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Баланс</div>
+      </div>
+      <div style="flex:1;background:rgba(255,255,255,.12);border-radius:12px;padding:12px;text-align:center" id="home-active-count">
+        <div style="font-size:20px;font-weight:800;color:#fff">—</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Активных</div>
+      </div>
     </div>
   </div>
+
+  <div id="home-expiry-warn"></div>
+
   <div class="card">
-    <div class="ct">Баланс</div>
-    <div style="font-size:28px;font-weight:800;color:var(--a)">${U.balance.toFixed(2)} ₽</div>
-  </div>
-  <div class="card">
-    <div class="ct">Быстрые действия</div>
+    <div class="sl2">Быстрые действия</div>
     <button class="btn bp" onclick="go('buy')" style="margin-bottom:8px">💳 Купить подписку</button>
     <button class="btn bo" onclick="go('subs')">🔑 Мои подписки</button>
   </div>
-  ${su?`<div class="card"><button class="btn bo" onclick="tg.openLink('${su}')">💬 Поддержка</button></div>`:''}`;
+
+  <div id="home-active-preview"></div>
+
+  ${su ? `<div class="card"><button class="btn bo" onclick="tg.openLink('${su}')">💬 Написать в поддержку</button></div>` : ''}
+  `;
+  loadHomePreview();
 }
 
-// Subs
-async function loadSubs(){
-  const el=document.getElementById('subs-c');
-  el.innerHTML='<div class="ld"><div class="ls"></div></div>';
-  try{
-    const r=await fetch(B+'/profile',{headers:{'X-Telegram-Init-Data':tg.initData}});
-    const d=await r.json();
-    if(!d.ok){el.innerHTML='<div class="em"><div class="ei">❌</div>Ошибка</div>';return;}
+async function loadHomePreview() {
+  try {
+    const r = await fetch(B + '/profile', { headers: { 'X-Telegram-Init-Data': tg.initData } });
+    const d = await r.json();
+    if (!d.ok) return;
+    const cnt = document.getElementById('home-active-count');
+    if (cnt) cnt.innerHTML = `<div style="font-size:20px;font-weight:800;color:#fff">${d.active_keys.length}</div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Активных</div>`;
+
+    // Expiry warning
+    const warn = document.getElementById('home-expiry-warn');
+    if (warn && d.active_keys.length) {
+      const nearest = d.active_keys
+        .filter(k => k.expires_at)
+        .sort((a, b) => new Date(a.expires_at) - new Date(b.expires_at))[0];
+      if (nearest) {
+        const days = Math.ceil((new Date(nearest.expires_at) - Date.now()) / 86400000);
+        if (days <= 5) {
+          const cls = days <= 1 ? 'chip-danger' : days <= 3 ? 'chip-warn' : 'chip-ok';
+          warn.innerHTML = `<div class="card" style="display:flex;align-items:center;gap:10px;border-color:${days<=1?'#ef4444':days<=3?'#eab308':'#22c55e'}">
+            <span style="font-size:24px">${days <= 1 ? '🚨' : '⚠️'}</span>
+            <div>
+              <div style="font-size:13px;font-weight:700">Подписка истекает ${days <= 0 ? 'сегодня' : `через ${days} дн.`}</div>
+              <div style="font-size:12px;color:var(--hi)">${nearest.name}</div>
+            </div>
+            <button class="btn bp bs" onclick="go('buy')" style="margin-left:auto;white-space:nowrap">Продлить</button>
+          </div>`;
+        }
+      }
+    }
+
+    // Active keys preview
+    const prev = document.getElementById('home-active-preview');
+    if (prev && d.active_keys.length) {
+      const k = d.active_keys[0];
+      const exp = k.expires_at ? new Date(k.expires_at).toLocaleDateString('ru') : '—';
+      const days = k.expires_at ? Math.ceil((new Date(k.expires_at) - Date.now()) / 86400000) : null;
+      prev.innerHTML = `<div class="sl2">Активная подписка</div>
+      <div class="kc active-key">
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">
+          <div class="kn">${k.name}</div>
+          <span class="badge ba">✅ Активна</span>
+        </div>
+        <div class="ke">📅 До: ${exp}${days !== null && days > 0 ? ` · ${days} дн.` : ''}</div>
+        ${k.access_url ? `<div class="ku" onclick="cp('${k.access_url}')">🔑 Нажми чтобы скопировать ссылку</div>` : ''}
+        ${days !== null && days > 0 ? `<div class="db"><div class="df ${days<=1?'d':days<=3?'w':''}" style="width:${Math.min(100,Math.round(days/30*100))}%"></div></div>` : ''}
+      </div>`;
+    }
+  } catch (e) {}
+}
+
+// ── Subs ───────────────────────────────────────────────────────────────────
+async function loadSubs() {
+  const el = document.getElementById('subs-c');
+  el.innerHTML = '<div class="ld"><div class="ls"></div></div>';
+  try {
+    const r = await fetch(B + '/profile', { headers: { 'X-Telegram-Init-Data': tg.initData } });
+    const d = await r.json();
+    if (!d.ok) { el.innerHTML = '<div class="em"><div class="ei">❌</div><div class="em-title">Ошибка</div></div>'; return; }
     renderSubs(d);
-  }catch(e){el.innerHTML='<div class="em"><div class="ei">⚠️</div>Нет соединения</div>';}
+  } catch (e) { el.innerHTML = '<div class="em"><div class="ei">⚠️</div><div class="em-title">Нет соединения</div></div>'; }
 }
 
-function renderSubs(d){
-  const el=document.getElementById('subs-c');
-  if(!d.active_keys.length&&!d.archive_keys.length){
-    el.innerHTML=`<div class="em"><div class="ei">📦</div><div style="margin-bottom:16px">Нет подписок</div><button class="btn bp bs" onclick="go('buy')">Купить</button></div>`;
+function renderSubs(d) {
+  const el = document.getElementById('subs-c');
+  if (!d.active_keys.length && !d.archive_keys.length) {
+    el.innerHTML = `<div class="em"><div class="ei">📦</div><div class="em-title">Нет подписок</div><div class="em-sub">Купи подписку чтобы получить VPN-доступ</div><button class="btn bp bs" onclick="go('buy')">💳 Купить</button></div>`;
     return;
   }
-  let h='';
-  if(d.active_keys.length){
-    h+=`<div class="sl2">✅ Активные (${d.active_keys.length})</div>`;
-    d.active_keys.forEach(k=>h+=keyCard(k));
+  let h = '';
+  if (d.active_keys.length) {
+    h += `<div class="sl2">✅ Активные (${d.active_keys.length})</div>`;
+    d.active_keys.forEach(k => h += keyCard(k));
   }
-  if(d.archive_keys.length){
-    h+=`<div class="sl2">🗂 Архив (${d.archive_keys.length})</div>`;
-    d.archive_keys.forEach(k=>h+=keyCard(k));
+  if (d.archive_keys.length) {
+    h += `<div class="sl2">🗂 Архив (${d.archive_keys.length})</div>`;
+    d.archive_keys.forEach(k => h += keyCard(k));
   }
-  el.innerHTML=h;
+  el.innerHTML = h;
 }
 
-function keyCard(k){
-  const lm={active:'✅ Активна',expired:'⏰ Истекла',revoked:'❌ Отозвана'};
-  const bm={active:'ba',expired:'be',revoked:'br2'};
-  const exp=k.expires_at?new Date(k.expires_at).toLocaleDateString('ru'):'—';
-  const days=k.expires_at?Math.ceil((new Date(k.expires_at)-Date.now())/86400000):null;
-  let bar='';
-  if(days!==null&&days>0&&k.status==='active'){
-    const pct=Math.min(100,Math.round(days/30*100));
-    const cls=days<=1?'d':days<=3?'w':'';
-    bar=`<div class="db"><div class="df ${cls}" style="width:${pct}%"></div></div>`;
+function keyCard(k) {
+  const lm = { active: '✅ Активна', expired: '⏰ Истекла', revoked: '❌ Отозвана' };
+  const bm = { active: 'ba', expired: 'be', revoked: 'br2' };
+  const exp = k.expires_at ? new Date(k.expires_at).toLocaleDateString('ru') : '—';
+  const days = k.expires_at ? Math.ceil((new Date(k.expires_at) - Date.now()) / 86400000) : null;
+  let bar = '';
+  if (days !== null && days > 0 && k.status === 'active') {
+    const pct = Math.min(100, Math.round(days / 30 * 100));
+    const cls = days <= 1 ? 'd' : days <= 3 ? 'w' : '';
+    bar = `<div class="db"><div class="df ${cls}" style="width:${pct}%"></div></div>`;
   }
-  return `<div class="kc">
+  const daysChip = days !== null && k.status === 'active'
+    ? `<span class="chip ${days <= 1 ? 'chip-danger' : days <= 3 ? 'chip-warn' : 'chip-ok'}">${days > 0 ? days + ' дн.' : 'Сегодня'}</span>`
+    : '';
+  return `<div class="kc ${k.status === 'active' ? 'active-key' : ''}">
     <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:4px">
       <div class="kn">${k.name}</div>
-      <span class="badge ${bm[k.status]||'br2'}">${lm[k.status]||k.status}</span>
+      <span class="badge ${bm[k.status] || 'br2'}">${lm[k.status] || k.status}</span>
     </div>
-    <div class="ke">📅 До: ${exp}${days!==null&&days>0?` (${days} дн.)`:''}</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <div class="ke" style="margin:0">📅 До: ${exp}</div>
+      ${daysChip}
+    </div>
     ${bar}
-    ${k.access_url?`<div class="ku" onclick="cp('${k.access_url}')">🔑 ${k.access_url.substring(0,55)}...<br><small style="color:var(--hi)">Нажми чтобы скопировать</small></div>`:''}
+    ${k.access_url ? `<div class="ku" onclick="cp('${k.access_url}')">🔑 ${k.access_url.substring(0, 52)}…<br><small style="color:var(--hi);font-size:10px">Нажми чтобы скопировать</small></div>` : ''}
   </div>`;
 }
+</script>
 
-// Buy
-async function loadPlans(){
-  try{const r=await fetch(B+'/plans');const d=await r.json();if(d.ok)plans=d.plans;if(cur==='buy')renderBuy();}catch(e){}
+<script>
+// ── Buy ────────────────────────────────────────────────────────────────────
+async function loadPlans() {
+  try {
+    const r = await fetch(B + '/plans');
+    const d = await r.json();
+    if (d.ok) plans = d.plans;
+    if (cur === 'buy') renderBuy();
+  } catch (e) {}
 }
 
-function renderBuy(){
-  const el=document.getElementById('buy-c');
-  if(!plans.length){el.innerHTML='<div class="em"><div class="ei">😔</div>Нет тарифов</div>';return;}
-  let h='';
-  plans.forEach(p=>{
-    h+=`<div class="pc${selPlan?.id===p.id?' sel':''}" onclick="selP(${p.id})">
+function renderBuy() {
+  const el = document.getElementById('buy-c');
+  if (!plans.length) {
+    el.innerHTML = '<div class="em"><div class="ei">😔</div><div class="em-title">Нет тарифов</div></div>';
+    return;
+  }
+  let h = '<div class="sl2">Выбери тариф</div>';
+  plans.forEach((p, i) => {
+    const isPopular = i === 1 && plans.length >= 3;
+    h += `<div class="pc${selPlan?.id === p.id ? ' sel' : ''}${isPopular ? ' pc-popular' : ''}" onclick="selP(${p.id})">
       <div class="pn">${p.name}</div>
-      <div style="display:flex;align-items:baseline;gap:6px">
+      <div style="display:flex;align-items:baseline;gap:8px">
         <span class="pp">${p.price} ₽</span>
         <span style="font-size:13px;color:var(--hi)">${p.duration_days} дней</span>
       </div>
-      ${p.description?`<div class="pd">${p.description}</div>`:''}
+      ${p.description ? `<div class="pd">${p.description}</div>` : ''}
     </div>`;
   });
-  if(selPlan){
-    const bal=U?.balance||0;
-    h+=`<div class="card"><div class="ct">Способ оплаты</div>
-      <button class="pb" onclick="payYK()"><span style="font-size:18px">💳</span><div><div style="font-weight:600">Банковская карта</div><div style="font-size:12px;color:var(--hi)">ЮКасса</div></div></button>
-      <button class="pb" onclick="paySBP()"><span style="font-size:18px">🏦</span><div><div style="font-weight:600">СБП</div><div style="font-size:12px;color:var(--hi)">Система быстрых платежей</div></div></button>
-      ${bal>=selPlan.price?`<button class="pb" onclick="payBal()" style="border-color:rgba(34,197,94,.3)"><span style="font-size:18px">💰</span><div><div style="font-weight:600">Баланс</div><div style="font-size:12px;color:var(--hi)">${bal.toFixed(2)} ₽</div></div></button>`:''}
+
+  if (selPlan) {
+    const bal = U?.balance || 0;
+    h += `<div class="sl2">Способ оплаты</div>
+    <div class="card" style="padding:12px">
+      <button class="pb" onclick="payYK()">
+        <div class="pb-icon" style="background:rgba(108,99,255,.12)">💳</div>
+        <div><div style="font-weight:700">Банковская карта</div><div style="font-size:12px;color:var(--hi)">ЮКасса · Visa, MC, МИР</div></div>
+      </button>
+      <button class="pb" onclick="paySBP()">
+        <div class="pb-icon" style="background:rgba(34,197,94,.1)">🏦</div>
+        <div><div style="font-weight:700">СБП</div><div style="font-size:12px;color:var(--hi)">Система быстрых платежей</div></div>
+      </button>
+      ${bal >= selPlan.price ? `<button class="pb" onclick="payBal()" style="border-color:rgba(34,197,94,.3)">
+        <div class="pb-icon" style="background:rgba(34,197,94,.1)">💰</div>
+        <div><div style="font-weight:700">Баланс</div><div style="font-size:12px;color:#22c55e">${bal.toFixed(2)} ₽ доступно</div></div>
+      </button>` : ''}
     </div>`;
   }
-  el.innerHTML=h;
+  el.innerHTML = h;
 }
 
-function selP(id){selPlan=plans.find(p=>p.id===id);renderBuy();}
+function selP(id) { selPlan = plans.find(p => p.id === id); renderBuy(); }
 
-async function payBal(){
-  if(!selPlan)return;
-  tg.showConfirm(`Оплатить «${selPlan.name}» за ${selPlan.price} ₽?`,async ok=>{
-    if(!ok)return;
-    try{
-      const r=await fetch(B+'/pay/balance',{method:'POST',headers:{'Content-Type':'application/json','X-Telegram-Init-Data':tg.initData},body:JSON.stringify({plan_id:selPlan.id})});
-      const d=await r.json();
-      if(d.ok){U.balance-=selPlan.price;selPlan=null;showOK(d.access_url);}
-      else tg.showAlert('Ошибка: '+(d.error||'Неизвестно'));
-    }catch(e){tg.showAlert('Ошибка соединения');}
+async function payBal() {
+  if (!selPlan) return;
+  tg.showConfirm(`Оплатить «${selPlan.name}» за ${selPlan.price} ₽?`, async ok => {
+    if (!ok) return;
+    try {
+      const r = await fetch(B + '/pay/balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': tg.initData },
+        body: JSON.stringify({ plan_id: selPlan.id })
+      });
+      const d = await r.json();
+      if (d.ok) { if (U) U.balance -= selPlan.price; selPlan = null; showOK(d.access_url, d.days); }
+      else tg.showAlert('Ошибка: ' + (d.error || 'Неизвестно'));
+    } catch (e) { tg.showAlert('Ошибка соединения'); }
   });
 }
 
-async function payYK(){
-  if(!selPlan)return;
-  try{
-    const r=await fetch(B+'/pay/yookassa',{method:'POST',headers:{'Content-Type':'application/json','X-Telegram-Init-Data':tg.initData},body:JSON.stringify({plan_id:selPlan.id})});
-    const d=await r.json();
-    if(d.ok){localStorage.setItem('ppid',d.payment_id);tg.openLink(d.confirm_url);showCheck(d.payment_id);}
-    else tg.showAlert('Ошибка: '+(d.error||'Неизвестно'));
-  }catch(e){tg.showAlert('Ошибка соединения');}
+async function payYK() {
+  if (!selPlan) return;
+  try {
+    const r = await fetch(B + '/pay/yookassa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': tg.initData },
+      body: JSON.stringify({ plan_id: selPlan.id })
+    });
+    const d = await r.json();
+    if (d.ok) { localStorage.setItem('ppid', d.payment_id); tg.openLink(d.confirm_url); showCheck(d.payment_id); }
+    else tg.showAlert('Ошибка: ' + (d.error || 'Неизвестно'));
+  } catch (e) { tg.showAlert('Ошибка соединения'); }
 }
 
-async function paySBP(){
-  if(!selPlan)return;
-  try{
-    const r=await fetch(B+'/pay/sbp',{method:'POST',headers:{'Content-Type':'application/json','X-Telegram-Init-Data':tg.initData},body:JSON.stringify({plan_id:selPlan.id})});
-    const d=await r.json();
-    if(d.ok){localStorage.setItem('ppid',d.payment_id);tg.openLink(d.confirm_url);showCheck(d.payment_id);}
-    else tg.showAlert('Ошибка: '+(d.error||'Неизвестно'));
-  }catch(e){tg.showAlert('Ошибка соединения');}
+async function paySBP() {
+  if (!selPlan) return;
+  try {
+    const r = await fetch(B + '/pay/sbp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': tg.initData },
+      body: JSON.stringify({ plan_id: selPlan.id })
+    });
+    const d = await r.json();
+    if (d.ok) { localStorage.setItem('ppid', d.payment_id); tg.openLink(d.confirm_url); showCheck(d.payment_id); }
+    else tg.showAlert('Ошибка: ' + (d.error || 'Неизвестно'));
+  } catch (e) { tg.showAlert('Ошибка соединения'); }
 }
 
-function showCheck(pid){
-  document.getElementById('buy-c').innerHTML=`
+function showCheck(pid) {
+  document.getElementById('buy-c').innerHTML = `
   <div class="card" style="text-align:center;padding:32px 16px">
-    <div style="font-size:48px;margin-bottom:16px">💳</div>
-    <div style="font-size:18px;font-weight:700;margin-bottom:8px">Ожидание оплаты</div>
-    <div style="font-size:14px;color:var(--hi);margin-bottom:24px">После оплаты нажмите кнопку ниже</div>
+    <div style="font-size:56px;margin-bottom:16px">⏳</div>
+    <div style="font-size:18px;font-weight:800;margin-bottom:8px">Ожидание оплаты</div>
+    <div style="font-size:13px;color:var(--hi);margin-bottom:24px">После оплаты нажмите кнопку ниже</div>
     <button class="btn bp" onclick="chkPay(${pid})" id="ckbtn">🔄 Проверить оплату</button>
-    <button class="btn bo" style="margin-top:8px" onclick="selPlan=null;renderBuy()">◀️ Назад</button>
+    <button class="btn bo" style="margin-top:8px" onclick="selPlan=null;renderBuy()">◀️ Назад к тарифам</button>
   </div>`;
 }
 
-async function chkPay(pid){
-  const btn=document.getElementById('ckbtn');
-  if(btn){btn.textContent='⏳ Проверяю...';btn.disabled=true;}
-  try{
-    const r=await fetch(B+'/pay/check/'+pid,{headers:{'X-Telegram-Init-Data':tg.initData}});
-    const d=await r.json();
-    if(d.ok&&d.status==='succeeded'){
+async function chkPay(pid) {
+  const btn = document.getElementById('ckbtn');
+  if (btn) { btn.textContent = '⏳ Проверяю…'; btn.disabled = true; }
+  try {
+    const r = await fetch(B + '/pay/check/' + pid, { headers: { 'X-Telegram-Init-Data': tg.initData } });
+    const d = await r.json();
+    if (d.ok && d.status === 'succeeded') {
       localStorage.removeItem('ppid');
       showOK(d.access_url);
-    }else if(d.status==='failed'){
+    } else if (d.status === 'failed') {
       localStorage.removeItem('ppid');
       tg.showAlert('❌ Платёж отменён.');
-      selPlan=null;renderBuy();
-    }else{
-      if(btn){btn.textContent='🔄 Проверить оплату';btn.disabled=false;}
+      selPlan = null; renderBuy();
+    } else {
+      if (btn) { btn.textContent = '🔄 Проверить оплату'; btn.disabled = false; }
       tg.showAlert('⏳ Оплата ещё не поступила. Попробуйте через минуту.');
     }
-  }catch(e){if(btn){btn.textContent='🔄 Проверить оплату';btn.disabled=false;}tg.showAlert('Ошибка соединения');}
+  } catch (e) {
+    if (btn) { btn.textContent = '🔄 Проверить оплату'; btn.disabled = false; }
+    tg.showAlert('Ошибка соединения');
+  }
 }
 
-function showOK(url){
-  const el=document.getElementById('buy-c');
-  el.innerHTML=`<div class="card" style="text-align:center;padding:24px 16px">
-    <div style="font-size:48px;margin-bottom:12px">✅</div>
-    <div style="font-size:18px;font-weight:700;margin-bottom:16px">Подписка активирована!</div>
-    ${url?`<div class="ku" onclick="cp('${url}')" style="text-align:left;margin-bottom:16px">🔑 ${url.substring(0,70)}...<br><small style="color:var(--hi)">Нажми чтобы скопировать</small></div>`:''}
+function showOK(url, days) {
+  document.getElementById('buy-c').innerHTML = `
+  <div class="card" style="text-align:center;padding:28px 16px">
+    <div style="font-size:56px;margin-bottom:12px">🎉</div>
+    <div style="font-size:20px;font-weight:800;margin-bottom:6px">Подписка активирована!</div>
+    ${days ? `<div style="font-size:13px;color:var(--hi);margin-bottom:16px">Действует ${days} дней</div>` : ''}
+    ${url ? `<div class="ku" onclick="cp('${url}')" style="text-align:left;margin-bottom:16px">
+      🔑 <b>Ссылка подписки:</b><br>
+      <span style="font-size:11px">${url.substring(0, 70)}…</span><br>
+      <small style="color:var(--hi);font-size:10px">Нажми чтобы скопировать</small>
+    </div>` : ''}
     <button class="btn bp" onclick="go('subs')">🔑 Мои подписки</button>
   </div>`;
-  toast('✅ Подписка активирована!');
+  toast('🎉 Подписка активирована!');
 }
 
-// Profile
-async function loadProfile(){
-  const el=document.getElementById('profile-c');
-  if(!U){el.innerHTML='<div class="ld"><div class="ls"></div></div>';return;}
-  try{
-    const r=await fetch(B+'/profile',{headers:{'X-Telegram-Init-Data':tg.initData}});
-    const d=await r.json();
-    if(!d.ok)return;
-    const u=d.user;
-    const bu=tg.initDataUnsafe?.user?.username||'';
-    const rl=u.referral_code&&bu?`https://t.me/${bu}?start=${u.referral_code}`:null;
-    el.innerHTML=`
-    <div class="card">
-      <div class="sr"><span class="sl">🆔 ID</span><span class="sv">${u.id}</span></div>
-      <div class="sr"><span class="sl">📛 Имя</span><span class="sv">${u.full_name}</span></div>
-      <div class="sr"><span class="sl">💰 Баланс</span><span class="sv" style="color:var(--a)">${u.balance.toFixed(2)} ₽</span></div>
-      <div class="sr"><span class="sl">🔑 Активных</span><span class="sv">${d.active_keys.length}</span></div>
-      <div class="sr"><span class="sl">🗂 В архиве</span><span class="sv">${d.archive_keys.length}</span></div>
-      <div class="sr"><span class="sl">👥 Рефералов</span><span class="sv">${u.referrals_count}</span></div>
+// ── Profile ────────────────────────────────────────────────────────────────
+async function loadProfile() {
+  const el = document.getElementById('profile-c');
+  if (!U) { el.innerHTML = '<div class="ld"><div class="ls"></div></div>'; return; }
+  try {
+    const r = await fetch(B + '/profile', { headers: { 'X-Telegram-Init-Data': tg.initData } });
+    const d = await r.json();
+    if (!d.ok) return;
+    const u = d.user;
+    const bu = tg.initDataUnsafe?.user?.username || '';
+    const rl = u.referral_code && bu ? `https://t.me/${bu}?start=${u.referral_code}` : null;
+    const initials = (u.full_name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+
+    el.innerHTML = `
+    <div class="hero" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:14px;position:relative;z-index:1">
+        <div class="av" style="background:rgba(255,255,255,.2);backdrop-filter:blur(8px);box-shadow:none;font-size:18px">${initials}</div>
+        <div>
+          <div style="font-size:17px;font-weight:800;color:#fff">${u.full_name}</div>
+          ${u.username ? `<div style="font-size:13px;color:rgba(255,255,255,.7)">@${u.username}</div>` : ''}
+        </div>
+      </div>
     </div>
-    ${rl?`<div class="card"><div class="ct">Реферальная ссылка</div>
+
+    <div class="stats-grid">
+      <div class="stat-item"><div class="stat-val">${d.active_keys.length}</div><div class="stat-lbl">🔑 Активных</div></div>
+      <div class="stat-item"><div class="stat-val">${u.referrals_count}</div><div class="stat-lbl">👥 Рефералов</div></div>
+      <div class="stat-item"><div class="stat-val" style="font-size:16px">${u.balance.toFixed(0)} ₽</div><div class="stat-lbl">💰 Баланс</div></div>
+      <div class="stat-item"><div class="stat-val">${d.archive_keys.length}</div><div class="stat-lbl">🗂 В архиве</div></div>
+    </div>
+
+    <div class="card">
+      <div class="sr"><span class="sr-label">🆔 Telegram ID</span><span class="sr-val"><code style="font-size:13px">${u.id}</code></span></div>
+      ${u.username ? `<div class="sr"><span class="sr-label">👤 Username</span><span class="sr-val">@${u.username}</span></div>` : ''}
+    </div>
+
+    ${rl ? `<div class="card">
+      <div class="sl2">🎁 Реферальная программа</div>
+      <div style="font-size:13px;color:var(--hi);margin-bottom:10px">Приглашай друзей и получай бонусы за каждого</div>
       <div class="rb"><div class="rl">${rl}</div></div>
       <button class="btn bo" style="margin-top:10px" onclick="cp('${rl}')">📋 Скопировать ссылку</button>
-    </div>`:''}
-    ${su?`<div class="card"><button class="btn bo" onclick="tg.openLink('${su}')">💬 Написать в поддержку</button></div>`:''}`;
-  }catch(e){el.innerHTML='<div class="em"><div class="ei">⚠️</div>Ошибка</div>';}
+    </div>` : ''}
+
+    ${su ? `<div class="card"><button class="btn bo" onclick="tg.openLink('${su}')">💬 Написать в поддержку</button></div>` : ''}
+    `;
+  } catch (e) { el.innerHTML = '<div class="em"><div class="ei">⚠️</div><div class="em-title">Ошибка загрузки</div></div>'; }
 }
 
-// Utils
-function cp(t){
-  navigator.clipboard?.writeText(t).then(()=>toast('✅ Скопировано!')).catch(()=>tg.showAlert('Ссылка:\n'+t));
-  if(!navigator.clipboard)tg.showAlert('Ссылка:\n'+t);
+// ── Utils ──────────────────────────────────────────────────────────────────
+function cp(t) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(t).then(() => toast('✅ Скопировано!')).catch(() => tg.showAlert('Ссылка:\n' + t));
+  } else {
+    tg.showAlert('Ссылка:\n' + t);
+  }
 }
-function toast(m,err){
-  const el=document.getElementById('toast');
-  el.textContent=m;el.className='toast on'+(err?' err':'');
-  setTimeout(()=>el.className='toast',2500);
+
+function toast(m, type) {
+  const el = document.getElementById('toast');
+  el.textContent = m;
+  el.className = 'toast on' + (type === 'err' ? ' err' : type === 'info' ? ' info' : '');
+  setTimeout(() => el.className = 'toast', 2800);
 }
-function showErr(m){document.getElementById('home-c').innerHTML=`<div class="em"><div class="ei">❌</div>${m}</div>`;}
+
+function showErr(m) {
+  document.getElementById('home-c').innerHTML = `<div class="em"><div class="ei">❌</div><div class="em-title">${m}</div></div>`;
+}
 
 init();
 </script>

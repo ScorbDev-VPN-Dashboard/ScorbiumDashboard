@@ -55,7 +55,7 @@ class VpnKeyService:
 
     async def count_active(self) -> int:
         result = await self.session.execute(
-            select(func.count()).where(VpnKey.status == VpnKeyStatus.ACTIVE)
+            select(func.count()).where(VpnKey.status == VpnKeyStatus.ACTIVE.value)
         )
         return result.scalar_one()
 
