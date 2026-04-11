@@ -73,10 +73,16 @@ async def cmd_status(message: Message) -> None:
 async def cmd_ping(message: Message) -> None:
     msg = await message.answer("🔄 Проверяю серверы...")
 
-    from app.services.pasarguard.pasarguard import PasarguardService
+    from app.services.pasarguard.pasarguard import get_vpn_panel
     try:
-        nodes_data = await PasarguardService().get_nodes()
-        nodes = nodes_data.get("nodes", []) if isinstance(nodes_data, dict) else (nodes_data or [])
+        panel = get_vpn_panel()
+        # Only Marzban/Pasarguard has nodes endpoint
+        from app.services.pasarguard.pasarguard import PasarguardService
+        if isinstance(panel, PasarguardService):
+            nodes_data = await PasarguardService().get_nodes()
+            nodes = nodes_data.get("nodes", []) if isinstance(nodes_data, dict) else (nodes_data or [])
+        else:
+            nodes = []
     except Exception:
         nodes = []
 
@@ -85,16 +91,17 @@ async def cmd_ping(message: Message) -> None:
         try:
             import httpx
             from app.core.config import config
-            from app.services.pasarguard.pasarguard import get_vpn_panel
             _pg = config.pasarguard
             if _pg:
                 base = str(_pg.pasarguard_admin_panel).rstrip("/")
+                ping_path = "/api/system"
             else:
                 from app.core.configs.remnawave_config import remnawave as _rw
                 base = (_rw.remnawave_url or "").rstrip("/")
+                ping_path = "/api/system/stats"
             start = asyncio.get_event_loop().time()
             async with httpx.AsyncClient(timeout=5, verify=False) as client:
-                await client.get(f"{base}/api/system")
+                await client.get(f"{base}{ping_path}")
             ms = int((asyncio.get_event_loop().time() - start) * 1000)
             status_icon = "🟢" if ms < 100 else "🟡" if ms < 300 else "🔴"
             text = f"🌐 <b>Статус серверов</b>\n\n{status_icon} Основной сервер: <b>{ms} мс</b>"

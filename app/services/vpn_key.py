@@ -106,31 +106,30 @@ class VpnKeyService:
             return None
 
         sub_token = marz_user.get("subscription_url", "")
-        # panel_base: use Marzban URL if available, else Remnawave URL
+        # Build access URL
+        from app.core.configs.remnawave_config import remnawave as _rw
         _pg = config.pasarguard
         if _pg:
             panel_base = str(_pg.pasarguard_admin_panel).rstrip("/")
         else:
-            from app.core.configs.remnawave_config import remnawave as _rw
-
             panel_base = (_rw.remnawave_url or "").rstrip("/")
+
         if sub_token:
             if sub_token.startswith("http"):
                 access_url = sub_token.rstrip("/")
             else:
                 access_url = f"{panel_base}{sub_token.rstrip('/')}"
         else:
-            uuid = marz_user.get("uuid", "")
-            if uuid:
-                from app.core.configs.remnawave_config import remnawave as _rw
-
-                access_url = (
-                    f"{_rw.remnawave_url.rstrip('/')}/sub/{uuid}"
-                    if _rw.remnawave_url
-                    else f"{panel_base}/sub/{username}"
-                )
+            # Remnawave returns subscriptionUrl directly in response
+            sub_url = marz_user.get("subscriptionUrl", "")
+            if sub_url:
+                access_url = sub_url.rstrip("/")
             else:
-                access_url = f"{panel_base}/sub/{username}"
+                uuid = marz_user.get("uuid", "")
+                if uuid and _rw.remnawave_url:
+                    access_url = f"{_rw.remnawave_url.rstrip('/')}/api/sub/{marz_user.get('shortUuid', uuid)}"
+                else:
+                    access_url = f"{panel_base}/sub/{username}"
 
         key.pasarguard_key_id = username
         key.access_url = access_url
@@ -204,7 +203,7 @@ class VpnKeyService:
         synced, errors = 0, 0
         result = await self.session.execute(
             select(VpnKey).where(
-                VpnKey.status == VpnKeyStatus.ACTIVE,
+                VpnKey.status == VpnKeyStatus.ACTIVE.value,
                 VpnKey.pasarguard_key_id.isnot(None),
             )
         )
@@ -213,8 +212,14 @@ class VpnKeyService:
                 marz_user = await self._marzban.get_user(key.pasarguard_key_id)
                 if not marz_user:
                     key.status = VpnKeyStatus.REVOKED.value
-                elif marz_user.get("status") in ("expired", "limited", "disabled"):
-                    key.status = VpnKeyStatus.EXPIRED.value
+                else:
+                    # Support both Marzban (lowercase) and Remnawave (UPPERCASE) statuses
+                    raw_status = (
+                        marz_user.get("_normalized_status")
+                        or marz_user.get("status", "")
+                    ).lower()
+                    if raw_status in ("expired", "limited", "disabled"):
+                        key.status = VpnKeyStatus.EXPIRED.value
                 synced += 1
             except Exception as e:
                 log.warning(f"Sync error key {key.id}: {e}")

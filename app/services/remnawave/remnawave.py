@@ -1,17 +1,6 @@
 """
 Remnawave VPN panel API client.
-Implements VpnPanelInterface so it can be used as a drop-in replacement
-for PasarguardService (Marzban).
-
-Remnawave API v2 key endpoints:
-  POST /api/auth/login          → { accessToken, refreshToken }
-  POST /api/users               → create user → { uuid, subscriptionUrl, ... }
-  PATCH /api/users              → update user (expire, status, etc.)
-  DELETE /api/users/{uuid}      → delete user
-  GET  /api/users/{uuid}        → get user
-  POST /api/users/{uuid}/actions/disable
-  POST /api/users/{uuid}/actions/enable
-  GET  /api/system/stats        → system stats
+Based on official Remnawave OpenAPI v2.7.4
 """
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -46,10 +35,12 @@ class RemnawaveClient:
                     f"{self._base}/api/auth/login",
                     json={"username": self._login, "password": self._password},
                 )
-                if resp.status_code != 200:
-                    raise RuntimeError(f"Remnawave auth failed: {resp.status_code} {resp.text}")
+                if resp.status_code not in (200, 201):
+                    raise RuntimeError(
+                        f"Remnawave auth failed: {resp.status_code} {resp.text}"
+                    )
                 data = resp.json()
-                # response: { response: { accessToken, refreshToken } }
+                # Response: { response: { accessToken } }
                 token_data = data.get("response", data)
                 self._token = token_data.get("accessToken") or token_data.get("access_token")
                 if not self._token:
@@ -108,6 +99,7 @@ class RemnawaveService(VpnPanelInterface):
     """
     High-level Remnawave API service.
     Compatible with VpnPanelInterface.
+    Based on Remnawave OpenAPI v2.7.4
     """
 
     def __init__(self) -> None:
@@ -126,6 +118,7 @@ class RemnawaveService(VpnPanelInterface):
     # ── System ──────────────────────────────────────────────────────────────
 
     async def get_system_stats(self) -> dict:
+        """GET /api/system/stats → { response: { ... } }"""
         data = await self._client.get("/api/system/stats")
         return data.get("response", data)
 
@@ -147,7 +140,7 @@ class RemnawaveService(VpnPanelInterface):
         **kwargs,
     ) -> dict:
         """
-        Create a Remnawave user.
+        POST /api/users
         Returns dict with `subscription_url` key for compatibility.
         """
         expire_at = (
@@ -156,48 +149,40 @@ class RemnawaveService(VpnPanelInterface):
 
         payload: dict = {
             "username": username,
+            "expireAt": expire_at,
             "trafficLimitBytes": data_limit_gb * 1024 ** 3 if data_limit_gb > 0 else 0,
             "trafficLimitStrategy": "NO_RESET",
-            "expireAt": expire_at,
             "status": "ACTIVE",
         }
-
-        # Optional: inbound UUIDs (equivalent to group_ids in Marzban)
-        inbound_uuids = kwargs.get("inbound_uuids") or []
-        if inbound_uuids:
-            payload["activeUserInbounds"] = [{"uuid": uid} for uid in inbound_uuids]
 
         data = await self._client.post("/api/users", payload)
         response = data.get("response", data)
 
-        # Normalize to common format: subscription_url
+        # Normalize to common format
         sub_url = response.get("subscriptionUrl") or response.get("subscription_url", "")
         response["subscription_url"] = sub_url
-        # Store uuid as pasarguard_key_id equivalent
         response["uuid"] = response.get("uuid", "")
         return response
 
     async def get_user(self, username: str) -> Optional[dict]:
         """
-        Remnawave identifies users by UUID, but we store username.
-        We search by username via GET /api/users?username=...
+        GET /api/users/by-username/{username}
+        Returns user dict or None if not found.
         """
         try:
-            data = await self._client.get("/api/users", params={"username": username})
-            users = data.get("response", {})
-            if isinstance(users, list):
-                for u in users:
-                    if u.get("username") == username:
-                        return u
+            data = await self._client.get(f"/api/users/by-username/{username}")
+            response = data.get("response", data)
+            if not response:
                 return None
-            # If it's a single object (direct lookup)
-            if isinstance(users, dict) and users.get("username") == username:
-                return users
-            return None
+            # Normalize status for compatibility
+            status = response.get("status", "")
+            response["_normalized_status"] = self._normalize_status(status)
+            return response
         except Exception:
             return None
 
     async def get_user_by_uuid(self, uuid: str) -> Optional[dict]:
+        """GET /api/users/{uuid}"""
         try:
             data = await self._client.get(f"/api/users/{uuid}")
             return data.get("response", data)
@@ -205,12 +190,15 @@ class RemnawaveService(VpnPanelInterface):
             return None
 
     async def extend_user(self, username: str, extra_days: int) -> dict:
+        """
+        PATCH /api/users — extend expireAt by extra_days.
+        """
         user = await self.get_user(username)
         if not user:
             raise RuntimeError(f"Remnawave user {username} not found")
 
         uuid = user.get("uuid")
-        current_expire = user.get("expireAt") or user.get("expire_at")
+        current_expire = user.get("expireAt")
 
         now = datetime.now(timezone.utc)
         if current_expire:
@@ -228,25 +216,59 @@ class RemnawaveService(VpnPanelInterface):
         return data.get("response", data)
 
     async def disable_user(self, username: str) -> dict:
+        """POST /api/users/{uuid}/actions/disable"""
         user = await self.get_user(username)
         if not user:
             return {}
         uuid = user.get("uuid")
-        data = await self._client.post(f"/api/users/{uuid}/actions/disable")
-        return data.get("response", data)
+        if not uuid:
+            return {}
+        try:
+            data = await self._client.post(f"/api/users/{uuid}/actions/disable")
+            return data.get("response", data)
+        except Exception as e:
+            log.warning(f"Remnawave disable_user {username} failed: {e}")
+            return {}
 
     async def enable_user(self, username: str) -> dict:
+        """POST /api/users/{uuid}/actions/enable"""
         user = await self.get_user(username)
         if not user:
             return {}
         uuid = user.get("uuid")
-        data = await self._client.post(f"/api/users/{uuid}/actions/enable")
-        return data.get("response", data)
+        if not uuid:
+            return {}
+        try:
+            data = await self._client.post(f"/api/users/{uuid}/actions/enable")
+            return data.get("response", data)
+        except Exception as e:
+            log.warning(f"Remnawave enable_user {username} failed: {e}")
+            return {}
 
     async def delete_user(self, username: str) -> None:
+        """DELETE /api/users/{uuid}"""
         user = await self.get_user(username)
         if not user:
             return
         uuid = user.get("uuid")
         if uuid:
-            await self._client.delete(f"/api/users/{uuid}")
+            try:
+                await self._client.delete(f"/api/users/{uuid}")
+            except Exception as e:
+                log.warning(f"Remnawave delete_user {username} failed: {e}")
+
+    # ── Helpers ──────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _normalize_status(status: str) -> str:
+        """
+        Remnawave statuses: ACTIVE, DISABLED, LIMITED, EXPIRED
+        Normalize to lowercase for compatibility with sync logic.
+        """
+        mapping = {
+            "ACTIVE": "active",
+            "DISABLED": "disabled",
+            "LIMITED": "limited",
+            "EXPIRED": "expired",
+        }
+        return mapping.get(status.upper(), status.lower())
