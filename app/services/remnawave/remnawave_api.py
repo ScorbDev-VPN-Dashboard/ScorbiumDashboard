@@ -204,12 +204,17 @@ class RemnaWaveAPI:
         await self._ensure_jwt()
         conn_type = self._detect_connection_type()
         headers = self._prepare_auth_headers()
-        connector_kwargs = {}
-        if conn_type == 'local' and self.base_url.startswith('https://'):
-            ssl_context = ssl.create_default_context()
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-            connector_kwargs['ssl'] = ssl_context
+        connector_kwargs = {
+            "force_close": True,  # не переиспользуем соединения
+        }
+        # Отключаем HTTP/2 — Remnawave некорректно его обрабатывает
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        # Убираем h2 из ALPN чтобы принудительно использовать HTTP/1.1
+        ssl_context.set_alpn_protocols(["http/1.1"])
+        connector_kwargs["ssl"] = ssl_context
+
         connector = aiohttp.TCPConnector(**connector_kwargs)
         self.session = aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=60, connect=10),
@@ -250,6 +255,31 @@ class RemnaWaveAPI:
                         raise RemnaWaveAPIError(error_message, response.status, response_data)
 
                     return response_data
+
+            except (aiohttp.ServerDisconnectedError, aiohttp.ClientConnectorError) as e:
+                # Сервер закрыл соединение — пересоздаём сессию и повторяем
+                if attempt < max_retries:
+                    log.warning(f"Remnawave connection lost ({e}), reconnecting... attempt {attempt + 1}/{max_retries}")
+                    try:
+                        await self.session.close()
+                    except Exception:
+                        pass
+                    await asyncio.sleep(base_delay * (attempt + 1))
+                    # Пересоздаём сессию с HTTP/1.1
+                    await self._ensure_jwt()
+                    headers = self._prepare_auth_headers()
+                    ssl_ctx = ssl.create_default_context()
+                    ssl_ctx.check_hostname = False
+                    ssl_ctx.verify_mode = ssl.CERT_NONE
+                    ssl_ctx.set_alpn_protocols(["http/1.1"])
+                    connector = aiohttp.TCPConnector(force_close=True, ssl=ssl_ctx)
+                    self.session = aiohttp.ClientSession(
+                        timeout=aiohttp.ClientTimeout(total=60, connect=10),
+                        headers=headers,
+                        connector=connector,
+                    )
+                    continue
+                raise RemnaWaveAPIError(f'Server disconnected after {max_retries} retries: {e}')
 
             except aiohttp.ClientError as e:
                 if attempt < max_retries:
