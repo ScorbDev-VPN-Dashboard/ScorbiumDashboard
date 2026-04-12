@@ -33,7 +33,7 @@ class BroadcastService:
         if not bc or bc.status not in (BroadcastStatus.DRAFT, BroadcastStatus.FAILED):
             return None
 
-        bc.status = BroadcastStatus.SENDING
+        bc.status = BroadcastStatus.SENDING.value
         await self.session.flush()
 
         user_ids = await self._resolve_targets(bc.target)
@@ -42,7 +42,7 @@ class BroadcastService:
 
         bc.sent_count = sent
         bc.failed_count = failed
-        bc.status = BroadcastStatus.DONE if failed == 0 else BroadcastStatus.FAILED
+        bc.status = BroadcastStatus.DONE.value if failed == 0 else BroadcastStatus.FAILED.value
         await self.session.flush()
 
         log.info(f"Broadcast {broadcast_id}: sent={sent} failed={failed}")
@@ -56,13 +56,13 @@ class BroadcastService:
         elif target == "active":
             result = await self.session.execute(
                 select(VpnKey.user_id)
-                .where(VpnKey.status == VpnKeyStatus.ACTIVE)
+                .where(VpnKey.status == VpnKeyStatus.ACTIVE.value)
                 .distinct()
             )
         elif target == "expired":
             result = await self.session.execute(
                 select(VpnKey.user_id)
-                .where(VpnKey.status == VpnKeyStatus.EXPIRED)
+                .where(VpnKey.status == VpnKeyStatus.EXPIRED.value)
                 .distinct()
             )
         else:

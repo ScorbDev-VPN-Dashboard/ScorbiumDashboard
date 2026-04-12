@@ -80,14 +80,20 @@ class ChannelCheckMiddleware(BaseMiddleware):
         if not channel_id_raw or not channel_id_raw.strip():
             return await handler(event, data)
 
-        try:
-            channel_id = int(channel_id_raw.strip())
-        except ValueError:
-            log.warning(f"[channel_check] Invalid channel_id value: {channel_id_raw!r}")
-            return await handler(event, data)
+        channel_id_str = channel_id_raw.strip()
 
-        # Build channel link
-        channel_link = f"https://t.me/c/{str(channel_id).lstrip('-').removeprefix('100')}"
+        # Поддерживаем username (@channel) и числовой ID (-100...)
+        if channel_id_str.startswith("@"):
+            channel_id = channel_id_str  # передаём как строку в get_chat_member
+            channel_link = f"https://t.me/{channel_id_str.lstrip('@')}"
+        else:
+            try:
+                channel_id = int(channel_id_str)
+            except ValueError:
+                log.warning(f"[channel_check] Invalid channel_id value: {channel_id_str!r}")
+                return await handler(event, data)
+            clean_id = str(channel_id).lstrip("-").removeprefix("100")
+            channel_link = f"https://t.me/c/{clean_id}"
 
         # Get bot instance from aiogram data
         bot: Bot | None = data.get("bot")

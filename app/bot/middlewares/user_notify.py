@@ -79,17 +79,15 @@ async def _notify_expired_keys(user_id: int) -> None:
             return
 
         user = await UserService(session).get_by_id(user_id)
-        # Не уведомляем забаненных пользователей
         if not user or user.is_banned:
             return
         settings = await BotSettingsService(session).get_all()
         user_lang = user.language if user and user.language else None
         from app.services.i18n import get_lang
         lang = get_lang(settings, user_lang)
+        count = len(expired_keys)  # читаем count пока сессия открыта
 
     _notified_expired[user_id] = now
-
-    count = len(expired_keys)
     msgs = {
         "ru": f"⏰ <b>У вас {count} просроченных подписок</b>\n\nОбновите подписку чтобы восстановить доступ к VPN.",
         "en": f"⏰ <b>You have {count} expired subscription(s)</b>\n\nRenew your subscription to restore VPN access.",

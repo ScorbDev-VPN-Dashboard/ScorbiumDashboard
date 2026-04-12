@@ -14,6 +14,7 @@ from app.services.bot_settings import BotSettingsService
 from app.services.user import UserService
 from app.services.telegram_stars import TelegramStarsService
 from app.services.cryptobot import CryptoBotService
+from app.services.telegram_notify import TelegramNotifyService
 from app.services.i18n import t, get_lang
 from app.utils.log import log
 
@@ -57,10 +58,42 @@ async def _provision_and_notify(user_id: int, payment_id: int, plan_id: int, bot
         else:
             text = f"{success_msg}\n\n" + t("key_error", lang)
 
+        # Данные для уведомления админа
+        uname = f"@{user.username}" if user and user.username else f"id:{user_id}"
+        full_name = user.full_name if user else "—"
+        provider_str = payment.provider if payment else "—"
+        amount_str = str(payment.amount) if payment else str(plan.price)
+
+    # Уведомляем пользователя
+    try:
+        await bot.send_message(user_id, text, parse_mode="HTML")
+    except Exception as e:
+        log.warning(f"Failed to notify user {user_id}: {e}")
+
+    # Уведомляем всех админов
+    from app.core.config import config as _cfg
+    notify = TelegramNotifyService()
+    provider_icons = {
+        "yookassa": "💳",
+        "yookassa_sbp": "🏦",
+        "telegram_stars": "⭐",
+        "cryptobot": "₿",
+        "balance": "💰",
+    }
+    icon = provider_icons.get(str(provider_str).lower(), "💰")
+    admin_text = (
+        f"✅ <b>Новая оплата!</b>\n\n"
+        f"👤 {full_name} ({uname})\n"
+        f"📦 {plan.name} — {amount_str} ₽\n"
+        f"⏱ {plan.duration_days} дн.\n"
+        f"{icon} {provider_str}\n"
+        f"🔑 Ключ: {'выдан' if key else '❌ ошибка'}"
+    )
+    for admin_id in _cfg.telegram.telegram_admin_ids:
         try:
-            await bot.send_message(user_id, text, parse_mode="HTML")
+            await notify.send_message(admin_id, admin_text)
         except Exception as e:
-            log.warning(f"Failed to notify user {user_id}: {e}")
+            log.warning(f"Failed to notify admin {admin_id}: {e}")
 
 
 # ── Balance ───────────────────────────────────────────────────────────────────
@@ -194,7 +227,7 @@ async def handle_yookassa_check(callback: CallbackQuery, bot: Bot) -> None:
             return
 
         from app.models.payment import PaymentStatus
-        if payment.status == PaymentStatus.SUCCEEDED:
+        if payment.status == PaymentStatus.SUCCEEDED.value:
             await callback.answer(t("payment_success", lang), show_alert=True)
             return
 
@@ -450,7 +483,7 @@ async def handle_crypto_check(callback: CallbackQuery, bot: Bot) -> None:
             return
 
         from app.models.payment import PaymentStatus
-        if payment.status == PaymentStatus.SUCCEEDED:
+        if payment.status == PaymentStatus.SUCCEEDED.value:
             await callback.answer(t("payment_success", lang), show_alert=True)
             return
 

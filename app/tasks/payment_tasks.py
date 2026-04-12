@@ -28,8 +28,8 @@ async def check_pending_yookassa_payments() -> None:
         cutoff = datetime.now(timezone.utc) - MAX_PENDING_AGE
         result = await session.execute(
             select(Payment).where(
-                Payment.status == PaymentStatus.PENDING,
-                Payment.provider == PaymentProvider.YOOKASSA,
+                Payment.status == PaymentStatus.PENDING.value,
+                Payment.provider == PaymentProvider.YOOKASSA.value,
                 Payment.external_id.isnot(None),
                 Payment.created_at >= cutoff,
             )
@@ -62,7 +62,7 @@ async def check_pending_yookassa_payments() -> None:
                         continue
 
                     payment = await PaymentService(session).get_by_id(pd["id"])
-                    if not payment or payment.status == PaymentStatus.SUCCEEDED:
+                    if not payment or payment.status == PaymentStatus.SUCCEEDED.value:
                         continue
 
                     payment.status = PaymentStatus.SUCCEEDED.value

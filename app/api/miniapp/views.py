@@ -435,16 +435,10 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
     has_yookassa = bool(_yk and _yk.yookassa_shop_id and _yk.yookassa_secret_key)
     has_cryptobot = bool(s.get("cryptobot_token", "").strip())
 
-    # Получаем username бота
-    bot_username = ""
-    try:
-        from app.core.server import get_bot
-        bot = get_bot()
-        if bot:
-            me = await bot.get_me()
-            bot_username = me.username or ""
-    except Exception:
-        pass
+    # Получаем username бота (с кешем)
+    bot_username = _get_cached_bot_username()
+    if not bot_username:
+        bot_username = await _fetch_bot_username()
 
     return JSONResponse(
         {
@@ -457,3 +451,31 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
             "bot_username": bot_username,
         }
     )
+
+
+_BOT_USERNAME_CACHE: str = ""
+
+
+def _get_cached_bot_username() -> str:
+    return _BOT_USERNAME_CACHE
+
+
+async def _fetch_bot_username() -> str:
+    global _BOT_USERNAME_CACHE
+    try:
+        from app.core.server import get_bot
+        bot = get_bot()
+        if bot:
+            me = await bot.get_me()
+            _BOT_USERNAME_CACHE = me.username or ""
+            return _BOT_USERNAME_CACHE
+        # Fallback
+        from aiogram import Bot
+        from app.core.config import config as _cfg2
+        _bot_tmp = Bot(token=_cfg2.telegram.telegram_bot_token.get_secret_value())
+        me = await _bot_tmp.get_me()
+        _BOT_USERNAME_CACHE = me.username or ""
+        await _bot_tmp.session.close()
+    except Exception:
+        pass
+    return _BOT_USERNAME_CACHE

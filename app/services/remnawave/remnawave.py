@@ -1,162 +1,43 @@
 """
-Remnawave VPN panel API client.
-Based on official Remnawave OpenAPI v2.7.4
+Remnawave VPN panel service — implements VpnPanelInterface.
+Uses RemnaWaveAPI (production-ready client with retry logic).
 """
-import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from httpx import AsyncClient, HTTPStatusError, RequestError
-
 from app.services.vpn_panel_interface import VpnPanelInterface
+from app.services.remnawave.remnawave_api import RemnaWaveAPI, RemnaWaveAPIError, get_remnawave_api, UserStatus
 from app.utils.log import log
-
-
-class RemnawaveClient:
-    """Low-level async HTTP client for Remnawave panel."""
-
-    _token: Optional[str] = None
-    _token_expires: Optional[datetime] = None
-    _lock = asyncio.Lock()
-
-    def __init__(self, base_url: str, login: str = None, password: str = None, api_key: str = None) -> None:
-        self._base = base_url.rstrip("/")
-        self._login = login
-        self._password = password
-        self._api_key = api_key  # если задан — используем напрямую, без логина
-
-    async def _get_token(self) -> str:
-        # API Key — постоянный, не нужно обновлять
-        if self._api_key:
-            return self._api_key
-
-        async with self._lock:
-            now = datetime.now(timezone.utc)
-            if self._token and self._token_expires and now < self._token_expires:
-                return self._token
-
-            if not self._login or not self._password:
-                raise RuntimeError("Remnawave: нужен REMNAWAVE_API_KEY или REMNAWAVE_LOGIN + REMNAWAVE_PASSWORD")
-
-            async with AsyncClient(timeout=15, verify=False) as client:
-                resp = await client.post(
-                    f"{self._base}/api/auth/login",
-                    json={"username": self._login, "password": self._password},
-                )
-                if resp.status_code not in (200, 201):
-                    raise RuntimeError(
-                        f"Remnawave auth failed: {resp.status_code} {resp.text}"
-                    )
-                data = resp.json()
-                token_data = data.get("response", data)
-                self._token = token_data.get("accessToken") or token_data.get("access_token")
-                if not self._token:
-                    raise RuntimeError(f"No accessToken in Remnawave response: {data}")
-                self._token_expires = now + timedelta(hours=23)
-                log.info("✅ Remnawave JWT token refreshed")
-                return self._token
-
-    async def _headers(self) -> dict:
-        token = await self._get_token()
-        return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-
-    async def _refresh_and_headers(self) -> dict:
-        if self._api_key:
-            return await self._headers()  # API Key не протухает
-        async with self._lock:
-            RemnawaveClient._token = None
-            RemnawaveClient._token_expires = None
-        return await self._headers()
-
-    async def get(self, path: str, params: dict = None) -> dict:
-        url = f"{self._base}{path}"
-        async with AsyncClient(timeout=15, verify=False) as client:
-            resp = await client.get(url, headers=await self._headers(), params=params)
-            if resp.status_code == 401:
-                resp = await client.get(url, headers=await self._refresh_and_headers(), params=params)
-            resp.raise_for_status()
-            return resp.json()
-
-    async def post(self, path: str, payload: dict = None) -> dict:
-        url = f"{self._base}{path}"
-        async with AsyncClient(timeout=15, verify=False) as client:
-            resp = await client.post(url, headers=await self._headers(), json=payload or {})
-            if resp.status_code == 401:
-                resp = await client.post(url, headers=await self._refresh_and_headers(), json=payload or {})
-            resp.raise_for_status()
-            return resp.json() if resp.content else {}
-
-    async def patch(self, path: str, payload: dict = None) -> dict:
-        url = f"{self._base}{path}"
-        async with AsyncClient(timeout=15, verify=False) as client:
-            resp = await client.patch(url, headers=await self._headers(), json=payload or {})
-            if resp.status_code == 401:
-                resp = await client.patch(url, headers=await self._refresh_and_headers(), json=payload or {})
-            resp.raise_for_status()
-            return resp.json() if resp.content else {}
-
-    async def delete(self, path: str) -> None:
-        url = f"{self._base}{path}"
-        async with AsyncClient(timeout=15, verify=False) as client:
-            resp = await client.delete(url, headers=await self._headers())
-            if resp.status_code == 401:
-                resp = await client.delete(url, headers=await self._refresh_and_headers())
-            resp.raise_for_status()
 
 
 class RemnawaveService(VpnPanelInterface):
     """
-    High-level Remnawave API service.
-    Compatible with VpnPanelInterface.
-    Based on Remnawave OpenAPI v2.7.4
+    Adapter: VpnPanelInterface → RemnaWaveAPI.
+    All methods use async context manager internally.
     """
 
     def __init__(self) -> None:
-        from app.core.configs.remnawave_config import remnawave as _cfg
-        if not _cfg.remnawave_url:
-            raise RuntimeError("Remnawave not configured. Set REMNAWAVE_URL in .env")
-
-        api_key = _cfg.remnawave_api_key.get_secret_value() if _cfg.remnawave_api_key else None
-        login = _cfg.remnawave_login if not api_key else None
-        password = _cfg.remnawave_password.get_secret_value() if (not api_key and _cfg.remnawave_password) else None
-
-        if not api_key and not (login and password):
-            raise RuntimeError(
-                "Remnawave: задайте REMNAWAVE_API_KEY или REMNAWAVE_LOGIN + REMNAWAVE_PASSWORD"
-            )
-
-        auth_method = "API Key" if api_key else "login/password"
-        log.info(f"Remnawave auth: {auth_method}")
-
-        self._client = RemnawaveClient(
-            base_url=_cfg.remnawave_url,
-            login=login,
-            password=password,
-            api_key=api_key,
-        )
-        self._base_url = _cfg.remnawave_url.rstrip("/")
+        self._api: RemnaWaveAPI = get_remnawave_api()
+        auth = "API Key" if self._api.api_key else "login/password"
+        log.info(f"Remnawave auth: {auth}")
 
     # ── System ──────────────────────────────────────────────────────────────
 
     async def get_system_stats(self) -> dict:
-        """
-        GET /api/system/stats
-        Returns flattened stats dict for compatibility with panel views.
-        """
-        data = await self._client.get("/api/system/stats")
-        r = data.get("response", data)
+        """Returns flattened stats dict for panel views."""
+        async with self._api as api:
+            r = await api.get_system_stats()
+
         users = r.get("users", {})
         online_stats = r.get("onlineStats", {})
         nodes = r.get("nodes", {})
 
-        # Format lifetime traffic
         lifetime_bytes = 0
         try:
             lifetime_bytes = int(nodes.get("totalBytesLifetime", 0) or 0)
         except (ValueError, TypeError):
             pass
-        lifetime_gb = round(lifetime_bytes / 1073741824, 2) if lifetime_bytes else 0
-        traffic_str = f"{lifetime_gb} GB"
+        traffic_str = f"{round(lifetime_bytes / 1073741824, 2)} GB"
 
         return {
             "totalUsers": users.get("totalUsers", 0),
@@ -169,19 +50,10 @@ class RemnawaveService(VpnPanelInterface):
             "total_user": users.get("totalUsers", 0),
         }
 
-    async def get_bandwidth_stats(self) -> dict:
-        """GET /api/system/stats/bandwidth"""
-        data = await self._client.get("/api/system/stats/bandwidth")
-        return data.get("response", data)
-
-    async def get_nodes_stats(self) -> dict:
-        """GET /api/system/stats/nodes"""
-        data = await self._client.get("/api/system/stats/nodes")
-        return data.get("response", data)
-
     async def validate_connection(self) -> bool:
         try:
-            await self._client.get("/api/system/stats")
+            async with self._api as api:
+                await api.get_system_stats()
             return True
         except Exception as e:
             log.warning(f"Remnawave connection check failed: {e}")
@@ -190,27 +62,27 @@ class RemnawaveService(VpnPanelInterface):
     # ── Nodes ────────────────────────────────────────────────────────────────
 
     async def get_nodes(self) -> list[dict]:
-        """GET /api/nodes — список всех нод"""
         try:
-            data = await self._client.get("/api/nodes")
-            nodes = data.get("response", data)
-            return nodes if isinstance(nodes, list) else []
+            async with self._api as api:
+                nodes = await api.get_all_nodes()
+            return [
+                {
+                    "uuid": n.uuid,
+                    "name": n.name,
+                    "address": n.address,
+                    "countryCode": n.country_code,
+                    "isConnected": n.is_connected,
+                    "isDisabled": n.is_disabled,
+                    "usersOnline": n.users_online,
+                    "status": "connected" if n.is_connected else ("disabled" if n.is_disabled else "error"),
+                }
+                for n in nodes
+            ]
         except Exception as e:
             log.warning(f"Remnawave get_nodes failed: {e}")
             return []
 
     # ── Users ────────────────────────────────────────────────────────────────
-
-    async def get_all_users(self, size: int = 100, start: int = 0) -> list[dict]:
-        """GET /api/users?size=N&start=N"""
-        try:
-            data = await self._client.get("/api/users", params={"size": size, "start": start})
-            r = data.get("response", data)
-            users = r.get("users", r) if isinstance(r, dict) else r
-            return users if isinstance(users, list) else []
-        except Exception as e:
-            log.warning(f"Remnawave get_all_users failed: {e}")
-            return []
 
     async def create_user(
         self,
@@ -219,71 +91,86 @@ class RemnawaveService(VpnPanelInterface):
         data_limit_gb: int = 0,
         **kwargs,
     ) -> dict:
-        """POST /api/users"""
-        expire_at = (
-            datetime.now(timezone.utc) + timedelta(days=expire_days)
-        ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-
-        payload: dict = {
-            "username": username,
-            "expireAt": expire_at,
-            "trafficLimitBytes": data_limit_gb * 1024 ** 3 if data_limit_gb > 0 else 0,
-            "trafficLimitStrategy": "NO_RESET",
-            "status": "ACTIVE",
+        expire_at = datetime.now(timezone.utc) + timedelta(days=expire_days)
+        async with self._api as api:
+            user = await api.create_user(
+                username=username,
+                expire_at=expire_at,
+                traffic_limit_bytes=data_limit_gb * 1024 ** 3 if data_limit_gb > 0 else 0,
+            )
+        return {
+            "uuid": user.uuid,
+            "short_uuid": user.short_uuid,
+            "username": user.username,
+            "subscription_url": user.subscription_url,
+            "subscriptionUrl": user.subscription_url,
+            "status": user.status.value,
         }
 
-        data = await self._client.post("/api/users", payload)
-        response = data.get("response", data)
-
-        # Normalize to common format
-        sub_url = response.get("subscriptionUrl") or response.get("subscription_url", "")
-        response["subscription_url"] = sub_url
-        response["uuid"] = response.get("uuid", "")
-        return response
-
     async def get_user(self, username: str) -> Optional[dict]:
-        """GET /api/users/by-username/{username}"""
         try:
-            data = await self._client.get(f"/api/users/by-username/{username}")
-            response = data.get("response", data)
-            if not response:
+            async with self._api as api:
+                user = await api.get_user_by_username(username)
+            if not user:
                 return None
-            response["_normalized_status"] = self._normalize_status(response.get("status", ""))
-            return response
+            return {
+                "uuid": user.uuid,
+                "username": user.username,
+                "status": user.status.value,
+                "subscription_url": user.subscription_url,
+                "_normalized_status": self._normalize_status(user.status.value),
+                "expireAt": user.expire_at.isoformat() if user.expire_at else None,
+                "trafficLimitBytes": user.traffic_limit_bytes,
+                "userTraffic": {
+                    "usedTrafficBytes": user.used_traffic_bytes,
+                    "lifetimeUsedTrafficBytes": user.lifetime_used_traffic_bytes,
+                    "onlineAt": user.online_at.isoformat() if user.online_at else None,
+                } if user.user_traffic else None,
+            }
         except Exception:
             return None
 
     async def get_user_by_uuid(self, uuid: str) -> Optional[dict]:
-        """GET /api/users/{uuid}"""
         try:
-            data = await self._client.get(f"/api/users/{uuid}")
-            return data.get("response", data)
+            async with self._api as api:
+                user = await api.get_user_by_uuid(uuid)
+            if not user:
+                return None
+            return {"uuid": user.uuid, "username": user.username, "status": user.status.value}
         except Exception:
             return None
 
-    async def get_user_by_telegram_id(self, telegram_id: int) -> list[dict]:
-        """GET /api/users/by-telegram-id/{telegramId}"""
+    async def get_all_users(self, size: int = 100, start: int = 0) -> list[dict]:
         try:
-            data = await self._client.get(f"/api/users/by-telegram-id/{telegram_id}")
-            response = data.get("response", data)
-            return response if isinstance(response, list) else []
-        except Exception:
+            async with self._api as api:
+                result = await api.get_all_users(start=start, size=size)
+            users = []
+            for u in result.get("users", []):
+                users.append({
+                    "uuid": u.uuid,
+                    "username": u.username,
+                    "status": u.status.value,
+                    "subscriptionUrl": u.subscription_url,
+                    "expireAt": u.expire_at.isoformat() if u.expire_at else None,
+                    "trafficLimitBytes": u.traffic_limit_bytes,
+                    "userTraffic": {
+                        "usedTrafficBytes": u.used_traffic_bytes,
+                        "lifetimeUsedTrafficBytes": u.lifetime_used_traffic_bytes,
+                        "onlineAt": u.online_at.isoformat() if u.online_at else None,
+                    } if u.user_traffic else None,
+                })
+            return users
+        except Exception as e:
+            log.warning(f"Remnawave get_all_users failed: {e}")
             return []
 
-    async def update_user(self, uuid: str, **fields) -> dict:
-        """PATCH /api/users — обновить любые поля пользователя"""
-        payload = {"uuid": uuid, **fields}
-        data = await self._client.patch("/api/users", payload)
-        return data.get("response", data)
-
     async def extend_user(self, username: str, extra_days: int) -> dict:
-        """Продлить подписку на extra_days дней."""
-        user = await self.get_user(username)
-        if not user:
+        user_dict = await self.get_user(username)
+        if not user_dict:
             raise RuntimeError(f"Remnawave user {username} not found")
 
-        uuid = user.get("uuid")
-        current_expire = user.get("expireAt")
+        uuid = user_dict.get("uuid")
+        current_expire = user_dict.get("expireAt")
         now = datetime.now(timezone.utc)
 
         if current_expire:
@@ -296,77 +183,60 @@ class RemnawaveService(VpnPanelInterface):
         else:
             base = now
 
-        new_expire = (base + timedelta(days=extra_days)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        return await self.update_user(uuid, expireAt=new_expire)
+        new_expire = (base + timedelta(days=extra_days)).isoformat()
+        async with self._api as api:
+            user = await api.update_user(uuid, expireAt=new_expire)
+        return {"uuid": user.uuid, "status": user.status.value}
 
     async def disable_user(self, username: str) -> dict:
-        """POST /api/users/{uuid}/actions/disable"""
-        user = await self.get_user(username)
-        if not user:
+        user_dict = await self.get_user(username)
+        if not user_dict:
             return {}
-        uuid = user.get("uuid")
+        uuid = user_dict.get("uuid")
         if not uuid:
             return {}
         try:
-            data = await self._client.post(f"/api/users/{uuid}/actions/disable")
-            return data.get("response", data)
+            async with self._api as api:
+                user = await api.disable_user(uuid)
+            return {"uuid": user.uuid, "status": user.status.value}
         except Exception as e:
             log.warning(f"Remnawave disable_user {username} failed: {e}")
             return {}
 
     async def enable_user(self, username: str) -> dict:
-        """POST /api/users/{uuid}/actions/enable"""
-        user = await self.get_user(username)
-        if not user:
+        user_dict = await self.get_user(username)
+        if not user_dict:
             return {}
-        uuid = user.get("uuid")
+        uuid = user_dict.get("uuid")
         if not uuid:
             return {}
         try:
-            data = await self._client.post(f"/api/users/{uuid}/actions/enable")
-            return data.get("response", data)
+            async with self._api as api:
+                user = await api.enable_user(uuid)
+            return {"uuid": user.uuid, "status": user.status.value}
         except Exception as e:
             log.warning(f"Remnawave enable_user {username} failed: {e}")
             return {}
 
-    async def reset_user_traffic(self, username: str) -> dict:
-        """POST /api/users/{uuid}/actions/reset-traffic"""
-        user = await self.get_user(username)
-        if not user:
-            return {}
-        uuid = user.get("uuid")
-        if not uuid:
-            return {}
-        try:
-            data = await self._client.post(f"/api/users/{uuid}/actions/reset-traffic")
-            return data.get("response", data)
-        except Exception as e:
-            log.warning(f"Remnawave reset_traffic {username} failed: {e}")
-            return {}
-
     async def delete_user(self, username: str) -> None:
-        """DELETE /api/users/{uuid}"""
-        user = await self.get_user(username)
-        if not user:
+        user_dict = await self.get_user(username)
+        if not user_dict:
             return
-        uuid = user.get("uuid")
+        uuid = user_dict.get("uuid")
         if uuid:
             try:
-                await self._client.delete(f"/api/users/{uuid}")
+                async with self._api as api:
+                    await api.delete_user(uuid)
             except Exception as e:
                 log.warning(f"Remnawave delete_user {username} failed: {e}")
 
-    async def get_subscription_info(self, short_uuid: str) -> Optional[dict]:
-        """GET /api/sub/{shortUuid}/info — публичный эндпоинт, без авторизации"""
+    async def get_user_by_telegram_id(self, telegram_id: int) -> list[dict]:
         try:
-            async with AsyncClient(timeout=10, verify=False) as client:
-                resp = await client.get(f"{self._base_url}/api/sub/{short_uuid}/info")
-                if resp.status_code == 200:
-                    data = resp.json()
-                    return data.get("response", data)
+            async with self._api as api:
+                users = await api.get_user_by_telegram_id(telegram_id)
+            return [{"uuid": u.uuid, "username": u.username, "status": u.status.value} for u in users]
         except Exception:
-            pass
-        return None
+            return []
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
