@@ -1055,25 +1055,13 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
     yk_key_set = bool(await svc.get("yookassa_secret_key_override"))
     cb_token_set = bool((await svc.get("cryptobot_token") or "").strip())
 
-    # Also check env-level yookassa
+# Also check env-level yookassa
     yk_env_ok = bool(
         config.yookassa
         and config.yookassa.yookassa_shop_id
         and config.yookassa.yookassa_secret_key
     )
 
-    # FreeKassa & AiKassa
-    fk_shop = await svc.get("freekassa_shop_id") or ""
-    fk_key = await svc.get("freekassa_api_key") or ""
-    fk_configured = bool(fk_shop and fk_key)
-    fk_enabled = (await svc.get("ps_freekassa_enabled") or "0") == "1" and fk_configured
-
-    ak_shop = await svc.get("aikassa_shop_id") or ""
-    ak_token = await svc.get("aikassa_token") or ""
-    ak_configured = bool(ak_shop and ak_token)
-    ak_enabled = (await svc.get("ps_aikassa_enabled") or "0") == "1" and ak_configured
-
-    # Toggle flags from DB
     yk_toggle = (await svc.get("ps_yookassa_enabled") or "0") == "1"
     cb_toggle = (await svc.get("ps_cryptobot_enabled") or "0") == "1"
     sbp_toggle = (await svc.get("ps_sbp_enabled") or "0") == "1"
@@ -1099,7 +1087,7 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
         freekassa_configured=fk_configured,
         freekassa_shop_id=fk_shop,
         freekassa_secret1_set=bool(await svc.get("freekassa_secret_word_1")),
-        freekassa_secret2_set=bool(await svc.get("freekassa_secret_word_2")),
+freekassa_secret2_set=bool(await svc.get("freekassa_secret_word_2")),
         aikassa_enabled=ak_enabled,
         aikassa_configured=ak_configured,
         aikassa_shop_id=ak_shop,
@@ -1260,6 +1248,14 @@ async def ps_save_cryptobot(request: Request, db: AsyncSession = Depends(get_db)
             },
             status_code=400,
         )
+
+    svc = BotSettingsService(db)
+    await svc.set("cryptobot_token", token_raw)
+    await db.commit()
+
+    return JSONResponse(
+        {"ok": True, "message": "CryptoBot токен сохранён", "enabled": True}
+    )
 
     svc = BotSettingsService(db)
     await svc.set("cryptobot_token", token_raw)
@@ -1441,6 +1437,9 @@ async def ps_test_freekassa(request: Request, db: AsyncSession = Depends(get_db)
         return JSONResponse(
             {"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400
         )
+    except Exception as e:
+        log.error(f"FreeKassa test error: {e}")
+        return JSONResponse({"ok": False, "message": f"Ошибка: {str(e)[:100]"}, status_code=400)
 
 
 @router.post("/telegram/payment-systems/aikassa")

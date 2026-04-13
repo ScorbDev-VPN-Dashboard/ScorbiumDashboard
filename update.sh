@@ -222,6 +222,7 @@ success "Миграции применены"
 
 # ── Перезапускаем nginx с новым конфигом ─────────────────────────────────────
 docker compose -f docker-compose.prod.yml up -d nginx
+docker compose -f docker-compose.prod.yml restart nginx
 sleep 3
 NGINX_STATUS=$(docker inspect --format='{{.State.Status}}' vpn_nginx 2>/dev/null || echo "unknown")
 if [[ "$NGINX_STATUS" == "running" ]]; then

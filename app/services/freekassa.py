@@ -162,9 +162,38 @@ class FreeKassaService:
             extra["failure_url"] = failure_url
         return await self._post("orders/create", extra)
 
-    async def get_orders(self, payment_id: str) -> Optional[dict]:
+async def get_orders(self, payment_id: str) -> Optional[dict]:
         """Получить список заказов по paymentId (номер заказа в нашем магазине)."""
         return await self._post("orders", {"paymentId": payment_id})
+
+    @staticmethod
+
+    def _sign(self, nonce: str) -> str:
+        """HMAC-SHA256 подпись для API запросов."""
+        msg = f"{self._shop_id}|{nonce}"
+        return hmac.new(self._api_key.encode(), msg.encode(), hashlib.sha256).hexdigest()
+
+    async def get_balance(self) -> Optional[dict]:
+        """Получить баланс магазина — используется для проверки подключения."""
+        import time
+        nonce = str(int(time.time() * 1000))
+        signature = self._sign(nonce)
+        payload = {
+            "shopId": int(self._shop_id),
+            "nonce": nonce,
+            "signature": signature,
+        }
+        return await self._request("POST", "balance", json=payload)
+
+    def create_payment_url(self, order_id: str, amount: float, currency: str = "RUB", email: str = "") -> str:
+        """Генерирует URL для оплаты через FreeKassa."""
+        sign_str = f"{self._shop_id}:{amount}:{self._secret_word_1}:{currency}:{order_id}"
+        sign = hashlib.md5(sign_str.encode()).hexdigest()
+        params = (
+            f"m={self._shop_id}&oa={amount}&currency={currency}"
+            f"&o={order_id}&s={sign}&em={email}&lang=ru"
+        )
+        return f"https://pay.freekassa.com/?{params}"
 
     @staticmethod
     def from_settings(settings: dict) -> Optional["FreeKassaService"]:

@@ -16,7 +16,6 @@ DEFAULTS = {
     "referral_bonus_type": "days",
     "referral_bonus_value": "3",
     "payment_success_message": "✅ Оплата прошла успешно!\n\nВаш VPN-ключ готов. Нажмите «Мои ключи».",
-
     "ban_message": "🚫 Ваш аккаунт заблокирован. Обратитесь в поддержку.",
     "bot_disabled_message": "🔧 Бот временно отключён. Попробуйте позже.",
     "subscription_issued_message": "🔑 Ваш VPN-ключ выдан!\n\nНажмите «Мои ключи» для просмотра.",
@@ -26,7 +25,7 @@ DEFAULTS = {
     "bot_enabled": "1",
     "about_text": "",
     "vpn_group_ids": "",
-    "required_channel_id": "",  
+    "required_channel_id": "",
     "required_channel_name": "",
     # ── Фото для разделов бота ────────────────────────────────────────────────
     "photo_welcome": "",
@@ -40,9 +39,16 @@ DEFAULTS = {
     "photo_trial": "",
     "panel_url": "",
     "keyboard_layout": "",  # JSON раскладка главного меню
-    "bot_language": "ru",   # Язык бота: ru | en | fa
+    "bot_language": "ru",  # Язык бота: ru | en | fa
     "cryptobot_token": "",  # CryptoBot API токен
-    "stars_rate": "1.5",    # Курс: 1 Star = X рублей
+    "stars_rate": "1.5",  # Курс: 1 Star = X рублей
+    # ── Платёжные системы — включение/отключение ──────────────────────────
+    "ps_yookassa_enabled": "0",
+    "ps_cryptobot_enabled": "0",
+    "ps_stars_enabled": "1",
+    "ps_freekassa_enabled": "0",
+    "ps_aikassa_enabled": "0",
+    "ps_sbp_enabled": "0",
     # ── Платёжные системы — включение/отключение ──────────────────────────────
     "ps_yookassa_enabled": "0",
     "ps_cryptobot_enabled": "0",
@@ -59,12 +65,12 @@ DEFAULTS = {
     "aikassa_shop_id": "",
     "aikassa_token": "",
     # ── Пробный период ────────────────────────────────────────────────────────
-    "trial_enabled": "0",       # 1 = включён
-    "trial_days": "3",          # кол-во дней пробного периода
+    "trial_enabled": "0",  # 1 = включён
+    "trial_days": "3",  # кол-во дней пробного периода
     "trial_label": "🎁 Пробный период ({days} дн.)",  # текст кнопки
     # ── Уведомления об истечении подписки ─────────────────────────────────────
-    "notify_expiry_enabled": "1",       # 1 = включены уведомления
-    "notify_expiry_days": "7,3,1",      # за сколько дней уведомлять (через запятую)
+    "notify_expiry_enabled": "1",  # 1 = включены уведомления
+    "notify_expiry_days": "7,3,1",  # за сколько дней уведомлять (через запятую)
     "notify_expiry_message": "⚠️ <b>Подписка истекает через {days} дн.!</b>\n\n📦 {name}\n📅 Дата истечения: <b>{date}</b>\n\nПродлите подписку чтобы не потерять доступ.",
     # ── Стили inline кнопок ───────────────────────────────────────────────────
     "btn_style_buy": "success",
