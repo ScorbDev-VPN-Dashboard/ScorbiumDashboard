@@ -3,7 +3,7 @@ from typing import Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.payment import Payment, PaymentProvider, PaymentStatus
+from app.models.payment import Payment, PaymentProvider, PaymentStatus, PaymentType
 from app.models.plan import Plan
 
 
@@ -27,19 +27,34 @@ class PaymentService:
         offset: int = 0,
         status: Optional[PaymentStatus] = None,
         user_id: Optional[int] = None,
+        payment_type: Optional[PaymentType] = None,
     ) -> list[Payment]:
         q = select(Payment).order_by(Payment.created_at.desc()).limit(limit).offset(offset)
         if status:
             q = q.where(Payment.status == status.value)
         if user_id:
             q = q.where(Payment.user_id == user_id)
+        if payment_type:
+            q = q.where(Payment.payment_type == payment_type.value)
         result = await self.session.execute(q)
         return list(result.scalars().all())
 
     async def total_revenue(self) -> Decimal:
+        """Выручка только от подписок (не считаем пополнения баланса)."""
         result = await self.session.execute(
             select(func.sum(Payment.amount)).where(
-                Payment.status == PaymentStatus.SUCCEEDED.value
+                Payment.status == PaymentStatus.SUCCEEDED.value,
+                Payment.payment_type == PaymentType.SUBSCRIPTION.value,
+            )
+        )
+        return result.scalar_one() or Decimal("0")
+
+    async def total_topups(self) -> Decimal:
+        """Сумма всех пополнений баланса."""
+        result = await self.session.execute(
+            select(func.sum(Payment.amount)).where(
+                Payment.status == PaymentStatus.SUCCEEDED.value,
+                Payment.payment_type == PaymentType.TOPUP.value,
             )
         )
         return result.scalar_one() or Decimal("0")
@@ -57,7 +72,7 @@ class PaymentService:
         provider: PaymentProvider,
         currency: str = "RUB",
     ) -> Payment:
-        # Отменяем старые pending платежи этого юзера по тому же провайдеру
+        """Создать pending платёж за подписку."""
         from datetime import datetime, timezone, timedelta
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
         old_result = await self.session.execute(
@@ -65,6 +80,7 @@ class PaymentService:
                 Payment.user_id == user_id,
                 Payment.status == PaymentStatus.PENDING.value,
                 Payment.provider == provider.value,
+                Payment.payment_type == PaymentType.SUBSCRIPTION.value,
             )
         )
         for old in old_result.scalars().all():
@@ -73,6 +89,7 @@ class PaymentService:
         payment = Payment(
             user_id=user_id,
             provider=provider.value,
+            payment_type=PaymentType.SUBSCRIPTION.value,
             amount=plan.price,
             currency=currency,
             status=PaymentStatus.PENDING.value,
@@ -81,8 +98,41 @@ class PaymentService:
         await self.session.flush()
         return payment
 
+    async def create_topup_pending(
+        self,
+        user_id: int,
+        amount: Decimal,
+        provider: PaymentProvider,
+        external_id: Optional[str] = None,
+        currency: str = "RUB",
+    ) -> Payment:
+        """Создать pending платёж пополнения баланса."""
+        # Отменяем старые pending topup от того же провайдера
+        old_result = await self.session.execute(
+            select(Payment).where(
+                Payment.user_id == user_id,
+                Payment.status == PaymentStatus.PENDING.value,
+                Payment.provider == provider.value,
+                Payment.payment_type == PaymentType.TOPUP.value,
+            )
+        )
+        for old in old_result.scalars().all():
+            old.status = PaymentStatus.FAILED.value
+
+        payment = Payment(
+            user_id=user_id,
+            provider=provider.value,
+            payment_type=PaymentType.TOPUP.value,
+            amount=amount,
+            currency=currency,
+            status=PaymentStatus.PENDING.value,
+            external_id=external_id,
+        )
+        self.session.add(payment)
+        await self.session.flush()
+        return payment
+
     async def expire_old_pending(self, max_age_minutes: int = 15) -> int:
-        """Отменяет pending платежи старше max_age_minutes минут. Возвращает кол-во отменённых."""
         from datetime import datetime, timezone, timedelta
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)
         result = await self.session.execute(

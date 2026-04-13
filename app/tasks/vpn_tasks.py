@@ -181,6 +181,11 @@ async def auto_renew_keys() -> None:
             if price <= 0:
                 continue
             async with AsyncSessionFactory() as session:
+                # Проверяем что у пользователя включено автосписание
+                user_check = await UserService(session).get_by_id(user_id)
+                if not user_check or not bool(user_check.autorenew):
+                    continue
+
                 user = await UserService(session).deduct_balance(user_id, Decimal(str(price)))
                 if not user:
                     await notify.send_message(

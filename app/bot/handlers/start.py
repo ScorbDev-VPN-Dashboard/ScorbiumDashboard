@@ -1,9 +1,10 @@
 import secrets
+from decimal import Decimal
 from aiogram import Router, F
 from aiogram.filters import CommandStart
-from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.bot.keyboards.main import back_kb
@@ -30,6 +31,10 @@ class SupportState(StatesGroup):
     waiting_subject = State()
     waiting_message = State()
     replying_ticket = State()
+
+
+class TopupState(StatesGroup):
+    waiting_amount = State()
 
 
 async def _get_lang_from_session(user_id: int, session) -> str:
@@ -115,6 +120,7 @@ async def show_balance(callback: CallbackQuery) -> None:
         settings = await BotSettingsService(session).get_all()
         balance = float(user.balance or 0) if user else 0.0
         referral_code = user.referral_code if user else None
+        autorenew = bool(user.autorenew) if user else False
         photo = settings.get("photo_balance") or None
         user_lang = user.language if user and user.language else None
         lang = get_lang(settings, user_lang)
@@ -131,15 +137,157 @@ async def show_balance(callback: CallbackQuery) -> None:
     }
     bonus_text = bonus_labels.get(bonus_type, f"+{bonus_value}")
 
+    autorenew_line = t("autorenew_on", lang) if autorenew else t("autorenew_off", lang)
+
     text = (
         t("balance_title", lang, balance=balance) + "\n\n" +
         t("referrals_count", lang, count=ref_count) + "\n" +
         t("referral_bonus", lang, bonus=bonus_text) + "\n\n" +
+        autorenew_line + "\n\n" +
         t("referral_link", lang, link=ref_link)
     )
+
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text=t("btn_topup", lang), callback_data="topup:menu"))
+    if autorenew:
+        builder.row(InlineKeyboardButton(text=t("btn_autorenew_off", lang), callback_data="autorenew:off"))
+    else:
+        builder.row(InlineKeyboardButton(text=t("btn_autorenew_on", lang), callback_data="autorenew:on"))
+    builder.row(InlineKeyboardButton(text=t("back_main", lang), callback_data="back_main"))
+
     from app.bot.utils.media import edit_with_photo
-    await edit_with_photo(callback, text, reply_markup=back_kb(lang), photo=photo)
+    await edit_with_photo(callback, text, reply_markup=builder.as_markup(), photo=photo)
     await callback.answer()
+
+
+# ── Автосписание ──────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("autorenew:"))
+async def toggle_autorenew(callback: CallbackQuery) -> None:
+    action = callback.data.split(":")[1]
+    enabled = action == "on"
+
+    async with AsyncSessionFactory() as session:
+        user = await UserService(session).set_autorenew(callback.from_user.id, enabled)
+        await session.commit()
+        lang = await _get_lang_from_session(callback.from_user.id, session)
+
+    msg = t("autorenew_enabled", lang) if enabled else t("autorenew_disabled", lang)
+    await callback.answer(msg[:200], show_alert=True)
+    # Обновляем экран баланса
+    await show_balance(callback)
+
+
+# ── Пополнение баланса ────────────────────────────────────────────────────────
+
+_TOPUP_AMOUNTS = [100, 200, 500, 1000, 2000, 5000]
+
+
+@router.callback_query(F.data == "topup:menu")
+async def topup_menu(callback: CallbackQuery) -> None:
+    async with AsyncSessionFactory() as session:
+        lang = await _get_lang_from_session(callback.from_user.id, session)
+        settings = await BotSettingsService(session).get_all()
+        has_yookassa = bool(settings.get("yookassa_shop_id") or (
+            config.yookassa and config.yookassa.yookassa_shop_id
+        ))
+        has_cryptobot = bool(settings.get("cryptobot_token", "").strip())
+
+    builder = InlineKeyboardBuilder()
+    # Быстрые суммы
+    for amount in _TOPUP_AMOUNTS:
+        builder.button(text=f"{amount} ₽", callback_data=f"topup:amount:{amount}")
+    builder.adjust(3)
+    builder.row(InlineKeyboardButton(text=t("topup_custom", lang), callback_data="topup:custom"))
+    builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="balance"))
+
+    from app.bot.utils.media import edit_with_photo
+    await edit_with_photo(callback, t("topup_title", lang), reply_markup=builder.as_markup())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "topup:custom")
+async def topup_custom(callback: CallbackQuery, state: FSMContext) -> None:
+    async with AsyncSessionFactory() as session:
+        lang = await _get_lang_from_session(callback.from_user.id, session)
+    await state.set_state(TopupState.waiting_amount)
+    from app.bot.utils.media import edit_with_photo
+    await edit_with_photo(callback, t("topup_enter_amount", lang), reply_markup=back_kb(lang))
+    await callback.answer()
+
+
+@router.message(TopupState.waiting_amount)
+async def topup_got_amount(message: Message, state: FSMContext) -> None:
+    async with AsyncSessionFactory() as session:
+        lang = await _get_lang_from_session(message.from_user.id, session)
+
+    try:
+        amount = Decimal(message.text.strip().replace(",", "."))
+        if amount < 50 or amount > 100000:
+            raise ValueError
+    except (ValueError, Exception):
+        await message.answer(t("topup_invalid_amount", lang))
+        return
+
+    await state.clear()
+    await _show_topup_payment(message.from_user.id, amount, lang, message=message)
+
+
+@router.callback_query(F.data.startswith("topup:amount:"))
+async def topup_select_amount(callback: CallbackQuery) -> None:
+    amount = Decimal(callback.data.split(":")[2])
+    async with AsyncSessionFactory() as session:
+        lang = await _get_lang_from_session(callback.from_user.id, session)
+    await callback.answer()
+    await _show_topup_payment(callback.from_user.id, amount, lang, callback=callback)
+
+
+async def _show_topup_payment(
+    user_id: int,
+    amount: Decimal,
+    lang: str,
+    message: Message = None,
+    callback: CallbackQuery = None,
+) -> None:
+    """Показывает способы оплаты для пополнения баланса."""
+    async with AsyncSessionFactory() as session:
+        settings = await BotSettingsService(session).get_all()
+
+    from app.core.config import config as _cfg
+    has_yookassa = bool(_cfg.yookassa and _cfg.yookassa.yookassa_shop_id and _cfg.yookassa.yookassa_secret_key)
+    has_cryptobot = bool(settings.get("cryptobot_token", "").strip())
+
+    builder = InlineKeyboardBuilder()
+
+    if has_yookassa:
+        card_labels = {"ru": "💳 Банковская карта", "en": "💳 Bank card", "fa": "💳 کارت بانکی"}
+        builder.row(InlineKeyboardButton(
+            text=card_labels.get(lang, card_labels["ru"]),
+            callback_data=f"topup:pay:yookassa:{amount}",
+        ))
+        sbp_labels = {"ru": "🏦 СБП", "en": "🏦 SBP", "fa": "🏦 SBP"}
+        builder.row(InlineKeyboardButton(
+            text=sbp_labels.get(lang, sbp_labels["ru"]),
+            callback_data=f"topup:pay:sbp:{amount}",
+        ))
+
+    if has_cryptobot:
+        crypto_labels = {"ru": "₿ Криптовалюта", "en": "₿ Cryptocurrency", "fa": "₿ ارز دیجیتال"}
+        builder.row(InlineKeyboardButton(
+            text=crypto_labels.get(lang, crypto_labels["ru"]),
+            callback_data=f"topup:pay:crypto:{amount}",
+        ))
+
+    builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="topup:menu"))
+
+    amount_labels = {"ru": f"💰 Пополнение на <b>{amount} ₽</b>\n\nВыберите способ оплаты:", "en": f"💰 Top up <b>{amount} ₽</b>\n\nChoose payment method:", "fa": f"💰 شارژ <b>{amount} ₽</b>\n\nروش پرداخت را انتخاب کنید:"}
+    text = amount_labels.get(lang, amount_labels["ru"])
+
+    from app.bot.utils.media import edit_with_photo, answer_with_photo
+    if callback:
+        await edit_with_photo(callback, text, reply_markup=builder.as_markup())
+    elif message:
+        await answer_with_photo(message, text, reply_markup=builder.as_markup())
 
 
 @router.callback_query(F.data == "enter_promo")

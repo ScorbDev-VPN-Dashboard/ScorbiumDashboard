@@ -20,7 +20,7 @@ PAYMENT_EXPIRE_MINUTES = 15
 async def check_pending_yookassa_payments() -> None:
     try:
         from app.services.yookassa import YookassaService
-        yk = YookassaService()
+        yk = await YookassaService.create()
     except Exception as e:
         log.warning(f"[payment_tasks] YookassaService init failed: {e}")
         return

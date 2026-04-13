@@ -263,7 +263,7 @@ async def pay_yookassa(request: Request, db: AsyncSession = Depends(get_db)):
     try:
         from app.services.yookassa import YookassaService
 
-        yk = YookassaService()
+        yk = await YookassaService.create()
         payment = await PaymentService(db).create_pending(
             user_id=user_id, plan=plan, provider=PaymentProvider.YOOKASSA
         )
@@ -313,7 +313,7 @@ async def pay_sbp(request: Request, db: AsyncSession = Depends(get_db)):
         from app.models.payment import PaymentProvider
         from app.services.yookassa import YookassaService
 
-        yk = YookassaService()
+        yk = await YookassaService.create()
         payment = await PaymentService(db).create_pending(
             user_id=user_id, plan=plan, provider=PaymentProvider.YOOKASSA_SBP
         )
@@ -379,7 +379,8 @@ async def check_payment(
 
     try:
         from app.services.yookassa import YookassaService
-        yk_payment = YookassaService().get_payment(str(payment.external_id))
+        yk = await YookassaService.create()
+        yk_payment = yk.get_payment(str(payment.external_id))
         if yk_payment.status == "succeeded":
             payment.status = PaymentStatus.SUCCEEDED.value
             await db.flush()

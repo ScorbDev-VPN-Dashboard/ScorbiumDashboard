@@ -19,6 +19,13 @@ class PaymentProvider(str, enum.Enum):
     CRYPTOBOT = "cryptobot"
     TELEGRAM_STARS = "telegram_stars"
     BALANCE = "balance"
+    TOPUP = "topup"          # пополнение баланса через внешний провайдер
+
+
+class PaymentType(str, enum.Enum):
+    SUBSCRIPTION = "subscription"   # оплата подписки
+    TOPUP = "topup"                 # пополнение баланса
+
 
 class Payment(Base):
     __tablename__ = "payments"
@@ -27,6 +34,7 @@ class Payment(Base):
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     vpn_key_id = Column(Integer, ForeignKey("vpn_keys.id", ondelete="SET NULL"), nullable=True)
     provider = Column(String(32), nullable=False)
+    payment_type = Column(String(32), default=PaymentType.SUBSCRIPTION.value, nullable=False)
     external_id = Column(String(256), nullable=True, unique=True)
     amount = Column(Numeric(10, 2), nullable=False)
     currency = Column(String(8), default="RUB", nullable=False)

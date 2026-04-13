@@ -14,7 +14,8 @@ class User(Base):
     is_banned = Column(Boolean, default=False, nullable=False)
     balance = Column(Numeric(10, 2), default=0, nullable=False)
     referral_code = Column(String(32), nullable=True, unique=True, index=True)
-    language = Column(String(8), nullable=True, default=None) 
+    language = Column(String(8), nullable=True, default=None)
+    autorenew = Column(Boolean, default=False, nullable=False)
 
     payments = relationship("Payment", back_populates="user", lazy="selectin")
     vpn_keys = relationship("VpnKey", back_populates="user", lazy="selectin")

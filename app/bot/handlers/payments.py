@@ -167,7 +167,7 @@ async def handle_yookassa_payment(callback: CallbackQuery, bot: Bot) -> None:
 
         try:
             from app.services.yookassa import YookassaService
-            yk = YookassaService()
+            yk = await YookassaService.create()
 
             payment = await PaymentService(session).create_pending(
                 user_id=callback.from_user.id,
@@ -245,7 +245,8 @@ async def handle_yookassa_check(callback: CallbackQuery, bot: Bot) -> None:
 
         try:
             from app.services.yookassa import YookassaService
-            yk_payment = YookassaService().get_payment(payment.external_id)
+            yk = await YookassaService.create()
+            yk_payment = yk.get_payment(payment.external_id)
             if yk_payment.status == "succeeded":
                 payment.status = PaymentStatus.SUCCEEDED.value
                 await session.commit()
@@ -277,7 +278,7 @@ async def handle_sbp_payment(callback: CallbackQuery, bot: Bot) -> None:
 
         try:
             from app.services.yookassa import YookassaService
-            yk = YookassaService()
+            yk = await YookassaService.create()
 
             payment = await PaymentService(session).create_pending(
                 user_id=callback.from_user.id,
@@ -517,6 +518,304 @@ async def handle_crypto_check(callback: CallbackQuery, bot: Bot) -> None:
         except Exception as e:
             log.error(f"CryptoBot check error: {e}")
             await callback.answer(t("payment_error", lang), show_alert=True)
+
+
+@router.callback_query(F.data.startswith("pay:"))
+async def handle_payment_fallback(callback: CallbackQuery) -> None:
+    await callback.answer("❌", show_alert=True)
+
+
+# ── Пополнение баланса ────────────────────────────────────────────────────────
+
+async def _topup_confirm_balance(user_id: int, amount_str: str, payment_id: int, bot: Bot) -> None:
+    """Зачисляем сумму на баланс, подтверждаем платёж в БД и уведомляем пользователя."""
+    from decimal import Decimal
+    amount = Decimal(amount_str)
+
+    async with AsyncSessionFactory() as session:
+        # Подтверждаем платёж
+        payment = await PaymentService(session).get_by_id(payment_id)
+        if payment:
+            from app.models.payment import PaymentStatus
+            payment.status = PaymentStatus.SUCCEEDED.value
+
+        # Зачисляем на баланс
+        user = await UserService(session).add_balance(user_id, amount)
+        await session.commit()
+
+        balance = float(user.balance or 0) if user else 0.0
+        settings = await BotSettingsService(session).get_all()
+        u = await UserService(session).get_by_id(user_id)
+        user_lang = u.language if u and u.language else None
+        lang = get_lang(settings, user_lang)
+
+    text = t("topup_success", lang, amount=amount, balance=balance)
+    try:
+        await bot.send_message(user_id, text, parse_mode="HTML")
+    except Exception as e:
+        log.warning(f"Failed to notify topup user {user_id}: {e}")
+
+
+@router.callback_query(F.data.startswith("topup:pay:yookassa:"))
+async def topup_yookassa(callback: CallbackQuery, bot: Bot) -> None:
+    from decimal import Decimal
+    amount = Decimal(callback.data.split(":")[3])
+
+    async with AsyncSessionFactory() as session:
+        lang = await _get_user_lang(callback.from_user.id, session)
+        try:
+            from app.services.yookassa import YookassaService
+            yk = await YookassaService.create()
+            me = await bot.get_me()
+            return_url = f"https://t.me/{me.username}"
+
+            # Создаём запись в БД до создания платежа в Yookassa
+            payment = await PaymentService(session).create_topup_pending(
+                user_id=callback.from_user.id,
+                amount=amount,
+                provider=PaymentProvider.YOOKASSA,
+            )
+            await session.flush()
+            payment_id = payment.id
+
+            yk_payment = yk.create_payment(
+                amount=amount,
+                description=f"Пополнение баланса {amount} ₽",
+                return_url=return_url,
+                metadata={"topup": "1", "user_id": str(callback.from_user.id), "amount": str(amount), "payment_id": str(payment_id)},
+            )
+            payment.external_id = yk_payment.id
+            await session.commit()
+            pay_url = yk_payment.confirmation.confirmation_url
+            ext_id = yk_payment.id
+        except Exception as e:
+            log.error(f"Topup yookassa error for {callback.from_user.id}: {e}")
+            await callback.answer(t("topup_error", lang), show_alert=True)
+            return
+
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text=t("topup_go", lang), url=pay_url))
+    builder.row(InlineKeyboardButton(
+        text=t("topup_check", lang),
+        callback_data=f"topup:check:yookassa:{ext_id}:{amount}:{payment_id}",
+    ))
+    builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="topup:menu"))
+
+    from app.bot.utils.media import edit_with_photo
+    await edit_with_photo(
+        callback,
+        f"💳 <b>{'Пополнение' if lang=='ru' else 'Top up'}</b> {amount} ₽\n\n"
+        f"{'После оплаты нажмите «Проверить».' if lang=='ru' else 'After payment press Check.'}",
+        reply_markup=builder.as_markup(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("topup:pay:sbp:"))
+async def topup_sbp(callback: CallbackQuery, bot: Bot) -> None:
+    from decimal import Decimal
+    amount = Decimal(callback.data.split(":")[3])
+
+    async with AsyncSessionFactory() as session:
+        lang = await _get_user_lang(callback.from_user.id, session)
+        try:
+            from app.services.yookassa import YookassaService
+            yk = await YookassaService.create()
+            me = await bot.get_me()
+            return_url = f"https://t.me/{me.username}"
+
+            payment = await PaymentService(session).create_topup_pending(
+                user_id=callback.from_user.id,
+                amount=amount,
+                provider=PaymentProvider.YOOKASSA_SBP,
+            )
+            await session.flush()
+            payment_id = payment.id
+
+            yk_payment = yk.create_sbp_payment(
+                amount=amount,
+                description=f"Пополнение баланса {amount} ₽",
+                return_url=return_url,
+                metadata={"topup": "1", "user_id": str(callback.from_user.id), "amount": str(amount), "payment_id": str(payment_id)},
+            )
+            payment.external_id = yk_payment.id
+            await session.commit()
+            pay_url = yk_payment.confirmation.confirmation_url
+            ext_id = yk_payment.id
+        except Exception as e:
+            log.error(f"Topup SBP error for {callback.from_user.id}: {e}")
+            await callback.answer(t("topup_error", lang), show_alert=True)
+            return
+
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text=t("topup_go", lang), url=pay_url))
+    builder.row(InlineKeyboardButton(
+        text=t("topup_check", lang),
+        callback_data=f"topup:check:yookassa:{ext_id}:{amount}:{payment_id}",
+    ))
+    builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="topup:menu"))
+
+    from app.bot.utils.media import edit_with_photo
+    await edit_with_photo(
+        callback,
+        f"🏦 <b>{'Пополнение через СБП' if lang=='ru' else 'SBP Top up'}</b> {amount} ₽\n\n"
+        f"{'После оплаты нажмите «Проверить».' if lang=='ru' else 'After payment press Check.'}",
+        reply_markup=builder.as_markup(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("topup:check:yookassa:"))
+async def topup_check_yookassa(callback: CallbackQuery, bot: Bot) -> None:
+    parts = callback.data.split(":")
+    ext_id = parts[3]
+    amount_str = parts[4]
+    payment_id = int(parts[5]) if len(parts) > 5 else 0
+
+    async with AsyncSessionFactory() as session:
+        lang = await _get_user_lang(callback.from_user.id, session)
+        # Проверяем не был ли уже подтверждён
+        if payment_id:
+            from app.models.payment import PaymentStatus
+            existing = await PaymentService(session).get_by_id(payment_id)
+            if existing and existing.status == PaymentStatus.SUCCEEDED.value:
+                await callback.answer(
+                    f"✅ {'Уже зачислено!' if lang=='ru' else 'Already credited!'}",
+                    show_alert=True,
+                )
+                return
+
+    try:
+        from app.services.yookassa import YookassaService
+        yk = await YookassaService.create()
+        yk_payment = yk.get_payment(ext_id)
+        if yk_payment.status == "succeeded":
+            await _topup_confirm_balance(callback.from_user.id, amount_str, payment_id, bot)
+            await callback.answer(
+                f"✅ {'Баланс пополнен!' if lang=='ru' else 'Balance topped up!'}",
+                show_alert=True,
+            )
+            await callback.answer(
+                f"✅ {'Баланс пополнен!' if lang=='ru' else 'Balance topped up!'}",
+                show_alert=True,
+            )
+            # Редиректим на баланс
+            await callback.message.delete()
+            from app.bot.utils.menu import get_main_menu_kb as _gmk
+            async with AsyncSessionFactory() as _s:
+                _kb = await _gmk(_s, lang=lang, user_id=callback.from_user.id)
+            from app.bot.utils.media import answer_with_photo
+            await answer_with_photo(callback.message, f"✅ Баланс пополнен!", reply_markup=_kb)
+        elif yk_payment.status == "canceled":
+            await callback.answer(t("payment_failed", lang), show_alert=True)
+        else:
+            await callback.answer(t("payment_pending", lang), show_alert=True)
+    except Exception as e:
+        log.error(f"Topup check error: {e}")
+        await callback.answer(t("topup_error", lang), show_alert=True)
+
+
+@router.callback_query(F.data.startswith("topup:pay:crypto:"))
+async def topup_crypto(callback: CallbackQuery, bot: Bot) -> None:
+    from decimal import Decimal
+    amount = Decimal(callback.data.split(":")[3])
+
+    async with AsyncSessionFactory() as session:
+        lang = await _get_user_lang(callback.from_user.id, session)
+        settings = await BotSettingsService(session).get_all()
+        crypto = CryptoBotService.from_settings(settings)
+        if not crypto:
+            await callback.answer(t("topup_error", lang), show_alert=True)
+            return
+        try:
+            usdt_amount = await crypto.rub_to_usdt(float(amount))
+
+            payment = await PaymentService(session).create_topup_pending(
+                user_id=callback.from_user.id,
+                amount=amount,
+                provider=PaymentProvider.CRYPTOBOT,
+            )
+            await session.flush()
+            payment_id = payment.id
+
+            invoice = await crypto.create_invoice(
+                amount=usdt_amount,
+                currency="USDT",
+                description=f"Пополнение баланса {amount} ₽",
+                payload=f"topup:{callback.from_user.id}:{amount}:{payment_id}",
+            )
+            if not invoice:
+                await callback.answer(t("topup_error", lang), show_alert=True)
+                return
+            payment.external_id = str(invoice["invoice_id"])
+            await session.commit()
+            pay_url = invoice.get("pay_url", "")
+            inv_id = str(invoice["invoice_id"])
+        except Exception as e:
+            log.error(f"Topup crypto error for {callback.from_user.id}: {e}")
+            await callback.answer(t("topup_error", lang), show_alert=True)
+            return
+
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text=t("topup_go", lang), url=pay_url))
+    builder.row(InlineKeyboardButton(
+        text=t("topup_check", lang),
+        callback_data=f"topup:check:crypto:{inv_id}:{amount}:{payment_id}",
+    ))
+    builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="topup:menu"))
+
+    from app.bot.utils.media import edit_with_photo
+    await edit_with_photo(
+        callback,
+        f"₿ <b>{'Пополнение криптой' if lang=='ru' else 'Crypto top up'}</b>\n\n"
+        f"{amount} ₽ (~{usdt_amount} USDT)\n\n"
+        f"{'После оплаты нажмите «Проверить».' if lang=='ru' else 'After payment press Check.'}",
+        reply_markup=builder.as_markup(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("topup:check:crypto:"))
+async def topup_check_crypto(callback: CallbackQuery, bot: Bot) -> None:
+    parts = callback.data.split(":")
+    inv_id = parts[3]
+    amount_str = parts[4]
+    payment_id = int(parts[5]) if len(parts) > 5 else 0
+
+    async with AsyncSessionFactory() as session:
+        lang = await _get_user_lang(callback.from_user.id, session)
+        if payment_id:
+            from app.models.payment import PaymentStatus
+            existing = await PaymentService(session).get_by_id(payment_id)
+            if existing and existing.status == PaymentStatus.SUCCEEDED.value:
+                await callback.answer(
+                    f"✅ {'Уже зачислено!' if lang=='ru' else 'Already credited!'}",
+                    show_alert=True,
+                )
+                return
+        settings = await BotSettingsService(session).get_all()
+        crypto = CryptoBotService.from_settings(settings)
+        if not crypto:
+            await callback.answer(t("topup_error", lang), show_alert=True)
+            return
+
+    try:
+        invoice = await crypto.get_invoice(int(inv_id))
+        if invoice and invoice.get("status") == "paid":
+            await _topup_confirm_balance(callback.from_user.id, amount_str, payment_id, bot)
+            await callback.answer(
+                f"✅ {'Баланс пополнен!' if lang=='ru' else 'Balance topped up!'}",
+                show_alert=True,
+            )
+            await callback.answer(
+                f"✅ {'Баланс пополнен!' if lang=='ru' else 'Balance topped up!'}",
+                show_alert=True,
+            )
+        else:
+            await callback.answer(t("payment_pending", lang), show_alert=True)
+    except Exception as e:
+        log.error(f"Topup crypto check error: {e}")
+        await callback.answer(t("topup_error", lang), show_alert=True)
 
 
 @router.callback_query(F.data.startswith("pay:"))

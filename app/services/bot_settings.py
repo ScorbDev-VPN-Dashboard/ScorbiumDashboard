@@ -42,6 +42,20 @@ DEFAULTS = {
     "keyboard_layout": "",  # JSON раскладка главного меню
     "bot_language": "ru",   # Язык бота: ru | en | fa
     "cryptobot_token": "",  # CryptoBot API токен
+    # ── Платёжные системы — включение/отключение ──────────────────────────────
+    "ps_yookassa_enabled": "0",
+    "ps_cryptobot_enabled": "0",
+    "ps_stars_enabled": "1",
+    "ps_freekassa_enabled": "0",
+    "ps_aikassa_enabled": "0",
+    # ── FreeKassa ─────────────────────────────────────────────────────────────
+    "freekassa_shop_id": "",
+    "freekassa_api_key": "",
+    "freekassa_secret_word_1": "",
+    "freekassa_secret_word_2": "",
+    # ── AiKassa ───────────────────────────────────────────────────────────────
+    "aikassa_shop_id": "",
+    "aikassa_token": "",
     # ── Пробный период ────────────────────────────────────────────────────────
     "trial_enabled": "0",       # 1 = включён
     "trial_days": "3",          # кол-во дней пробного периода
