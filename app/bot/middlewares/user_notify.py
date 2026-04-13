@@ -83,7 +83,6 @@ async def _notify_expired_keys(user_id: int) -> None:
             return
         settings = await BotSettingsService(session).get_all()
         user_lang = user.language if user and user.language else None
-        from app.services.i18n import get_lang
         lang = get_lang(settings, user_lang)
         count = len(expired_keys)  # читаем count пока сессия открыта
 
@@ -109,6 +108,7 @@ async def _notify_pending_payments(user_id: int) -> None:
     from app.services.telegram_notify import TelegramNotifyService
     from app.services.user import UserService
     from app.services.bot_settings import BotSettingsService
+    from app.services.i18n import get_lang
 
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
 
@@ -130,7 +130,6 @@ async def _notify_pending_payments(user_id: int) -> None:
             return
         settings = await BotSettingsService(session).get_all()
         user_lang = user.language if user and user.language else None
-        from app.services.i18n import get_lang
         lang = get_lang(settings, user_lang)
 
     _notified_pending[user_id] = now

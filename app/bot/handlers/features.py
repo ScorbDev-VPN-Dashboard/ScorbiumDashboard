@@ -92,16 +92,10 @@ async def cmd_ping(message: Message) -> None:
             import httpx
             from app.core.config import config
             _pg = config.pasarguard
-            if _pg:
-                base = str(_pg.pasarguard_admin_panel).rstrip("/")
-                ping_path = "/api/system"
-            else:
-                from app.core.configs.remnawave_config import remnawave as _rw
-                base = (_rw.remnawave_url or "").rstrip("/")
-                ping_path = "/api/system/stats"
+            base = str(_pg.pasarguard_admin_panel).rstrip("/") if _pg else ""
             start = asyncio.get_event_loop().time()
             async with httpx.AsyncClient(timeout=5, verify=False) as client:
-                await client.get(f"{base}{ping_path}")
+                await client.get(f"{base}/api/system")
             ms = int((asyncio.get_event_loop().time() - start) * 1000)
             status_icon = "🟢" if ms < 100 else "🟡" if ms < 300 else "🔴"
             text = f"🌐 <b>Статус серверов</b>\n\n{status_icon} Основной сервер: <b>{ms} мс</b>"
@@ -342,3 +336,41 @@ async def cb_top(callback: CallbackQuery) -> None:
 async def cb_status(callback: CallbackQuery) -> None:
     await callback.answer()
     await cmd_status(callback.message)
+
+
+# ── /extend — продление через баланс ─────────────────────────────────────────
+
+@router.message(Command("extend", "продлить"))
+async def cmd_extend(message: Message) -> None:
+    """Показывает тарифы для продления активной подписки."""
+    async with AsyncSessionFactory() as session:
+        keys = await VpnKeyService(session).get_active_for_user(message.from_user.id)
+        user = await UserService(session).get_by_id(message.from_user.id)
+        from app.services.plan import PlanService
+        plans = await PlanService(session).get_all(only_active=True)
+        balance = float(user.balance or 0) if user else 0.0
+
+    if not keys:
+        await message.answer("📦 Нет активных подписок для продления.\n\nИспользуй /buy чтобы купить новую.", parse_mode="HTML")
+        return
+
+    if not plans:
+        await message.answer("😔 Нет доступных тарифов.")
+        return
+
+    builder = InlineKeyboardBuilder()
+    for plan in plans:
+        can_afford = "✅" if balance >= float(plan.price) else "💰"
+        builder.row(InlineKeyboardButton(
+            text=f"{can_afford} {plan.name} — {plan.price} ₽ ({plan.duration_days} дн.)",
+            callback_data=f"plan:{plan.id}",
+        ))
+    builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="back_main"))
+
+    await message.answer(
+        f"🔄 <b>Продление подписки</b>\n\n"
+        f"💰 Ваш баланс: <b>{balance:.2f} ₽</b>\n\n"
+        f"Выберите тариф для продления:",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )

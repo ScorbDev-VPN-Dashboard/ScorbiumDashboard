@@ -13,7 +13,7 @@ class PlanService:
     async def get_all(self, only_active: bool = False) -> list[Plan]:
         q = select(Plan).order_by(Plan.sort_order, Plan.price)
         if only_active:
-            q = q.where(Plan.is_active == True)
+            q = q.where(Plan.is_active.is_(True))
         result = await self.session.execute(q)
         return list(result.scalars().all())
 

@@ -180,12 +180,7 @@ class _PasarGuardConfig(BaseSettings):
 
 @lru_cache()
 def get_pasarguard_config() -> Optional["_PasarGuardConfig"]:
-    """Returns config, or None when VPN_PANEL_TYPE=remnawave and Marzban vars are absent."""
-    import os as _os
-    panel_type = _os.environ.get("VPN_PANEL_TYPE", "marzban").lower().strip()
-    if panel_type == "remnawave" and not _os.environ.get("PASARGUARD_ADMIN_PANEL"):
-        log.info("ℹ️  Pasarguard config skipped (VPN_PANEL_TYPE=remnawave)")
-        return None
+    """Returns Marzban/Pasarguard config."""
     return _PasarGuardConfig()
 
 

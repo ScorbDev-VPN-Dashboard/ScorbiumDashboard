@@ -1,5 +1,5 @@
 """
-Abstract interface for VPN panel backends (Marzban/Pasarguard and Remnawave).
+Abstract interface for VPN panel backend (Marzban/Pasarguard).
 All panel services must implement this interface.
 """
 from abc import ABC, abstractmethod

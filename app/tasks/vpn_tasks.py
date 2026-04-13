@@ -106,15 +106,16 @@ async def notify_expiring_soon() -> None:
                 ]
 
             for user_id, name, exp in data:
-                # Проверяем бан
+                # Проверяем бан и получаем язык
+                lang = "ru"
                 async with AsyncSessionFactory() as check_session:
                     u = await _US(check_session).get_by_id(user_id)
                     if not u or u.is_banned:
                         continue
-                    user_lang = u.language if u and u.language else None
+                    user_lang = u.language if u.language else None
                     from app.services.bot_settings import BotSettingsService as _BSS
-                    s = await _BSS(check_session).get_all()
                     from app.services.i18n import get_lang
+                    s = await _BSS(check_session).get_all()
                     lang = get_lang(s, user_lang)
 
                 exp_str = exp.strftime("%d.%m.%Y") if exp else "—"

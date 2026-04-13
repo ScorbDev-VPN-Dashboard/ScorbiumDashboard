@@ -3,6 +3,7 @@ from typing import Any, Awaitable, Callable, Dict
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject, Update
 
+from app.core.config import config
 from app.core.database import AsyncSessionFactory
 from app.services.user import UserService
 from app.services.bot_settings import BotSettingsService
@@ -28,6 +29,10 @@ class BanCheckMiddleware(BaseMiddleware):
                 user_id = event.pre_checkout_query.from_user.id
 
         if user_id is None:
+            return await handler(event, data)
+
+        # Admins bypass bot_enabled check
+        if user_id in config.telegram.telegram_admin_ids:
             return await handler(event, data)
 
         async with AsyncSessionFactory() as session:

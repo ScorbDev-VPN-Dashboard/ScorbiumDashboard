@@ -30,6 +30,14 @@ async def _get_user_lang(user_id: int, session) -> str:
 
 async def _provision_and_notify(user_id: int, payment_id: int, plan_id: int, bot: Bot) -> None:
     """Создаём VPN-подписку и уведомляем пользователя."""
+    key = None
+    plan = None
+    text = ""
+    uname = f"id:{user_id}"
+    full_name = "—"
+    provider_str = "—"
+    amount_str = "—"
+
     async with AsyncSessionFactory() as session:
         plan = await PlanService(session).get_by_id(plan_id)
         if not plan:
@@ -41,28 +49,32 @@ async def _provision_and_notify(user_id: int, payment_id: int, plan_id: int, bot
         if payment and key:
             payment.vpn_key_id = key.id
 
+        # Сохраняем данные до commit
+        provider_str = payment.provider if payment else "—"
+        amount_str = str(payment.amount) if payment else str(plan.price)
+        plan_name = plan.name
+        plan_days = plan.duration_days
+        plan_price = str(plan.price)
+
         await session.commit()
 
+    async with AsyncSessionFactory() as session:
         settings = await BotSettingsService(session).get_all()
         user = await UserService(session).get_by_id(user_id)
         user_lang = user.language if user and user.language else None
         lang = get_lang(settings, user_lang)
+        uname = f"@{user.username}" if user and user.username else f"id:{user_id}"
+        full_name = user.full_name if user else "—"
 
         success_msg = settings.get("payment_success_message") or t("payment_success", lang)
 
         if key and key.access_url:
             text = (
                 f"{success_msg}\n\n"
-                + t("subscription_url", lang, url=key.access_url, days=plan.duration_days)
+                + t("subscription_url", lang, url=key.access_url, days=plan_days)
             )
         else:
             text = f"{success_msg}\n\n" + t("key_error", lang)
-
-        # Данные для уведомления админа
-        uname = f"@{user.username}" if user and user.username else f"id:{user_id}"
-        full_name = user.full_name if user else "—"
-        provider_str = payment.provider if payment else "—"
-        amount_str = str(payment.amount) if payment else str(plan.price)
 
     # Уведомляем пользователя
     try:
@@ -84,8 +96,8 @@ async def _provision_and_notify(user_id: int, payment_id: int, plan_id: int, bot
     admin_text = (
         f"✅ <b>Новая оплата!</b>\n\n"
         f"👤 {full_name} ({uname})\n"
-        f"📦 {plan.name} — {amount_str} ₽\n"
-        f"⏱ {plan.duration_days} дн.\n"
+        f"📦 {plan_name} — {amount_str} ₽\n"
+        f"⏱ {plan_days} дн.\n"
         f"{icon} {provider_str}\n"
         f"🔑 Ключ: {'выдан' if key else '❌ ошибка'}"
     )

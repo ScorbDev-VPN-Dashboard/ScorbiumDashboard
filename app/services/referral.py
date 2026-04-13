@@ -14,7 +14,7 @@ class ReferralService:
     async def get_stats(self) -> dict:
         total = await self.session.execute(select(func.count()).select_from(Referral))
         paid = await self.session.execute(
-            select(func.count()).select_from(Referral).where(Referral.is_paid == True)
+            select(func.count()).select_from(Referral).where(Referral.is_paid.is_(True))
         )
         # Sum bonus_value where bonus_type = days
         bonus_sum = await self.session.execute(
@@ -41,11 +41,10 @@ class ReferralService:
         )
         return [
             {
-                "referrer_id": row.referrer_id,
+                "user_id": row.referrer_id,
                 "username": row.username,
                 "full_name": row.full_name,
-                "count": row.count,
-                "bonus_days": 0,
+                "referral_count": row.count,
             }
             for row in result.all()
         ]

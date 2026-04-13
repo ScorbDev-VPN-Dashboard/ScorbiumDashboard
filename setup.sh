@@ -59,58 +59,15 @@ read -rp "Пользователь БД [postgres]: " DB_USER; DB_USER=${DB_USER
 read -rsp "Пароль БД [postgres]: " DB_PASS; echo ""; DB_PASS=${DB_PASS:-postgres}
 
 echo ""
-echo -e "${BOLD}── VPN Panel ────────────────────────────────────────${RESET}"
+echo -e "${BOLD}── VPN Panel (Marzban / Pasarguard) ─────────────────${RESET}"
+VPN_PANEL_TYPE=marzban
 echo ""
-echo -e "  Выберите тип VPN панели:"
-echo -e "  ${CYAN}1)${RESET} Marzban / Pasarguard ${YELLOW}(по умолчанию)${RESET}"
-echo -e "     └─ Классическая панель Marzban или Pasarguard"
-echo -e "  ${CYAN}2)${RESET} Remnawave"
-echo -e "     └─ Современная панель Remnawave"
-echo ""
-read -rp "Выбор [1/2]: " PANEL_CHOICE
-PANEL_CHOICE=${PANEL_CHOICE:-1}
-
-if [[ "$PANEL_CHOICE" == "2" ]]; then
-    VPN_PANEL_TYPE=remnawave
-    echo ""
-    echo -e "${BOLD}── Remnawave ────────────────────────────────────────${RESET}"
-    read -rp "URL Remnawave (например: https://panel.example.com): " REMNAWAVE_URL
-    [[ -z "$REMNAWAVE_URL" ]] && error "URL Remnawave обязателен"
-    echo ""
-    echo "Метод авторизации:"
-    echo "  1) API Key (рекомендуется) — создать в Remnawave → Settings → API Tokens"
-    echo "  2) Логин / Пароль"
-    read -rp "Выбор [1/2]: " RW_AUTH_CHOICE
-    RW_AUTH_CHOICE=${RW_AUTH_CHOICE:-1}
-    if [[ "$RW_AUTH_CHOICE" == "1" ]]; then
-        read -rp "API Key: " REMNAWAVE_API_KEY
-        [[ -z "$REMNAWAVE_API_KEY" ]] && error "API Key обязателен"
-        REMNAWAVE_LOGIN=""
-        REMNAWAVE_PASS=""
-    else
-        REMNAWAVE_API_KEY=""
-        read -rp "Логин Remnawave [admin]: " REMNAWAVE_LOGIN; REMNAWAVE_LOGIN=${REMNAWAVE_LOGIN:-admin}
-        read -rsp "Пароль Remnawave: " REMNAWAVE_PASS; echo ""
-        [[ -z "$REMNAWAVE_PASS" ]] && error "Пароль Remnawave обязателен"
-    fi
-    PASAR_URL="http://localhost:8012"
-    PASAR_LOGIN="admin"
-    PASAR_PASS="unused"
-    success "Выбрана панель: Remnawave"
-else
-    VPN_PANEL_TYPE=marzban
-    REMNAWAVE_URL=""
-    REMNAWAVE_LOGIN=""
-    REMNAWAVE_PASS=""
-    echo ""
-    echo -e "${BOLD}── Marzban / Pasarguard ─────────────────────────────${RESET}"
-    read -rp "URL панели (например: https://panel.example.com:8012): " PASAR_URL
-    [[ -z "$PASAR_URL" ]] && error "URL панели обязателен"
-    read -rp "Логин Marzban [admin]: " PASAR_LOGIN; PASAR_LOGIN=${PASAR_LOGIN:-admin}
-    read -rsp "Пароль Marzban: " PASAR_PASS; echo ""
-    [[ -z "$PASAR_PASS" ]] && error "Пароль Marzban обязателен"
-    success "Выбрана панель: Marzban / Pasarguard"
-fi
+read -rp "URL панели (например: https://panel.example.com:8012): " PASAR_URL
+[[ -z "$PASAR_URL" ]] && error "URL панели обязателен"
+read -rp "Логин Marzban [admin]: " PASAR_LOGIN; PASAR_LOGIN=${PASAR_LOGIN:-admin}
+read -rsp "Пароль Marzban: " PASAR_PASS; echo ""
+[[ -z "$PASAR_PASS" ]] && error "Пароль Marzban обязателен"
+success "Выбрана панель: Marzban / Pasarguard"
 
 echo ""
 echo -e "${BOLD}── YooKassa (Enter = пропустить) ───────────────────${RESET}"
@@ -188,11 +145,7 @@ PASARGUARD_ADMIN_PANEL=${PASAR_URL}
 PASARGUARD_ADMIN_LOGIN=${PASAR_LOGIN}
 PASARGUARD_ADMIN_PASSWORD=${PASAR_PASS}
 PASARGUARD_API_KEY=
-VPN_PANEL_TYPE=${VPN_PANEL_TYPE}
-REMNAWAVE_URL=${REMNAWAVE_URL}
-REMNAWAVE_LOGIN=${REMNAWAVE_LOGIN}
-REMNAWAVE_PASSWORD=${REMNAWAVE_PASS}
-REMNAWAVE_API_KEY=${REMNAWAVE_API_KEY:-}
+VPN_PANEL_TYPE=marzban
 YOOKASSA_SHOP_ID=${YK_SHOP}
 YOOKASSA_SECRET_KEY=${YK_SECRET}
 CRYPTOBOT_TOKEN=${CRYPTOBOT_TOKEN}
@@ -451,11 +404,7 @@ echo ""
 echo -e "  🌐 Панель:   ${BOLD}${CYAN}${PANEL_URL}${RESET}"
 echo -e "  👤 Логин:    ${BOLD}${WEB_USER}${RESET}"
 echo -e "  🔑 Пароль:   ${BOLD}${WEB_PASS}${RESET}"
-if [[ "$VPN_PANEL_TYPE" == "remnawave" ]]; then
-echo -e "  🛡️  VPN:      ${BOLD}Remnawave${RESET} (${REMNAWAVE_URL})"
-else
 echo -e "  🛡️  VPN:      ${BOLD}Marzban / Pasarguard${RESET} (${PASAR_URL})"
-fi
 echo ""
 echo -e "  Логи:    ${YELLOW}docker compose -f docker-compose.prod.yml logs -f app${RESET}"
 echo -e "  Стоп:    ${YELLOW}docker compose -f docker-compose.prod.yml down${RESET}"

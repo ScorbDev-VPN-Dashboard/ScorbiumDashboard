@@ -91,11 +91,7 @@ async def handle_trial(callback: CallbackQuery) -> None:
             )
             sub_token = marz_user.get("subscription_url", "")
             _pg = config.pasarguard
-            if _pg:
-                panel_base = str(_pg.pasarguard_admin_panel).rstrip("/")
-            else:
-                from app.core.configs.remnawave_config import remnawave as _rw
-                panel_base = (_rw.remnawave_url or "").rstrip("/")
+            panel_base = str(_pg.pasarguard_admin_panel).rstrip("/") if _pg else ""
             if sub_token:
                 access_url = sub_token if sub_token.startswith("http") else f"{panel_base}{sub_token.rstrip('/')}"
             else:

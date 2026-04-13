@@ -83,8 +83,6 @@ def _redirect(url: str):
 async def _base_ctx(request: Request, db: AsyncSession, active: str) -> dict:
     open_tickets = await SupportService(db).count_open()
     pending_payments = await PaymentService(db).count_by_status(PaymentStatus.PENDING)
-    from app.core.configs.remnawave_config import remnawave as _rw_cfg
-    panel_type = (_rw_cfg.vpn_panel_type or "marzban").lower().strip()
     return {
         "request": request,
         "active": active,
@@ -93,7 +91,7 @@ async def _base_ctx(request: Request, db: AsyncSession, active: str) -> dict:
         "bot_username": None,
         "app_name": config.web.app_name,
         "app_version": config.web.app_version,
-        "vpn_panel_type": panel_type,
+        "vpn_panel_type": "marzban",
     }
 
 
@@ -687,7 +685,7 @@ async def extend_subscription(
         _toast(resp, "Подписка не найдена", "error")
         return resp
     await db.commit()
-    exp_str = key.expires_at.strftime("%d.%m.%Y") if key.expires_at is True else "—"
+    exp_str = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
     await TelegramNotifyService().send_message(
         key.user_id,
         f"📅 <b>Ваша подписка продлена на {days} дней!</b>\n\nДействует до: {exp_str}",
@@ -1030,28 +1028,15 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
     except Exception:
         ctx["layout"] = _DEFAULT_LAYOUT
 
-    from app.core.configs.remnawave_config import remnawave as _rw_cfg
-    _panel_type = (_rw_cfg.vpn_panel_type or "marzban").lower().strip()
-
-    if _panel_type == "remnawave":
-        from app.services.remnawave.remnawave import RemnawaveService
-        try:
-            stats = await RemnawaveService().get_system_stats()
-            ctx["marzban_ok"] = True
-            ctx["marzban_stats"] = stats
-        except Exception:
-            ctx["marzban_ok"] = False
-            ctx["marzban_stats"] = None
-    else:
-        from app.services.pasarguard.pasarguard import PasarguardService
-        marzban = PasarguardService()
-        try:
-            stats = await marzban.get_system_stats()
-            ctx["marzban_ok"] = True
-            ctx["marzban_stats"] = stats
-        except Exception:
-            ctx["marzban_ok"] = False
-            ctx["marzban_stats"] = None
+    from app.services.pasarguard.pasarguard import PasarguardService
+    marzban = PasarguardService()
+    try:
+        stats = await marzban.get_system_stats()
+        ctx["marzban_ok"] = True
+        ctx["marzban_stats"] = stats
+    except Exception:
+        ctx["marzban_ok"] = False
+        ctx["marzban_stats"] = None
 
     return templates.TemplateResponse("telegram.html", ctx)
 
@@ -1676,113 +1661,6 @@ async def pg_nodes(request: Request):
       <thead><tr><th>ID</th><th>Название</th><th>Адрес</th><th>Статус</th></tr></thead>
       <tbody>{rows}</tbody>
     </table></div>""")
-
-
-# ── Remnawave ─────────────────────────────────────────────────────────────────
-
-
-@router.get("/remnawave", response_class=HTMLResponse)
-async def remnawave_page(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
-    ctx = await _base_ctx(request, db, "remnawave")
-    from app.services.remnawave.remnawave import RemnawaveService
-    try:
-        svc = RemnawaveService()
-        ctx["rw_stats"] = await svc.get_system_stats()
-        ctx["rw_ok"] = True
-    except Exception:
-        ctx["rw_stats"] = None
-        ctx["rw_ok"] = False
-    return templates.TemplateResponse("remnawave.html", ctx)
-
-
-@router.get("/remnawave/users", response_class=HTMLResponse)
-async def rw_users(request: Request):
-    _require_auth(request)
-    from app.services.remnawave.remnawave import RemnawaveService
-    try:
-        svc = RemnawaveService()
-        users = await svc.get_all_users(size=100)
-    except Exception as e:
-        return HTMLResponse(f'<div style="color:#ef4444">Ошибка: {e}</div>')
-
-    if not users:
-        return HTMLResponse('<div style="color:#8892a4">Нет пользователей</div>')
-
-    rows = ""
-    for u in users:
-        status = u.get("status", "")
-        color = {"ACTIVE": "#22c55e", "EXPIRED": "#ef4444", "DISABLED": "#eab308", "LIMITED": "#f97316"}.get(status, "#8892a4")
-        traffic = u.get("userTraffic", {}) or {}
-        used = round((traffic.get("usedTrafficBytes", 0) or 0) / 1073741824, 2)
-        limit = u.get("trafficLimitBytes", 0) or 0
-        limit_str = f"{round(limit / 1073741824, 1)} GB" if limit else "∞"
-        expire = (u.get("expireAt") or "—")[:10]
-        online_at = traffic.get("onlineAt")
-        online_dot = '<span style="color:#22c55e;font-size:.6rem">●</span> ' if online_at else ""
-        sub_url = u.get("subscriptionUrl", "")
-        rows += f"""<tr>
-          <td><code style="color:var(--accent)">{online_dot}{u.get("username", "")}</code></td>
-          <td><span style="color:{color};font-size:.75rem">{status}</span></td>
-          <td style="font-size:.78rem;color:#8892a4">{used} / {limit_str}</td>
-          <td style="font-size:.75rem;color:#8892a4">{expire}</td>
-          <td style="font-size:.7rem"><a href="{sub_url}" target="_blank" style="color:#6c63ff">sub</a></td>
-        </tr>"""
-
-    return HTMLResponse(f"""
-    <div class="table-responsive">
-    <table class="table mb-0">
-      <thead><tr><th>Username</th><th>Статус</th><th>Трафик</th><th>Истекает</th><th>Sub</th></tr></thead>
-      <tbody>{rows}</tbody>
-    </table></div>""")
-
-
-@router.post("/remnawave/test", response_class=HTMLResponse)
-async def test_remnawave(request: Request):
-    _require_auth(request)
-    from app.services.remnawave.remnawave import RemnawaveService
-    try:
-        svc = RemnawaveService()
-        stats = await svc.get_system_stats()
-        users_online = stats.get("onlineNow", 0)
-        total_users = stats.get("totalUsers", 0)
-        nodes_online = stats.get("totalOnlineNodes", 0)
-        traffic = stats.get("totalBytesLifetime", "0")
-        status_counts = stats.get("statusCounts", {})
-
-        items = [
-            ("bi-wifi", "rgba(34,197,94,.1)", "#22c55e", "Онлайн", users_online),
-            ("bi-people", "rgba(108,99,255,.1)", "#a78bfa", "Всего юзеров", total_users),
-            ("bi-server", "rgba(59,130,246,.1)", "#3b82f6", "Нод онлайн", nodes_online),
-            ("bi-hdd", "rgba(239,68,68,.1)", "#ef4444", "Трафик всего", traffic),
-            ("bi-check-circle", "rgba(34,197,94,.1)", "#22c55e", "Активных", status_counts.get("ACTIVE", 0)),
-            ("bi-x-circle", "rgba(239,68,68,.1)", "#ef4444", "Истекших", status_counts.get("EXPIRED", 0)),
-        ]
-        cards = ""
-        for icon, bg, color, label, val in items:
-            cards += f"""<div class="col-6">
-              <div style="background:{bg};border-radius:8px;padding:.5rem .75rem;font-size:.75rem">
-                <div style="color:#8892a4"><i class="bi {icon} me-1" style="color:{color}"></i>{label}</div>
-                <div class="text-white fw-semibold">{val}</div>
-              </div>
-            </div>"""
-
-        html = f"""<div class="d-flex align-items-center gap-2 mb-3" style="color:#22c55e;font-size:.85rem">
-          <i class="bi bi-check-circle-fill"></i><span>Подключено</span>
-        </div>
-        <div class="row g-2">{cards}</div>"""
-        resp = HTMLResponse(html)
-        _toast(resp, "Remnawave подключён")
-    except Exception as e:
-        import traceback
-        err_detail = str(e)
-        log.error(f"Remnawave test failed: {traceback.format_exc()}")
-        html = f"""<div class="d-flex align-items-center gap-2" style="color:#ef4444;font-size:.85rem">
-          <i class="bi bi-x-circle-fill"></i><span>Ошибка: {err_detail[:120]}</span>
-        </div>"""
-        resp = HTMLResponse(html)
-        _toast(resp, "Нет подключения к Remnawave", "error")
-    return resp
 
 
 # ── Keyboard Editor ───────────────────────────────────────────────────────────

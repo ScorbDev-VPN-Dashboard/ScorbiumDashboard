@@ -22,8 +22,6 @@ dependencies = [
     "yookassa>=3.0.0",
     # HTTP client
     "httpx>=0.27.0",
-    # Remnawave SDK
-    "remnawave>=0.1.0",
     # Auth
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.4",

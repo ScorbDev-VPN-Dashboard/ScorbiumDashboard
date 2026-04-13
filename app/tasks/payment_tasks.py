@@ -21,7 +21,8 @@ async def check_pending_yookassa_payments() -> None:
     try:
         from app.services.yookassa import YookassaService
         yk = YookassaService()
-    except Exception:
+    except Exception as e:
+        log.warning(f"[payment_tasks] YookassaService init failed: {e}")
         return
 
     async with AsyncSessionFactory() as session:
@@ -73,6 +74,7 @@ async def check_pending_yookassa_payments() -> None:
                         payment.vpn_key_id = key.id
                     await session.commit()
 
+                async with AsyncSessionFactory() as session:
                     settings = await BotSettingsService(session).get_all()
                     success_msg = settings.get("payment_success_message") or "✅ Оплата прошла успешно!"
                     if key:

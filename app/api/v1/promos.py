@@ -26,6 +26,15 @@ async def delete_promo(promo_id: int, db: AsyncSession = Depends(get_db), _=Depe
     await db.commit()
 
 
+@router.post("/{promo_id}/toggle", response_model=PromoRead)
+async def toggle_promo(promo_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_admin)):
+    promo = await PromoService(db).toggle_active(promo_id)
+    if not promo:
+        raise HTTPException(status_code=404, detail="Promo not found")
+    await db.commit()
+    return promo
+
+
 @router.post("/apply", response_model=PromoApplyResult)
 async def apply_promo(data: PromoApply, db: AsyncSession = Depends(get_db)):
     promo = await PromoService(db).apply(data.code)

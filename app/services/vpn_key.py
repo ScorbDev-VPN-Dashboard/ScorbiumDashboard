@@ -96,7 +96,8 @@ class VpnKeyService:
                         for x in _json.loads(raw_groups)
                         if str(x).strip().isdigit()
                     ]
-            except Exception:
+            except Exception as e:
+                log.warning(f"Failed to load vpn_group_ids setting: {e}")
                 group_ids = []
 
             marz_user = await self._get_panel().create_user(
@@ -113,12 +114,8 @@ class VpnKeyService:
 
         sub_token = marz_user.get("subscription_url", "")
         # Build access URL
-        from app.core.configs.remnawave_config import remnawave as _rw
         _pg = config.pasarguard
-        if _pg:
-            panel_base = str(_pg.pasarguard_admin_panel).rstrip("/")
-        else:
-            panel_base = (_rw.remnawave_url or "").rstrip("/")
+        panel_base = str(_pg.pasarguard_admin_panel).rstrip("/") if _pg else ""
 
         if sub_token:
             if sub_token.startswith("http"):
@@ -126,16 +123,7 @@ class VpnKeyService:
             else:
                 access_url = f"{panel_base}{sub_token.rstrip('/')}"
         else:
-            # Remnawave returns subscriptionUrl directly in response
-            sub_url = marz_user.get("subscriptionUrl", "")
-            if sub_url:
-                access_url = sub_url.rstrip("/")
-            else:
-                uuid = marz_user.get("uuid", "")
-                if uuid and _rw.remnawave_url:
-                    access_url = f"{_rw.remnawave_url.rstrip('/')}/api/sub/{marz_user.get('shortUuid', uuid)}"
-                else:
-                    access_url = f"{panel_base}/sub/{username}"
+            access_url = f"{panel_base}/sub/{username}"
 
         key.pasarguard_key_id = username
         key.access_url = access_url
@@ -219,7 +207,7 @@ class VpnKeyService:
                 if not marz_user:
                     key.status = VpnKeyStatus.REVOKED.value
                 else:
-                    # Support both Marzban (lowercase) and Remnawave (UPPERCASE) statuses
+                    # Support both active/disabled/expired statuses
                     raw_status = (
                         marz_user.get("_normalized_status")
                         or marz_user.get("status", "")

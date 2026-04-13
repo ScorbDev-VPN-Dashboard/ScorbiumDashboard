@@ -30,7 +30,7 @@ class BroadcastService:
 
     async def send(self, broadcast_id: int) -> Broadcast | None:
         bc = await self.get_by_id(broadcast_id)
-        if not bc or bc.status not in (BroadcastStatus.DRAFT, BroadcastStatus.FAILED):
+        if not bc or bc.status not in (BroadcastStatus.DRAFT.value, BroadcastStatus.FAILED.value):
             return None
 
         bc.status = BroadcastStatus.SENDING.value
@@ -51,7 +51,7 @@ class BroadcastService:
     async def _resolve_targets(self, target: str) -> list[int]:
         if target == "all":
             result = await self.session.execute(
-                select(User.id).where(User.is_banned == False, User.is_active == True)
+                select(User.id).where(User.is_banned.is_(False), User.is_active.is_(True))
             )
         elif target == "active":
             result = await self.session.execute(
