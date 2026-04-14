@@ -33,7 +33,7 @@ async def _provision_and_notify(user_id: int, payment_id: int, plan_id: int, bot
     key = None
     plan = None
     text = ""
-    uname = f"id:{user_id}"
+    uname = f"<code>{user_id}</code>"
     full_name = "—"
     provider_str = "—"
     amount_str = "—"
@@ -63,7 +63,7 @@ async def _provision_and_notify(user_id: int, payment_id: int, plan_id: int, bot
         user = await UserService(session).get_by_id(user_id)
         user_lang = user.language if user and user.language else None
         lang = get_lang(settings, user_lang)
-        uname = f"@{user.username}" if user and user.username else f"id:{user_id}"
+        uname = f"@{user.username}" if user and user.username else f"<code>{user_id}</code>"
         full_name = user.full_name if user else "—"
 
         success_msg = settings.get("payment_success_message") or t("payment_success", lang)

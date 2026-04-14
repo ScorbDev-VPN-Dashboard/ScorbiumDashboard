@@ -511,7 +511,7 @@ async def support_reply_message(message: Message, state: FSMContext) -> None:
             parse_mode="HTML",
         )
         notify = TelegramNotifyService()
-        uname = f"@{message.from_user.username}" if message.from_user.username else f"id:{message.from_user.id}"
+        uname = f"@{message.from_user.username}" if message.from_user.username else f"<code>{message.from_user.id}</code>"
         for admin_id in config.telegram.telegram_admin_ids:
             await notify.send_message(
                 admin_id,
@@ -564,7 +564,7 @@ async def support_message(message: Message, state: FSMContext) -> None:
     )
 
     notify = TelegramNotifyService()
-    uname = f"@{message.from_user.username}" if message.from_user.username else f"id:{message.from_user.id}"
+    uname = f"@{message.from_user.username}" if message.from_user.username else f"<code>{message.from_user.id}</code>"
     for admin_id in config.telegram.telegram_admin_ids:
         await notify.send_message(
             admin_id,

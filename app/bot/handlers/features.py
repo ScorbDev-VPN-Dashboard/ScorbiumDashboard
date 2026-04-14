@@ -134,7 +134,7 @@ async def _build_top_text(user_id: int) -> str:
 
     for i, r in enumerate(top):
         medal = medals[i] if i < len(medals) else f"{i+1}."
-        uname = f"@{r['username']}" if r.get("username") else r.get("full_name") or f"id:{r['user_id']}"
+        uname = f"@{r['username']}" if r.get("username") else r.get("full_name") or f"<code>{r['user_id']}</code>"
         is_me = " ← вы" if r["user_id"] == user_id else ""
         lines.append(f"{medal} {uname} — <b>{r['referral_count']}</b> реф.{is_me}")
 
@@ -262,7 +262,7 @@ async def gift_buy(callback: CallbackQuery) -> None:
         await session.commit()
 
         target = await UserService(session).get_by_id(target_id)
-        target_name = f"@{target.username}" if target and target.username else f"id:{target_id}"
+        target_name = f"@{target.username}" if target and target.username else f"<code>{target_id}</code>"
 
     if key:
         await TelegramNotifyService().send_message(

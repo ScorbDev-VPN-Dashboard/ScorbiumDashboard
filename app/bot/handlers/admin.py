@@ -155,9 +155,10 @@ async def _show_user_detail(callback: CallbackQuery, user_id: int) -> None:
         active_exp = active_key.expires_at.strftime("%d.%m.%Y") if active_key and active_key.expires_at else None
         total_spent = sum(float(p.amount) for p in payments if str(p.status.value if hasattr(p.status, "value") else p.status) == "succeeded")
 
-    uname = f"@{username}" if username else f"id:{user_id}"
+    uname = f"@{username}" if username else f"<code>{user_id}</code>"
+    safe_name = full_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") if full_name else "—"
     text = (
-        f"👤 <b>{full_name}</b> ({uname})\n\n"
+        f"👤 <b>{safe_name}</b> ({uname})\n\n"
         f"🆔 ID: <code>{user_id}</code>\n"
         f"📅 Регистрация: {reg_date}\n"
         f"Статус: {'🚫 Забанен' if bool(is_banned) else '✅ Активен'}\n"
@@ -415,8 +416,9 @@ async def _show_users_page(callback: CallbackQuery, page: int = 0) -> None:
     text = f"👥 <b>Пользователи</b> (всего: {total})\nСтраница {page+1}/{total_pages}\n\n"
     for u in users:
         status = "🚫" if bool(u.is_banned) else "✅"
-        uname = f"@{u.username}" if u.username else f"id:{u.id}"
-        text += f"{status} <b>{u.full_name}</b> ({uname}) — {float(u.balance or 0):.0f}₽\n"
+        uname = f"@{u.username}" if u.username else f"<code>{u.id}</code>"
+        safe_name = (u.full_name or "—").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        text += f"{status} <b>{safe_name}</b> ({uname}) — {float(u.balance or 0):.0f}₽\n"
 
     try:
         await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
@@ -1126,7 +1128,7 @@ async def admin_referrals(callback: CallbackQuery) -> None:
     medals = ["🥇", "🥈", "🥉"] + [f"{i}." for i in range(4, 11)]
     for i, r in enumerate(top):
         medal = medals[i] if i < len(medals) else f"{i+1}."
-        uname = f"@{r['username']}" if r.get("username") else r.get("full_name") or f"id:{r['user_id']}"
+        uname = f"@{r['username']}" if r.get("username") else r.get("full_name") or f"<code>{r['user_id']}</code>"
         lines.append(f"{medal} {uname} — {r['referral_count']} реф.")
 
     await callback.message.edit_text(
