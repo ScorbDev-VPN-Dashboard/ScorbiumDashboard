@@ -18,8 +18,9 @@ class PaymentProvider(str, enum.Enum):
     YOOKASSA_SBP = "yookassa_sbp"
     CRYPTOBOT = "cryptobot"
     TELEGRAM_STARS = "telegram_stars"
+    FREEKASSA = "freekassa"
     BALANCE = "balance"
-    TOPUP = "topup"          # пополнение баланса через внешний провайдер
+    TOPUP = "topup"
 
 
 class PaymentType(str, enum.Enum):

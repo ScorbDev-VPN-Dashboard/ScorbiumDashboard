@@ -70,12 +70,15 @@ async def select_plan(callback: CallbackQuery) -> None:
     async with AsyncSessionFactory() as _s:
         _svc = BotSettingsService(_s)
         _yk_toggle = (await _svc.get("ps_yookassa_enabled") or "0") == "1"
+        _sbp_toggle = (await _svc.get("ps_sbp_enabled") or "0") == "1"
         _yk_shop_db = await _svc.get("yookassa_shop_id_override") or ""
         _yk_key_db = bool(await _svc.get("yookassa_secret_key_override"))
         _stars_rate = float(await _svc.get("stars_rate") or "1.5")
     _yk_env = _cfg.yookassa
     _yk_env_ok = bool(_yk_env and _yk_env.yookassa_shop_id and _yk_env.yookassa_secret_key)
-    has_yookassa = _yk_toggle and (_yk_env_ok or bool(_yk_shop_db and _yk_key_db))
+    _yk_configured = _yk_env_ok or bool(_yk_shop_db and _yk_key_db)
+    has_yookassa = _yk_toggle and _yk_configured
+    has_sbp = _sbp_toggle and _yk_configured
 
     # CryptoBot toggle
     async with AsyncSessionFactory() as _s2:
@@ -105,6 +108,7 @@ async def select_plan(callback: CallbackQuery) -> None:
             plan_price=plan_price,
             has_cryptobot=has_cryptobot,
             has_yookassa=has_yookassa,
+            has_sbp=has_sbp,
             has_freekassa=has_freekassa,
             lang=lang,
         ),

@@ -36,7 +36,7 @@ class TelegramStarsService:
         """Конвертация рублей в Stars. rate = стоимость 1 Star в рублях."""
         if rate <= 0:
             rate = 1.5
-        return max(1, int(rub_amount / rate))
+        return max(1, round(rub_amount / rate))
 
     @staticmethod
     async def get_rate(session) -> float:

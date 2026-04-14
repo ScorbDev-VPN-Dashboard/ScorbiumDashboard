@@ -367,7 +367,7 @@ async def pay_freekassa(request: Request, db: AsyncSession = Depends(get_db)):
 
     try:
         payment = await PaymentService(db).create_pending(
-            user_id=user_id, plan=plan, provider=PaymentProvider.YOOKASSA
+            user_id=user_id, plan=plan, provider=PaymentProvider.FREEKASSA
         )
         await db.flush()
         order_id = f"fk_{payment.id}_{plan.id}"

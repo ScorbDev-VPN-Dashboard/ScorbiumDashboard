@@ -63,6 +63,8 @@ class PromoService:
         promo = await self.get_by_code(code)
         if not promo or not promo.is_active:
             return None
+        if promo.current_uses is None:
+            promo.current_uses = 0
         if promo.max_uses > 0 and promo.current_uses >= promo.max_uses:
             return None
         promo.current_uses += 1

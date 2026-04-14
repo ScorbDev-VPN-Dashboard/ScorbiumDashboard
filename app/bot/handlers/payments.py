@@ -822,10 +822,6 @@ async def topup_check_crypto(callback: CallbackQuery, bot: Bot) -> None:
                 f"✅ {'Баланс пополнен!' if lang=='ru' else 'Balance topped up!'}",
                 show_alert=True,
             )
-            await callback.answer(
-                f"✅ {'Баланс пополнен!' if lang=='ru' else 'Balance topped up!'}",
-                show_alert=True,
-            )
         else:
             await callback.answer(t("payment_pending", lang), show_alert=True)
     except Exception as e:
@@ -888,7 +884,7 @@ async def handle_freekassa_payment(callback: CallbackQuery, bot: Bot) -> None:
         payment = await PaymentService(session).create_pending(
             user_id=callback.from_user.id,
             plan=plan,
-            provider=PaymentProvider.YOOKASSA,  # временно, пока нет отдельного enum
+            provider=PaymentProvider.FREEKASSA,
         )
         await session.flush()
         payment_id = payment.id

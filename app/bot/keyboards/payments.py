@@ -21,18 +21,22 @@ def payment_methods_kb(
     plan_price: float = 0.0,
     has_cryptobot: bool = False,
     has_yookassa: bool = False,
+    has_sbp: bool = False,
     has_freekassa: bool = False,
     lang: str = "ru",
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
-    # ЮКасса
+    # ЮКасса (карта)
     if has_yookassa:
         card_labels = {"ru": "💳 Банковская карта", "en": "💳 Bank card", "fa": "💳 کارت بانکی"}
         builder.row(InlineKeyboardButton(
             text=card_labels.get(lang, card_labels["ru"]),
             callback_data=f"pay:yookassa:{plan_id}",
         ))
+
+    # СБП — отдельный флаг
+    if has_sbp:
         sbp_labels = {"ru": "🏦 СБП", "en": "🏦 SBP", "fa": "🏦 پرداخت سریع"}
         builder.row(InlineKeyboardButton(
             text=sbp_labels.get(lang, sbp_labels["ru"]),
@@ -47,7 +51,7 @@ def payment_methods_kb(
             callback_data=f"pay:freekassa:{plan_id}",
         ))
 
-    # Telegram Stars
+    # Telegram Stars — всегда
     stars_label = f"⭐ Telegram Stars ({stars_amount} ⭐)" if stars_amount else "⭐ Telegram Stars"
     builder.row(InlineKeyboardButton(text=stars_label, callback_data=f"pay:stars:{plan_id}"))
 

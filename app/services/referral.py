@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.referral import Referral, ReferralBonusType
 from app.models.user import User
+from app.utils.log import log
 
 
 class ReferralService:
@@ -93,6 +94,11 @@ class ReferralService:
         bonus_type = ref.bonus_type or "days"
         bonus_value = ref.bonus_value or Decimal("0")
 
+        if not bonus_value or bonus_value <= 0:
+            ref.is_paid = True
+            await self.session.flush()
+            return ref
+
         if bonus_type == ReferralBonusType.BALANCE.value:
             await user_svc.add_balance(ref.referrer_id, bonus_value)
         elif bonus_type == ReferralBonusType.DAYS.value:
@@ -111,8 +117,11 @@ class ReferralService:
                 if key.pasarguard_key_id:
                     try:
                         await get_vpn_panel().extend_user(key.pasarguard_key_id, int(bonus_value))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log.warning(f"Failed to extend VPN for referral bonus: {e}")
+        elif bonus_type == ReferralBonusType.PERCENT.value:
+            # Процент от следующего платежа — начисляем как баланс
+            await user_svc.add_balance(ref.referrer_id, bonus_value)
 
         ref.is_paid = True
         await self.session.flush()

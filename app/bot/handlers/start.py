@@ -260,7 +260,11 @@ async def _show_topup_payment(
     _yk_env_ok = bool(_yk_env and _yk_env.yookassa_shop_id and _yk_env.yookassa_secret_key)
     _yk_db_ok = bool(settings.get("yookassa_shop_id_override") and settings.get("yookassa_secret_key_override"))
     _yk_toggle = settings.get("ps_yookassa_enabled", "0") == "1"
-    has_yookassa = _yk_toggle and (_yk_env_ok or _yk_db_ok)
+    _yk_configured = _yk_env_ok or _yk_db_ok
+    has_yookassa = _yk_toggle and _yk_configured
+
+    _sbp_toggle = settings.get("ps_sbp_enabled", "0") == "1"
+    has_sbp = _sbp_toggle and _yk_configured
 
     _cb_toggle = settings.get("ps_cryptobot_enabled", "0") == "1"
     has_cryptobot = _cb_toggle and bool(settings.get("cryptobot_token", "").strip())
@@ -275,6 +279,7 @@ async def _show_topup_payment(
             text=card_labels.get(lang, card_labels["ru"]),
             callback_data=f"topup:pay:yookassa:{amount}",
         ))
+    if has_sbp:
         sbp_labels = {"ru": "🏦 СБП", "en": "🏦 SBP", "fa": "🏦 SBP"}
         builder.row(InlineKeyboardButton(
             text=sbp_labels.get(lang, sbp_labels["ru"]),

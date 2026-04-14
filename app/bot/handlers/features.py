@@ -134,9 +134,9 @@ async def _build_top_text(user_id: int) -> str:
 
     for i, r in enumerate(top):
         medal = medals[i] if i < len(medals) else f"{i+1}."
-        uname = f"@{r['username']}" if r.get("username") else r.get("full_name") or f"id:{r['referrer_id']}"
-        is_me = " ← вы" if r["referrer_id"] == user_id else ""
-        lines.append(f"{medal} {uname} — <b>{r['count']}</b> реф.{is_me}")
+        uname = f"@{r['username']}" if r.get("username") else r.get("full_name") or f"id:{r['user_id']}"
+        is_me = " ← вы" if r["user_id"] == user_id else ""
+        lines.append(f"{medal} {uname} — <b>{r['referral_count']}</b> реф.{is_me}")
 
     lines.append(f"\n👤 Ваш результат: <b>{my_count}</b> рефералов")
 

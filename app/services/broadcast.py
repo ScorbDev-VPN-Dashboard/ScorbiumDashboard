@@ -42,7 +42,12 @@ class BroadcastService:
 
         bc.sent_count = sent
         bc.failed_count = failed
-        bc.status = BroadcastStatus.DONE.value if failed == 0 else BroadcastStatus.FAILED.value
+        if not user_ids:
+            bc.status = BroadcastStatus.DONE.value
+        elif failed == 0:
+            bc.status = BroadcastStatus.DONE.value
+        else:
+            bc.status = BroadcastStatus.FAILED.value
         await self.session.flush()
 
         log.info(f"Broadcast {broadcast_id}: sent={sent} failed={failed}")
