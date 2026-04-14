@@ -346,7 +346,7 @@ async def handle_stars_payment(callback: CallbackQuery, bot: Bot) -> None:
             await callback.answer(t("no_plans", lang), show_alert=True)
             return
 
-        stars = TelegramStarsService.rub_to_stars(float(plan.price))
+        stars = TelegramStarsService.rub_to_stars(float(plan.price), rate=await TelegramStarsService.get_rate(session))
         payment = await PaymentService(session).create_pending(
             user_id=callback.from_user.id,
             plan=plan,
@@ -816,6 +816,62 @@ async def topup_check_crypto(callback: CallbackQuery, bot: Bot) -> None:
     except Exception as e:
         log.error(f"Topup crypto check error: {e}")
         await callback.answer(t("topup_error", lang), show_alert=True)
+
+
+@router.callback_query(F.data.startswith("topup:pay:stars:"))
+async def topup_stars(callback: CallbackQuery, bot: Bot) -> None:
+    from decimal import Decimal
+    amount = Decimal(callback.data.split(":")[3])
+
+    async with AsyncSessionFactory() as session:
+        lang = await _get_user_lang(callback.from_user.id, session)
+        rate = await TelegramStarsService.get_rate(session)
+        stars = TelegramStarsService.rub_to_stars(float(amount), rate=rate)
+
+        payment = await PaymentService(session).create_topup_pending(
+            user_id=callback.from_user.id,
+            amount=amount,
+            provider=PaymentProvider.TELEGRAM_STARS,
+        )
+        await session.commit()
+        payment_id = payment.id
+
+    ok = await TelegramStarsService(bot).send_invoice(
+        chat_id=callback.from_user.id,
+        title=f"Пополнение баланса {amount} ₽",
+        description=f"Зачисление {amount} ₽ на баланс",
+        payload=f"topup_stars:{payment_id}:{amount}",
+        stars_amount=stars,
+    )
+    if ok:
+        await callback.answer(f"⭐ Счёт на {stars} Stars отправлен", show_alert=False)
+    else:
+        await callback.answer(t("topup_error", lang), show_alert=True)
+
+
+@router.message(F.successful_payment)
+async def successful_payment_topup(message: Message, bot: Bot) -> None:
+    """Обрабатывает Stars-платёж для пополнения баланса."""
+    payload = message.successful_payment.invoice_payload
+    if not payload.startswith("topup_stars:"):
+        return  # обрабатывается другим хендлером
+    try:
+        _, payment_id_str, amount_str = payload.split(":")
+        payment_id = int(payment_id_str)
+    except (ValueError, AttributeError):
+        log.error(f"Invalid topup_stars payload: {payload}")
+        return
+
+    charge_id = message.successful_payment.telegram_payment_charge_id
+    async with AsyncSessionFactory() as session:
+        payment = await PaymentService(session).get_by_id(payment_id)
+        if payment:
+            from app.models.payment import PaymentStatus
+            payment.status = PaymentStatus.SUCCEEDED.value
+            payment.external_id = charge_id
+            await session.commit()
+
+    await _topup_confirm_balance(message.from_user.id, amount_str, payment_id, bot)
 
 
 @router.callback_query(F.data.startswith("pay:"))

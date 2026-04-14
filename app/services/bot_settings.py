@@ -42,6 +42,7 @@ DEFAULTS = {
     "keyboard_layout": "",  # JSON раскладка главного меню
     "bot_language": "ru",   # Язык бота: ru | en | fa
     "cryptobot_token": "",  # CryptoBot API токен
+    "stars_rate": "1.5",    # Курс: 1 Star = X рублей
     # ── Платёжные системы — включение/отключение ──────────────────────────────
     "ps_yookassa_enabled": "0",
     "ps_cryptobot_enabled": "0",

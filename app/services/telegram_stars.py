@@ -23,7 +23,7 @@ class TelegramStarsService:
                 title=title,
                 description=description,
                 payload=payload,
-                currency="XTR", 
+                currency="XTR",
                 prices=[LabeledPrice(label=title, amount=stars_amount)],
             )
             return True
@@ -32,6 +32,18 @@ class TelegramStarsService:
             return False
 
     @staticmethod
-    def rub_to_stars(rub_amount: float) -> int:
-        """Конвертация рублей в Stars (примерный курс: 1 Star ≈ 1.5 RUB)."""
-        return max(1, int(rub_amount / 1.5))
+    def rub_to_stars(rub_amount: float, rate: float = 1.5) -> int:
+        """Конвертация рублей в Stars. rate = стоимость 1 Star в рублях."""
+        if rate <= 0:
+            rate = 1.5
+        return max(1, int(rub_amount / rate))
+
+    @staticmethod
+    async def get_rate(session) -> float:
+        """Получить курс Stars из bot_settings."""
+        from app.services.bot_settings import BotSettingsService
+        val = await BotSettingsService(session).get("stars_rate")
+        try:
+            return float(val) if val else 1.5
+        except (ValueError, TypeError):
+            return 1.5

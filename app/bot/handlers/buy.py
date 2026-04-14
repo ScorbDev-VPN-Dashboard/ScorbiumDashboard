@@ -65,11 +65,27 @@ async def select_plan(callback: CallbackQuery) -> None:
         return
 
     from app.core.config import config as _cfg
-    _yk = _cfg.yookassa
-    has_yookassa = bool(_yk and _yk.yookassa_shop_id and _yk.yookassa_secret_key)
+    from app.services.yookassa import YookassaService
+
+    # Проверяем YooKassa: env ИЛИ DB-настройки + флаг включения
+    async with AsyncSessionFactory() as _s:
+        _svc = BotSettingsService(_s)
+        _yk_toggle = (await _svc.get("ps_yookassa_enabled") or "0") == "1"
+        _yk_shop_db = await _svc.get("yookassa_shop_id_override") or ""
+        _yk_key_db = bool(await _svc.get("yookassa_secret_key_override"))
+        _stars_rate = float(await _svc.get("stars_rate") or "1.5")
+    _yk_env = _cfg.yookassa
+    _yk_env_ok = bool(_yk_env and _yk_env.yookassa_shop_id and _yk_env.yookassa_secret_key)
+    has_yookassa = _yk_toggle and (_yk_env_ok or bool(_yk_shop_db and _yk_key_db))
+
+    # CryptoBot toggle
+    async with AsyncSessionFactory() as _s2:
+        _svc2 = BotSettingsService(_s2)
+        _cb_toggle = (await _svc2.get("ps_cryptobot_enabled") or "0") == "1"
+    has_cryptobot = has_cryptobot and _cb_toggle
 
     from app.services.telegram_stars import TelegramStarsService
-    stars = TelegramStarsService.rub_to_stars(plan_price)
+    stars = TelegramStarsService.rub_to_stars(plan_price, rate=_stars_rate)
 
     from app.bot.utils.media import edit_with_photo
     await edit_with_photo(

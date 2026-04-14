@@ -252,10 +252,20 @@ async def _show_topup_payment(
     """Показывает способы оплаты для пополнения баланса."""
     async with AsyncSessionFactory() as session:
         settings = await BotSettingsService(session).get_all()
+        from app.services.telegram_stars import TelegramStarsService
+        rate = await TelegramStarsService.get_rate(session)
 
     from app.core.config import config as _cfg
-    has_yookassa = bool(_cfg.yookassa and _cfg.yookassa.yookassa_shop_id and _cfg.yookassa.yookassa_secret_key)
-    has_cryptobot = bool(settings.get("cryptobot_token", "").strip())
+    _yk_env = _cfg.yookassa
+    _yk_env_ok = bool(_yk_env and _yk_env.yookassa_shop_id and _yk_env.yookassa_secret_key)
+    _yk_db_ok = bool(settings.get("yookassa_shop_id_override") and settings.get("yookassa_secret_key_override"))
+    _yk_toggle = settings.get("ps_yookassa_enabled", "0") == "1"
+    has_yookassa = _yk_toggle and (_yk_env_ok or _yk_db_ok)
+
+    _cb_toggle = settings.get("ps_cryptobot_enabled", "0") == "1"
+    has_cryptobot = _cb_toggle and bool(settings.get("cryptobot_token", "").strip())
+
+    stars_amount = TelegramStarsService.rub_to_stars(float(amount), rate=rate)
 
     builder = InlineKeyboardBuilder()
 
@@ -277,6 +287,13 @@ async def _show_topup_payment(
             text=crypto_labels.get(lang, crypto_labels["ru"]),
             callback_data=f"topup:pay:crypto:{amount}",
         ))
+
+    # Telegram Stars — всегда доступны
+    stars_labels = {"ru": f"⭐ Telegram Stars ({stars_amount} ⭐)", "en": f"⭐ Telegram Stars ({stars_amount} ⭐)", "fa": f"⭐ Telegram Stars ({stars_amount} ⭐)"}
+    builder.row(InlineKeyboardButton(
+        text=stars_labels.get(lang, stars_labels["ru"]),
+        callback_data=f"topup:pay:stars:{amount}",
+    ))
 
     builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="topup:menu"))
 

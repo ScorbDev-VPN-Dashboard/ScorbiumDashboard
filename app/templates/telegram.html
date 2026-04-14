@@ -634,22 +634,28 @@
 
   <!-- Yookassa -->
   <div class="col-lg-6">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between mb-2">
-        <div class="fw-semibold text-white"><i class="bi bi-bank me-2 text-muted"></i>ЮКасса</div>
+    <div class="card p-0 overflow-hidden">
+      <div class="d-flex align-items-center gap-3 p-3" style="background:rgba(108,99,255,.07);border-bottom:1px solid var(--border)">
+        <div style="width:38px;height:38px;background:rgba(108,99,255,.2);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="bi bi-bank" style="color:#a78bfa;font-size:1.1rem"></i>
+        </div>
+        <div class="flex-fill">
+          <div class="fw-semibold text-white" style="font-size:.88rem">ЮКасса</div>
+          <div style="font-size:.7rem;color:#8892a4">Карта, СБП · <a href="https://yookassa.ru" target="_blank" style="color:#6c63ff">yookassa.ru</a></div>
+        </div>
         <div class="d-flex align-items-center gap-2">
-          <span id="yk-status" class="badge badge-custom {% if ps.yookassa_enabled %}badge-active{% else %}badge-closed{% endif %}">
+          <span id="yk-status" class="badge badge-custom {% if ps.yookassa_enabled %}badge-active{% else %}badge-closed{% endif %}" style="font-size:.65rem">
             {% if ps.yookassa_enabled %}Включена{% else %}Отключена{% endif %}
           </span>
-          {% if ps.yookassa_configured %}
           <div class="form-check form-switch mb-0">
             <input class="form-check-input" type="checkbox" id="yk-toggle"
               {% if ps.yookassa_toggle %}checked{% endif %}
-              onchange="psToggle('ps_yookassa_enabled', this.checked, 'yk')">
+              onchange="psToggle('ps_yookassa_enabled', this.checked, 'yk')"
+              {% if not ps.yookassa_configured %}disabled title="Сначала сохраните настройки"{% endif %}>
           </div>
-          {% endif %}
         </div>
       </div>
+      <div class="p-3">
       <div style="font-size:.75rem;color:#8892a4;margin-bottom:.75rem">
         Оплата банковской картой и СБП. Требуется аккаунт на <a href="https://yookassa.ru" target="_blank" style="color:#6c63ff">yookassa.ru</a>
       </div>

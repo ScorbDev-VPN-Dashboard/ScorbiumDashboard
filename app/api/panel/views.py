@@ -1080,6 +1080,7 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
         aikassa_enabled=ak_enabled,
         aikassa_configured=ak_configured,
         aikassa_shop_id=ak_shop,
+        stars_rate=float(await svc.get("stars_rate") or "1.5"),
     )
 
     from app.services.pasarguard.pasarguard import PasarguardService
@@ -1386,6 +1387,31 @@ async def ps_test_aikassa(request: Request, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         log.error(f"AiKassa test error: {e}")
         return JSONResponse({"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400)
+
+
+@router.post("/telegram/payment-systems/stars-rate")
+async def ps_save_stars_rate(request: Request, db: AsyncSession = Depends(get_db)):
+    """Сохраняет курс Telegram Stars (1 Star = X рублей)."""
+    _require_auth(request)
+    from fastapi.responses import JSONResponse
+    import re
+
+    form = await request.form()
+    rate_raw = str(form.get("stars_rate", "")).strip()
+
+    if not rate_raw:
+        return JSONResponse({"ok": False, "message": "Курс не указан"}, status_code=400)
+    if not re.fullmatch(r"\d+(\.\d+)?", rate_raw):
+        return JSONResponse({"ok": False, "message": "Некорректное значение курса"}, status_code=400)
+
+    rate = float(rate_raw)
+    if rate <= 0 or rate > 1000:
+        return JSONResponse({"ok": False, "message": "Курс должен быть от 0.1 до 1000"}, status_code=400)
+
+    svc = BotSettingsService(db)
+    await svc.set("stars_rate", str(rate))
+    await db.commit()
+    return JSONResponse({"ok": True, "message": f"✅ Курс сохранён: 1 Star = {rate} ₽"})
 
 
 @router.post("/telegram/test-marzban", response_class=HTMLResponse)
