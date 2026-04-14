@@ -105,6 +105,7 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
         rev_today_r = await session.execute(
             select(func.coalesce(func.sum(Payment.amount), 0)).where(
                 Payment.status == PaymentStatus.SUCCEEDED.value,
+                Payment.payment_type == "subscription",
                 Payment.created_at >= today,
             )
         )
@@ -319,6 +320,7 @@ async def admin_stats(callback: CallbackQuery) -> None:
         rev_today_r = await session.execute(
             select(func.coalesce(func.sum(Payment.amount), 0)).where(
                 Payment.status == PaymentStatus.SUCCEEDED.value,
+                Payment.payment_type == "subscription",
                 Payment.created_at >= today,
             )
         )
@@ -327,6 +329,7 @@ async def admin_stats(callback: CallbackQuery) -> None:
         rev_week_r = await session.execute(
             select(func.coalesce(func.sum(Payment.amount), 0)).where(
                 Payment.status == PaymentStatus.SUCCEEDED.value,
+                Payment.payment_type == "subscription",
                 Payment.created_at >= week_ago,
             )
         )
@@ -687,36 +690,6 @@ async def admin_sync_keys(callback: CallbackQuery) -> None:
 
 # ── Gift key ──────────────────────────────────────────────────────────────────
 
-@router.callback_query(F.data.startswith("adm:giftkey:"))
-async def admin_gift_key_start(callback: CallbackQuery, state: FSMContext) -> None:
-    if not _is_admin(callback.from_user.id):
-        return
-    user_id = int(callback.data.split(":")[2])
-    await state.update_data(gift_user_id=user_id)
-
-    async with AsyncSessionFactory() as session:
-        plans = await PlanService(session).get_all(only_active=True)
-
-    if not plans:
-        await callback.answer("❌ Нет активных тарифов", show_alert=True)
-        return
-
-    builder = InlineKeyboardBuilder()
-    for plan in plans:
-        builder.row(InlineKeyboardButton(
-            text=f"🎁 {plan.name} — {plan.duration_days} дн.",
-            callback_data=f"adm:giftkey:plan:{user_id}:{plan.id}",
-        ))
-    builder.row(InlineKeyboardButton(text="◀️ Отмена", callback_data=f"adm:user:{user_id}"))
-
-    await callback.message.edit_text(
-        f"🎁 Подарить ключ пользователю <code>{user_id}</code>\n\nВыберите тариф:",
-        reply_markup=builder.as_markup(),
-        parse_mode="HTML",
-    )
-    await callback.answer()
-
-
 @router.callback_query(F.data.startswith("adm:giftkey:plan:"))
 async def admin_gift_key_confirm(callback: CallbackQuery) -> None:
     if not _is_admin(callback.from_user.id):
@@ -745,6 +718,39 @@ async def admin_gift_key_confirm(callback: CallbackQuery) -> None:
         await callback.answer("❌ Ошибка создания ключа в Marzban", show_alert=True)
 
     await _show_user_detail(callback, user_id)
+
+
+@router.callback_query(F.data.startswith("adm:giftkey:"))
+async def admin_gift_key_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return
+    # Защита от попадания adm:giftkey:plan: сюда
+    if callback.data.startswith("adm:giftkey:plan:"):
+        return
+    user_id = int(callback.data.split(":")[2])
+    await state.update_data(gift_user_id=user_id)
+
+    async with AsyncSessionFactory() as session:
+        plans = await PlanService(session).get_all(only_active=True)
+
+    if not plans:
+        await callback.answer("❌ Нет активных тарифов", show_alert=True)
+        return
+
+    builder = InlineKeyboardBuilder()
+    for plan in plans:
+        builder.row(InlineKeyboardButton(
+            text=f"🎁 {plan.name} — {plan.duration_days} дн.",
+            callback_data=f"adm:giftkey:plan:{user_id}:{plan.id}",
+        ))
+    builder.row(InlineKeyboardButton(text="◀️ Отмена", callback_data=f"adm:user:{user_id}"))
+
+    await callback.message.edit_text(
+        f"🎁 Подарить ключ пользователю <code>{user_id}</code>\n\nВыберите тариф:",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+    await callback.answer()
 
 
 # ── Message to user ───────────────────────────────────────────────────────────
