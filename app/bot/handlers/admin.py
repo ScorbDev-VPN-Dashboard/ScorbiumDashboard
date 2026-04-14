@@ -342,21 +342,21 @@ async def admin_stats(callback: CallbackQuery) -> None:
         expired_count = expired_r.scalar_one()
 
     text = (
-        f"📊 <b>Статистика</b>\n\n"
-        f"<b>Пользователи:</b>\n"
-        f"  Всего: <b>{total_users}</b>\n"
-        f"  Новых сегодня: <b>{new_today}</b>\n"
-        f"  Новых за неделю: <b>{new_week}</b>\n\n"
-        f"<b>Подписки:</b>\n"
-        f"  Активных: <b>{active_subs}</b>\n"
-        f"  Истёкших: <b>{expired_count}</b>\n\n"
-        f"<b>Финансы:</b>\n"
-        f"  Выручка всего: <b>{revenue} ₽</b>\n"
-        f"  Выручка сегодня: <b>{rev_today:.2f} ₽</b>\n"
-        f"  Выручка за неделю: <b>{rev_week:.2f} ₽</b>\n\n"
-        f"<b>Прочее:</b>\n"
-        f"  Открытых тикетов: <b>{open_tickets}</b>\n"
-        f"  Ожидают оплаты: <b>{pending}</b>"
+        f"   [📊] <b>Статистика</b>\n\n"
+        f"[👤] <b>├Пользователи:</b>\n"
+        f"  ⎡ Всего: <b>{total_users}</b>\n"
+        f"  ├ Новых сегодня: <b>{new_today}</b>\n"
+        f"  ⎣ Новых за неделю: <b>{new_week}</b>\n\n"
+        f"[🔑] <b>Подписки:</b>\n"
+        f"  ⎡ Активных: <b>{active_subs}</b>\n"
+        f"  ⎣ Истёкших: <b>{expired_count}</b>\n\n"
+        f"[🏦] <b>Финансы:</b>\n"
+        f"  ⎡ Выручка всего: <b>{revenue} ₽</b>\n"
+        f"  ├ Выручка сегодня: <b>{rev_today:.2f} ₽</b>\n"
+        f"  ⎣ Выручка за неделю: <b>{rev_week:.2f} ₽</b>\n\n"
+        f"[ℹ️] <b>Прочее:</b>\n"
+        f"  ⎡ Открытых тикетов: <b>{open_tickets}</b>\n"
+        f"  ⎣ Ожидают оплаты: <b>{pending}</b>"
     )
     await callback.message.edit_text(text, reply_markup=_back_admin_kb(), parse_mode="HTML")
     await callback.answer()
@@ -1229,15 +1229,14 @@ async def unban_user_cmd(message: Message) -> None:
 
 @router.message(Command("promo"))
 async def create_promo_cmd(message: Message) -> None:
-    """Быстрое создание промокода: /promo CODE TYPE VALUE [MAX_USES]"""
     if not _is_admin(message.from_user.id):
         return
     args = message.text.split()
     if len(args) < 4:
         await message.answer(
-            "Использование: /promo CODE TYPE VALUE [MAX_USES]\n"
+            "/promo CODE TYPE VALUE [MAX_USES]\n"
             "TYPE: discount | balance | days\n"
-            "Пример: /promo SALE20 discount 20 100"
+            "Example: /promo SALE20 discount 20 100"
         )
         return
     code, promo_type, value_str = args[1], args[2], args[3]
@@ -1257,12 +1256,11 @@ async def create_promo_cmd(message: Message) -> None:
 
 @router.message(Command("addbalance", "addbal"))
 async def addbalance_cmd(message: Message) -> None:
-    """Быстрое пополнение баланса: /addbalance USER_ID AMOUNT"""
     if not _is_admin(message.from_user.id):
         return
     args = message.text.split()
     if len(args) < 3:
-        await message.answer("Использование: /addbalance USER_ID AMOUNT")
+        await message.answer("ℹ️ Использование: /addbalance USER_ID AMOUNT")
         return
     try:
         user_id = int(args[1])
