@@ -338,6 +338,55 @@ async def cb_status(callback: CallbackQuery) -> None:
     await cmd_status(callback.message)
 
 
+# ── Серверы ───────────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data == "servers")
+async def cb_servers(callback: CallbackQuery) -> None:
+    await callback.answer()
+    async with AsyncSessionFactory() as session:
+        from app.services.i18n import t, get_lang
+        settings = await BotSettingsService(session).get_all()
+        user = await UserService(session).get_by_id(callback.from_user.id)
+        user_lang = user.language if user and user.language else None
+        lang = get_lang(settings, user_lang)
+
+    try:
+        from app.services.pasarguard.pasarguard import PasarguardService
+        svc = PasarguardService()
+        result = await svc.get_nodes()
+        # Marzban возвращает список напрямую или dict с ключом
+        if isinstance(result, list):
+            nodes = result
+        elif isinstance(result, dict):
+            nodes = result.get("nodes", result.get("items", []))
+        else:
+            nodes = []
+    except Exception:
+        nodes = []
+
+    if not nodes:
+        text = "🌐 <b>Серверы</b>\n\nИнформация о серверах недоступна." if lang == "ru" else "🌐 <b>Servers</b>\n\nServer info unavailable."
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="◀️ Назад" if lang == "ru" else "◀️ Back", callback_data="back_main"))
+        from app.bot.utils.media import edit_with_photo
+        await edit_with_photo(callback, text, reply_markup=builder.as_markup())
+        return
+
+    lines = ["🌐 <b>Серверы VPN</b>\n" if lang == "ru" else "🌐 <b>VPN Servers</b>\n"]
+    for node in nodes:
+        name = node.get("name", "—")
+        status = node.get("status", "")
+        address = node.get("address", "")
+        icon = "🟢" if status in ("connected", "healthy", "online") else "🔴"
+        lines.append(f"{icon} <b>{name}</b>" + (f"\n   <code>{address}</code>" if address else ""))
+
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="◀️ Назад" if lang == "ru" else "◀️ Back", callback_data="back_main"))
+
+    from app.bot.utils.media import edit_with_photo
+    await edit_with_photo(callback, "\n".join(lines), reply_markup=builder.as_markup())
+
+
 # ── /extend — продление через баланс ─────────────────────────────────────────
 
 @router.message(Command("extend", "продлить"))
