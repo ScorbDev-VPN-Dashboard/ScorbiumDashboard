@@ -1203,7 +1203,7 @@ async def ban_user_cmd(message: Message) -> None:
         return
     args = message.text.split()
     if len(args) < 2 or not args[1].isdigit():
-        await message.answer("Использование: /ban <user_id>")
+        await message.answer("Использование: /ban USER_ID")
         return
     user_id = int(args[1])
     async with AsyncSessionFactory() as session:
@@ -1218,7 +1218,7 @@ async def unban_user_cmd(message: Message) -> None:
         return
     args = message.text.split()
     if len(args) < 2 or not args[1].isdigit():
-        await message.answer("Использование: /unban <user_id>")
+        await message.answer("Использование: /unban USER_ID")
         return
     user_id = int(args[1])
     async with AsyncSessionFactory() as session:
@@ -1262,7 +1262,7 @@ async def addbalance_cmd(message: Message) -> None:
         return
     args = message.text.split()
     if len(args) < 3:
-        await message.answer("Использование: /addbalance <user_id> <amount>")
+        await message.answer("Использование: /addbalance USER_ID AMOUNT")
         return
     try:
         user_id = int(args[1])
@@ -1289,7 +1289,7 @@ async def givekey_cmd(message: Message) -> None:
         return
     args = message.text.split()
     if len(args) < 3:
-        await message.answer("Использование: /givekey <user_id> <plan_id>")
+        await message.answer("ℹ️ Использование: /givekey USER_ID PLAN_ID")
         return
     try:
         user_id, plan_id = int(args[1]), int(args[2])
