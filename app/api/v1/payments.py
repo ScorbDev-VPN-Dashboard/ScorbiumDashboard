@@ -60,6 +60,91 @@ async def refund_payment(
     return payment
 
 
+@router.post("/webhook/freekassa", summary="FreeKassa webhook", include_in_schema=False)
+async def freekassa_webhook(request: Request, db: AsyncSession = Depends(get_db)) -> str:
+    """
+    URL оповещения для FreeKassa.
+    Укажи в личном кабинете: https://project.globaltunnel-vpn.cfd/api/v1/payments/webhook/freekassa
+    """
+    import ipaddress
+    from app.services.freekassa import FreeKassaService
+    from app.services.bot_settings import BotSettingsService
+
+    # Проверка IP
+    client_ip = request.headers.get("X-Real-IP") or request.client.host
+    try:
+        if ipaddress.ip_address(client_ip) not in {ipaddress.ip_address(ip) for ip in FreeKassaService.ALLOWED_IPS}:
+            log.warning(f"FreeKassa webhook: blocked IP {client_ip}")
+            return "FORBIDDEN"
+    except Exception:
+        log.warning(f"FreeKassa webhook: invalid IP {client_ip}")
+        return "FORBIDDEN"
+
+    form = await request.form()
+    merchant_id = str(form.get("MERCHANT_ID", ""))
+    amount = str(form.get("AMOUNT", ""))
+    order_id = str(form.get("MERCHANT_ORDER_ID", ""))
+    sign = str(form.get("SIGN", ""))
+
+    # Получаем секретное слово 2 из БД
+    settings = await BotSettingsService(db).get_all()
+    fk = FreeKassaService.from_settings(settings)
+    if not fk:
+        log.error("FreeKassa webhook: service not configured")
+        return "ERROR"
+
+    # Проверяем подпись
+    if not fk.verify_notification(merchant_id, amount, order_id, sign):
+        log.warning(f"FreeKassa webhook: invalid sign for order {order_id}")
+        return "WRONG SIGN"
+
+    # order_id формат: "fk_{payment_id}_{plan_id}" или просто payment_id
+    try:
+        parts = order_id.split("_")
+        if parts[0] == "fk" and len(parts) >= 3:
+            payment_id = int(parts[1])
+            plan_id = int(parts[2])
+        else:
+            log.error(f"FreeKassa webhook: unknown order_id format: {order_id}")
+            return "YES"
+    except (ValueError, IndexError):
+        log.error(f"FreeKassa webhook: cannot parse order_id: {order_id}")
+        return "YES"
+
+    from app.services.plan import PlanService
+    from app.services.vpn_key import VpnKeyService
+    from app.services.telegram_notify import TelegramNotifyService
+
+    plan = await PlanService(db).get_by_id(plan_id)
+    payment = await PaymentService(db).get_by_id(payment_id)
+
+    if not payment or not plan:
+        log.error(f"FreeKassa webhook: payment {payment_id} or plan {plan_id} not found")
+        return "YES"
+
+    if payment.status == PaymentStatus.SUCCEEDED.value:
+        return "YES"  # уже обработан
+
+    payment.status = PaymentStatus.SUCCEEDED.value
+    payment.external_id = str(form.get("intid", ""))
+    await db.flush()
+
+    key = await VpnKeyService(db).provision(user_id=payment.user_id, plan=plan)
+    if key:
+        payment.vpn_key_id = key.id
+    await db.commit()
+
+    success_msg = settings.get("payment_success_message", "✅ Оплата прошла успешно!")
+    if key:
+        text = f"{success_msg}\n\n🔑 <b>Ваш ключ:</b>\n<code>{key.access_url}</code>\n\n📅 Действует <b>{plan.duration_days} дней</b>"
+    else:
+        text = f"{success_msg}\n\nНажмите «Мои ключи» для получения ключа."
+
+    await TelegramNotifyService().send_message(payment.user_id, text)
+    log.info(f"FreeKassa: payment {payment_id} confirmed via webhook")
+    return "YES"
+
+
 @router.post("/webhook/yookassa", summary="Yookassa webhook", include_in_schema=False)
 async def yookassa_webhook(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
     try:

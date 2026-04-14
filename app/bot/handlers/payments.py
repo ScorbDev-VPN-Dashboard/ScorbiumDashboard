@@ -389,7 +389,29 @@ async def pre_checkout(query: PreCheckoutQuery) -> None:
 
 @router.message(F.successful_payment)
 async def successful_payment(message: Message, bot: Bot) -> None:
+    """Единый обработчик всех Stars-платежей: подписки и пополнение баланса."""
     payload = message.successful_payment.invoice_payload
+    charge_id = message.successful_payment.telegram_payment_charge_id
+
+    # ── Пополнение баланса через Stars ───────────────────────────────────────
+    if payload.startswith("topup_stars:"):
+        try:
+            _, payment_id_str, amount_str = payload.split(":")
+            payment_id = int(payment_id_str)
+        except (ValueError, AttributeError):
+            log.error(f"Invalid topup_stars payload: {payload}")
+            return
+        async with AsyncSessionFactory() as session:
+            payment = await PaymentService(session).get_by_id(payment_id)
+            if payment:
+                from app.models.payment import PaymentStatus
+                payment.status = PaymentStatus.SUCCEEDED.value
+                payment.external_id = charge_id
+                await session.commit()
+        await _topup_confirm_balance(message.from_user.id, amount_str, payment_id, bot)
+        return
+
+    # ── Оплата подписки через Stars ───────────────────────────────────────────
     try:
         _, payment_id_str, plan_id_str = payload.split(":")
         payment_id = int(payment_id_str)
@@ -398,7 +420,6 @@ async def successful_payment(message: Message, bot: Bot) -> None:
         log.error(f"Invalid Stars payment payload: {payload}")
         return
 
-    charge_id = message.successful_payment.telegram_payment_charge_id
     async with AsyncSessionFactory() as session:
         payment = await PaymentService(session).get_by_id(payment_id)
         if payment:
@@ -518,11 +539,6 @@ async def handle_crypto_check(callback: CallbackQuery, bot: Bot) -> None:
         except Exception as e:
             log.error(f"CryptoBot check error: {e}")
             await callback.answer(t("payment_error", lang), show_alert=True)
-
-
-@router.callback_query(F.data.startswith("pay:"))
-async def handle_payment_fallback(callback: CallbackQuery) -> None:
-    await callback.answer("❌", show_alert=True)
 
 
 # ── Пополнение баланса ────────────────────────────────────────────────────────
@@ -695,17 +711,16 @@ async def topup_check_yookassa(callback: CallbackQuery, bot: Bot) -> None:
                 f"✅ {'Баланс пополнен!' if lang=='ru' else 'Balance topped up!'}",
                 show_alert=True,
             )
-            await callback.answer(
-                f"✅ {'Баланс пополнен!' if lang=='ru' else 'Balance topped up!'}",
-                show_alert=True,
-            )
             # Редиректим на баланс
-            await callback.message.delete()
+            try:
+                await callback.message.delete()
+            except Exception:
+                pass
             from app.bot.utils.menu import get_main_menu_kb as _gmk
             async with AsyncSessionFactory() as _s:
                 _kb = await _gmk(_s, lang=lang, user_id=callback.from_user.id)
             from app.bot.utils.media import answer_with_photo
-            await answer_with_photo(callback.message, f"✅ Баланс пополнен!", reply_markup=_kb)
+            await answer_with_photo(callback.message, f"✅ {'Баланс пополнен!' if lang=='ru' else 'Balance topped up!'}", reply_markup=_kb)
         elif yk_payment.status == "canceled":
             await callback.answer(t("payment_failed", lang), show_alert=True)
         else:
@@ -849,29 +864,76 @@ async def topup_stars(callback: CallbackQuery, bot: Bot) -> None:
         await callback.answer(t("topup_error", lang), show_alert=True)
 
 
-@router.message(F.successful_payment)
-async def successful_payment_topup(message: Message, bot: Bot) -> None:
-    """Обрабатывает Stars-платёж для пополнения баланса."""
-    payload = message.successful_payment.invoice_payload
-    if not payload.startswith("topup_stars:"):
-        return  # обрабатывается другим хендлером
-    try:
-        _, payment_id_str, amount_str = payload.split(":")
-        payment_id = int(payment_id_str)
-    except (ValueError, AttributeError):
-        log.error(f"Invalid topup_stars payload: {payload}")
-        return
+# ── FreeKassa ─────────────────────────────────────────────────────────────────
 
-    charge_id = message.successful_payment.telegram_payment_charge_id
+@router.callback_query(F.data.startswith("pay:freekassa:"))
+async def handle_freekassa_payment(callback: CallbackQuery, bot: Bot) -> None:
+    plan_id = int(callback.data.split(":")[2])
+
     async with AsyncSessionFactory() as session:
-        payment = await PaymentService(session).get_by_id(payment_id)
-        if payment:
-            from app.models.payment import PaymentStatus
-            payment.status = PaymentStatus.SUCCEEDED.value
-            payment.external_id = charge_id
+        plan = await PlanService(session).get_by_id(plan_id)
+        settings = await BotSettingsService(session).get_all()
+        lang = await _get_user_lang(callback.from_user.id, session)
+
+        if not plan or not plan.is_active:
+            await callback.answer(t("no_plans", lang), show_alert=True)
+            return
+
+        from app.services.freekassa import FreeKassaService
+        fk = FreeKassaService.from_settings(settings)
+        if not fk:
+            await callback.answer(t("payment_error", lang), show_alert=True)
+            return
+
+        payment = await PaymentService(session).create_pending(
+            user_id=callback.from_user.id,
+            plan=plan,
+            provider=PaymentProvider.YOOKASSA,  # временно, пока нет отдельного enum
+        )
+        await session.flush()
+        payment_id = payment.id
+        order_id = f"fk_{payment_id}_{plan_id}"
+
+        from app.core.config import config as _cfg
+        base_url = str(_cfg.web.allowed_origins[0]).rstrip("/") if _cfg.web.allowed_origins else ""
+        notification_url = f"{base_url}/api/v1/payments/webhook/freekassa" if base_url else ""
+
+        result = await fk.create_order(
+            payment_id=order_id,
+            amount=float(plan.price),
+            currency="RUB",
+            currency_id=36,
+            email=f"user{callback.from_user.id}@vpn.bot",
+            ip="127.0.0.1",
+            notification_url=notification_url,
+        )
+
+        if result and result.get("type") == "success":
+            pay_url = result.get("location", "")
+            payment.external_id = str(result.get("orderId", ""))
             await session.commit()
 
-    await _topup_confirm_balance(message.from_user.id, amount_str, payment_id, bot)
+            builder = InlineKeyboardBuilder()
+            builder.row(InlineKeyboardButton(text=t("payment_go", lang), url=pay_url))
+            builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="back_main"))
+
+            from app.bot.utils.media import edit_with_photo
+            await edit_with_photo(
+                callback,
+                f"💸 <b>FreeKassa</b>\n\n{plan.name} — {plan.price} ₽\n\n"
+                f"{'После оплаты ключ придёт автоматически.' if lang=='ru' else 'After payment the key will be sent automatically.'}",
+                reply_markup=builder.as_markup(),
+            )
+        else:
+            await session.rollback()
+            err = result.get("message", "Ошибка") if result else "Нет ответа"
+            log.error(f"FreeKassa order error for user {callback.from_user.id}: {err}")
+            async with AsyncSessionFactory() as s2:
+                kb = await _get_menu_kb(s2, lang=lang, user_id=callback.from_user.id)
+            from app.bot.utils.media import edit_with_photo
+            await edit_with_photo(callback, t("payment_error", lang), reply_markup=kb)
+
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("pay:"))

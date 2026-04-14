@@ -65,7 +65,6 @@ async def select_plan(callback: CallbackQuery) -> None:
         return
 
     from app.core.config import config as _cfg
-    from app.services.yookassa import YookassaService
 
     # Проверяем YooKassa: env ИЛИ DB-настройки + флаг включения
     async with AsyncSessionFactory() as _s:
@@ -84,6 +83,14 @@ async def select_plan(callback: CallbackQuery) -> None:
         _cb_toggle = (await _svc2.get("ps_cryptobot_enabled") or "0") == "1"
     has_cryptobot = has_cryptobot and _cb_toggle
 
+    # FreeKassa
+    async with AsyncSessionFactory() as _s3:
+        _svc3 = BotSettingsService(_s3)
+        _fk_toggle = (await _svc3.get("ps_freekassa_enabled") or "0") == "1"
+        _fk_shop = await _svc3.get("freekassa_shop_id") or ""
+        _fk_key = await _svc3.get("freekassa_api_key") or ""
+    has_freekassa = _fk_toggle and bool(_fk_shop and _fk_key)
+
     from app.services.telegram_stars import TelegramStarsService
     stars = TelegramStarsService.rub_to_stars(plan_price, rate=_stars_rate)
 
@@ -98,6 +105,7 @@ async def select_plan(callback: CallbackQuery) -> None:
             plan_price=plan_price,
             has_cryptobot=has_cryptobot,
             has_yookassa=has_yookassa,
+            has_freekassa=has_freekassa,
             lang=lang,
         ),
     )
