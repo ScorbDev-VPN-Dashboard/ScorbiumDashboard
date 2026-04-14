@@ -726,12 +726,12 @@
             <span>СБП (Система быстрых платежей)</span>
           </div>
           <div class="d-flex align-items-center gap-2">
-            <span style="font-size:.7rem;color:{% if ps.yookassa_enabled %}#22c55e{% else %}#6b7280{% endif %}">
-              {% if ps.yookassa_enabled %}Активно{% else %}Вместе с ЮКассой{% endif %}
+            <span style="font-size:.7rem;color:{% if ps.sbp_enabled %}#22c55e{% else %}#6b7280{% endif %}">
+              {% if ps.sbp_enabled %}Активно{% else %}Отключено{% endif %}
             </span>
             <label class="ps-toggle">
-              <input type="checkbox" {% if ps.yookassa_toggle %}checked{% endif %}
-                onchange="psToggle('ps_yookassa_enabled', this.checked, 'yk')"
+              <input type="checkbox" {% if ps.sbp_toggle %}checked{% endif %}
+                onchange="psToggle('ps_sbp_enabled', this.checked, 'sbp')"
                 {% if not ps.yookassa_configured %}disabled{% endif %}>
               <div class="ps-toggle-track"></div>
               <div class="ps-toggle-thumb"></div>
@@ -982,8 +982,8 @@
             <i class="bi bi-bank" style="color:#a78bfa"></i>
             <span>ЮКасса</span>
           </div>
-          <div class="ps-chip {% if ps.yookassa_enabled %}active{% endif %}">
-            <div class="ps-status-dot {% if ps.yookassa_enabled %}on{% else %}off{% endif %}"></div>
+          <div class="ps-chip {% if ps.sbp_enabled %}active{% endif %}">
+            <div class="ps-status-dot {% if ps.sbp_enabled %}on{% else %}off{% endif %}"></div>
             <i class="bi bi-bank2" style="color:#3b82f6"></i>
             <span>СБП</span>
           </div>

@@ -49,6 +49,7 @@ DEFAULTS = {
     "ps_stars_enabled": "1",
     "ps_freekassa_enabled": "0",
     "ps_aikassa_enabled": "0",
+    "ps_sbp_enabled": "0",
     # ── FreeKassa ─────────────────────────────────────────────────────────────
     "freekassa_shop_id": "",
     "freekassa_api_key": "",

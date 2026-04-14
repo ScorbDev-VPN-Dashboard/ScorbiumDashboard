@@ -1062,6 +1062,7 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
     # Toggle flags from DB
     yk_toggle = (await svc.get("ps_yookassa_enabled") or "0") == "1"
     cb_toggle = (await svc.get("ps_cryptobot_enabled") or "0") == "1"
+    sbp_toggle = (await svc.get("ps_sbp_enabled") or "0") == "1"
 
     from types import SimpleNamespace
     ctx["ps"] = SimpleNamespace(
@@ -1072,6 +1073,8 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
         cryptobot_enabled=cb_token_set and cb_toggle,
         cryptobot_configured=cb_token_set,
         cryptobot_toggle=cb_toggle,
+        sbp_enabled=(yk_env_ok or yk_key_set) and sbp_toggle,
+        sbp_toggle=sbp_toggle,
         freekassa_enabled=fk_enabled,
         freekassa_configured=fk_configured,
         freekassa_shop_id=fk_shop,
@@ -1238,6 +1241,7 @@ async def ps_toggle(request: Request, db: AsyncSession = Depends(get_db)):
     _ALLOWED_TOGGLE_KEYS = frozenset([
         "ps_yookassa_enabled", "ps_cryptobot_enabled",
         "ps_freekassa_enabled", "ps_aikassa_enabled", "ps_stars_enabled",
+        "ps_sbp_enabled",
     ])
 
     form = await request.form()

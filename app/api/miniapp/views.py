@@ -344,6 +344,57 @@ async def pay_sbp(request: Request, db: AsyncSession = Depends(get_db)):
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 
+@router.post("/pay/freekassa")
+async def pay_freekassa(request: Request, db: AsyncSession = Depends(get_db)):
+    """Create FreeKassa payment and return redirect URL."""
+    tg_user = await _get_tg_user(request)
+    if not tg_user:
+        return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
+
+    body = await request.json()
+    plan_id = body.get("plan_id")
+    user_id = tg_user["id"]
+
+    plan = await PlanService(db).get_by_id(plan_id)
+    if not plan or not plan.is_active:
+        return JSONResponse({"ok": False, "error": "Plan not found"}, status_code=404)
+
+    settings = await BotSettingsService(db).get_all()
+    from app.services.freekassa import FreeKassaService
+    fk = FreeKassaService.from_settings(settings)
+    if not fk:
+        return JSONResponse({"ok": False, "error": "FreeKassa not configured"}, status_code=400)
+
+    try:
+        payment = await PaymentService(db).create_pending(
+            user_id=user_id, plan=plan, provider=PaymentProvider.YOOKASSA
+        )
+        await db.flush()
+        order_id = f"fk_{payment.id}_{plan.id}"
+
+        base_url = str(config.web.allowed_origins[0]).rstrip("/") if config.web.allowed_origins else ""
+        notification_url = f"{base_url}/api/v1/payments/webhook/freekassa" if base_url else ""
+
+        result = await fk.create_order(
+            payment_id=order_id,
+            amount=float(plan.price),
+            currency="RUB",
+            currency_id=36,
+            email=f"user{user_id}@vpn.bot",
+            ip="127.0.0.1",
+            notification_url=notification_url,
+        )
+        if result and result.get("type") == "success":
+            payment.external_id = str(result.get("orderId", ""))
+            await db.commit()
+            return JSONResponse({"ok": True, "pay_url": result.get("location", "")})
+        err = result.get("message", "Ошибка") if result else "Нет ответа"
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
+    except Exception as e:
+        log.error(f"Mini App FreeKassa error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
 @router.get("/pay/check/{payment_id}")
 async def check_payment(
     payment_id: int, request: Request, db: AsyncSession = Depends(get_db)
@@ -432,9 +483,31 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
     s = await BotSettingsService(db).get_all()
 
     from app.core.config import config as _cfg
+
+    # YooKassa: env ИЛИ DB + флаг включения
     _yk = _cfg.yookassa
-    has_yookassa = bool(_yk and _yk.yookassa_shop_id and _yk.yookassa_secret_key)
-    has_cryptobot = bool(s.get("cryptobot_token", "").strip())
+    _yk_env_ok = bool(_yk and _yk.yookassa_shop_id and _yk.yookassa_secret_key)
+    _yk_db_ok = bool(s.get("yookassa_shop_id_override") and s.get("yookassa_secret_key_override"))
+    _yk_toggle = s.get("ps_yookassa_enabled", "0") == "1"
+    has_yookassa = _yk_toggle and (_yk_env_ok or _yk_db_ok)
+
+    # СБП — отдельный флаг
+    _sbp_toggle = s.get("ps_sbp_enabled", "0") == "1"
+    has_sbp = _sbp_toggle and (_yk_env_ok or _yk_db_ok)
+
+    # CryptoBot: токен + флаг включения
+    _cb_toggle = s.get("ps_cryptobot_enabled", "0") == "1"
+    has_cryptobot = _cb_toggle and bool(s.get("cryptobot_token", "").strip())
+
+    # FreeKassa
+    _fk_toggle = s.get("ps_freekassa_enabled", "0") == "1"
+    has_freekassa = _fk_toggle and bool(s.get("freekassa_shop_id") and s.get("freekassa_api_key"))
+
+    # Stars rate
+    try:
+        stars_rate = float(s.get("stars_rate") or "1.5")
+    except (ValueError, TypeError):
+        stars_rate = 1.5
 
     # Получаем username бота (с кешем)
     bot_username = _get_cached_bot_username()
@@ -448,7 +521,10 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
             "about_text": s.get("about_text", ""),
             "support_url": s.get("support_url", ""),
             "has_yookassa": has_yookassa,
+            "has_sbp": has_sbp,
             "has_cryptobot": has_cryptobot,
+            "has_freekassa": has_freekassa,
+            "stars_rate": stars_rate,
             "bot_username": bot_username,
         }
     )
