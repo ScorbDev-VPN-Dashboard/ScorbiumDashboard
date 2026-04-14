@@ -630,320 +630,382 @@
 
 <!-- ══ TAB: ПЛАТЁЖНЫЕ СИСТЕМЫ ════════════════════════════════════════════════ -->
 <div id="tab-payments" class="tab-pane">
+
+<style>
+.ps-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:border-color .2s,box-shadow .2s}
+.ps-card:hover{border-color:rgba(108,99,255,.3);box-shadow:0 4px 24px rgba(0,0,0,.25)}
+.ps-header{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.ps-icon{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.15rem}
+.ps-body{padding:16px}
+.ps-label{font-size:.68rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem}
+.ps-input-row{display:flex;gap:8px;align-items:center}
+.ps-saved{font-size:.68rem;color:#22c55e;margin-top:.25rem}
+.ps-actions{display:flex;gap:8px;margin-top:12px}
+.ps-actions .btn{font-size:.75rem;padding:.35rem .75rem;border-radius:8px}
+.ps-divider{height:1px;background:var(--border);margin:12px 0}
+.ps-sub{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:rgba(255,255,255,.03);border-radius:8px;border:1px solid var(--border)}
+.ps-sub-label{font-size:.78rem;color:#c8d0e0;display:flex;align-items:center;gap:6px}
+.ps-toggle{position:relative;display:inline-flex;align-items:center;cursor:pointer}
+.ps-toggle input{opacity:0;width:0;height:0;position:absolute}
+.ps-toggle-track{width:36px;height:20px;background:rgba(255,255,255,.1);border-radius:10px;transition:background .2s;border:1px solid rgba(255,255,255,.1)}
+.ps-toggle input:checked + .ps-toggle-track{background:rgba(34,197,94,.4);border-color:rgba(34,197,94,.5)}
+.ps-toggle-thumb{position:absolute;left:3px;top:50%;transform:translateY(-50%);width:14px;height:14px;background:#fff;border-radius:50%;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.ps-toggle input:checked ~ .ps-toggle-thumb{left:19px}
+.ps-status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ps-status-dot.on{background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,.6)}
+.ps-status-dot.off{background:#4b5563}
+.ps-overview{display:flex;flex-wrap:wrap;gap:8px}
+.ps-chip{display:flex;align-items:center;gap:7px;padding:6px 12px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;font-size:.78rem;color:#c8d0e0;transition:border-color .15s}
+.ps-chip.active{border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.06)}
+</style>
+
 <div class="row g-3">
 
-  <!-- Yookassa -->
-  <div class="col-lg-6">
-    <div class="card p-0 overflow-hidden">
-      <div class="d-flex align-items-center gap-3 p-3" style="background:rgba(108,99,255,.07);border-bottom:1px solid var(--border)">
-        <div style="width:38px;height:38px;background:rgba(108,99,255,.2);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <i class="bi bi-bank" style="color:#a78bfa;font-size:1.1rem"></i>
-        </div>
+  <!-- ЮКасса -->
+  <div class="col-xl-6">
+    <div class="ps-card">
+      <div class="ps-header">
+        <div class="ps-icon" style="background:rgba(108,99,255,.18)"><i class="bi bi-bank" style="color:#a78bfa"></i></div>
         <div class="flex-fill">
-          <div class="fw-semibold text-white" style="font-size:.88rem">ЮКасса</div>
-          <div style="font-size:.7rem;color:#8892a4">Карта, СБП · <a href="https://yookassa.ru" target="_blank" style="color:#6c63ff">yookassa.ru</a></div>
+          <div class="fw-semibold text-white" style="font-size:.9rem">ЮКасса</div>
+          <div style="font-size:.7rem;color:#8892a4">Банковские карты · СБП · <a href="https://yookassa.ru" target="_blank" style="color:#6c63ff;text-decoration:none">yookassa.ru</a></div>
         </div>
         <div class="d-flex align-items-center gap-2">
-          <span id="yk-status" class="badge badge-custom {% if ps.yookassa_enabled %}badge-active{% else %}badge-closed{% endif %}" style="font-size:.65rem">
-            {% if ps.yookassa_enabled %}Включена{% else %}Отключена{% endif %}
+          <div class="ps-status-dot {% if ps.yookassa_enabled %}on{% else %}off{% endif %}"></div>
+          <span id="yk-status" style="font-size:.72rem;color:{% if ps.yookassa_enabled %}#22c55e{% else %}#6b7280{% endif %}">
+            {% if ps.yookassa_enabled %}Активна{% else %}Отключена{% endif %}
           </span>
-          <div class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" id="yk-toggle"
+          <label class="ps-toggle ms-1">
+            <input type="checkbox" id="yk-toggle"
               {% if ps.yookassa_toggle %}checked{% endif %}
               onchange="psToggle('ps_yookassa_enabled', this.checked, 'yk')"
-              {% if not ps.yookassa_configured %}disabled title="Сначала сохраните настройки"{% endif %}>
+              {% if not ps.yookassa_configured %}disabled{% endif %}>
+            <div class="ps-toggle-track"></div>
+            <div class="ps-toggle-thumb"></div>
+          </label>
+        </div>
+      </div>
+      <div class="ps-body">
+        <form hx-post="/panel/telegram/payment-systems/yookassa" hx-swap="none"
+              hx-on::after-request="handlePsResponse(event, 'yk')">
+          <div class="row g-2 mb-2">
+            <div class="col-5">
+              <div class="ps-label">Shop ID</div>
+              <input type="text" name="yookassa_shop_id" class="form-control form-control-sm"
+                placeholder="123456" value="{{ ps.yookassa_shop_id or '' }}"
+                pattern="[0-9]{5,8}" autocomplete="off">
+            </div>
+            <div class="col-7">
+              <div class="ps-label">Secret Key</div>
+              <div class="input-group input-group-sm">
+                <input type="password" name="yookassa_secret_key" id="yk-secret" class="form-control"
+                  placeholder="{% if ps.yookassa_configured %}••••••••••••{% else %}test_XXXX...{% endif %}"
+                  autocomplete="new-password">
+                <button type="button" class="btn btn-outline-secondary" onclick="togglePass('yk-secret')"><i class="bi bi-eye"></i></button>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-      <div class="p-3">
-      <div style="font-size:.75rem;color:#8892a4;margin-bottom:.75rem">
-        Оплата банковской картой и СБП. Требуется аккаунт на <a href="https://yookassa.ru" target="_blank" style="color:#6c63ff">yookassa.ru</a>
-      </div>
-      <form id="yk-form" hx-post="/panel/telegram/payment-systems/yookassa" hx-swap="none"
-            hx-on::after-request="handlePsResponse(event, 'yk')">
-        <div class="mb-2">
-          <label class="form-label">Shop ID</label>
-          <input type="text" name="yookassa_shop_id" class="form-control"
-            placeholder="123456" value="{{ ps.yookassa_shop_id or '' }}"
-            pattern="[0-9]{5,8}" title="5-8 цифр" autocomplete="off" />
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Secret Key</label>
-          <div class="input-group">
-            <input type="password" name="yookassa_secret_key" id="yk-secret" class="form-control"
-              placeholder="{% if ps.yookassa_configured %}••••••••••••{% else %}test_...{% endif %}"
-              autocomplete="new-password" />
-            <button type="button" class="btn btn-outline-secondary" onclick="togglePass('yk-secret')">
-              <i class="bi bi-eye"></i>
+          {% if ps.yookassa_configured %}<div class="ps-saved"><i class="bi bi-check-circle-fill me-1"></i>Ключ сохранён — оставьте пустым чтобы не менять</div>{% endif %}
+          <div class="ps-actions">
+            <button type="submit" class="btn btn-accent flex-fill"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+            <button type="button" class="btn btn-outline-secondary"
+              hx-post="/panel/telegram/payment-systems/yookassa/test" hx-swap="none"
+              hx-on::after-request="handlePsResponse(event, 'yk-test')">
+              <i class="bi bi-lightning me-1"></i>Тест
             </button>
           </div>
-          {% if ps.yookassa_configured %}
-          <div style="font-size:.7rem;color:#22c55e;margin-top:.25rem"><i class="bi bi-check-circle me-1"></i>Ключ сохранён. Оставьте пустым чтобы не менять.</div>
-          {% endif %}
+        </form>
+        <div id="yk-result" class="mt-2" style="font-size:.78rem"></div>
+
+        <div class="ps-divider"></div>
+
+        <!-- СБП подраздел -->
+        <div class="ps-sub">
+          <div class="ps-sub-label">
+            <i class="bi bi-bank2" style="color:#3b82f6"></i>
+            <span>СБП (Система быстрых платежей)</span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span style="font-size:.7rem;color:{% if ps.yookassa_enabled %}#22c55e{% else %}#6b7280{% endif %}">
+              {% if ps.yookassa_enabled %}Активно{% else %}Вместе с ЮКассой{% endif %}
+            </span>
+            <label class="ps-toggle">
+              <input type="checkbox" {% if ps.yookassa_toggle %}checked{% endif %}
+                onchange="psToggle('ps_yookassa_enabled', this.checked, 'yk')"
+                {% if not ps.yookassa_configured %}disabled{% endif %}>
+              <div class="ps-toggle-track"></div>
+              <div class="ps-toggle-thumb"></div>
+            </label>
+          </div>
         </div>
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-accent flex-fill"><i class="bi bi-floppy me-1"></i>Сохранить</button>
-          <button type="button" class="btn btn-outline-secondary"
-            hx-post="/panel/telegram/payment-systems/yookassa/test" hx-swap="none"
-            hx-on::after-request="handlePsResponse(event, 'yk-test')">
-            <i class="bi bi-lightning me-1"></i>Проверить
-          </button>
-        </div>
-      </form>
-      <div id="yk-result" class="mt-2" style="font-size:.8rem"></div>
+      </div>
     </div>
   </div>
 
   <!-- CryptoBot -->
-  <div class="col-lg-6">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between mb-2">
-        <div class="fw-semibold text-white"><i class="bi bi-currency-bitcoin me-2 text-muted"></i>CryptoBot</div>
+  <div class="col-xl-6">
+    <div class="ps-card">
+      <div class="ps-header">
+        <div class="ps-icon" style="background:rgba(245,158,11,.15)"><i class="bi bi-currency-bitcoin" style="color:#f59e0b"></i></div>
+        <div class="flex-fill">
+          <div class="fw-semibold text-white" style="font-size:.9rem">CryptoBot</div>
+          <div style="font-size:.7rem;color:#8892a4">Криптовалюта · <a href="https://t.me/CryptoBot" target="_blank" style="color:#6c63ff;text-decoration:none">@CryptoBot</a></div>
+        </div>
         <div class="d-flex align-items-center gap-2">
-          <span id="cb-status" class="badge badge-custom {% if ps.cryptobot_enabled %}badge-active{% else %}badge-closed{% endif %}">
-            {% if ps.cryptobot_enabled %}Включён{% else %}Отключён{% endif %}
+          <div class="ps-status-dot {% if ps.cryptobot_enabled %}on{% else %}off{% endif %}"></div>
+          <span id="cb-status" style="font-size:.72rem;color:{% if ps.cryptobot_enabled %}#22c55e{% else %}#6b7280{% endif %}">
+            {% if ps.cryptobot_enabled %}Активен{% else %}Отключён{% endif %}
           </span>
-          {% if ps.cryptobot_configured %}
-          <div class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" id="cb-toggle"
+          <label class="ps-toggle ms-1">
+            <input type="checkbox" id="cb-toggle"
               {% if ps.cryptobot_toggle %}checked{% endif %}
-              onchange="psToggle('ps_cryptobot_enabled', this.checked, 'cb')">
-          </div>
-          {% endif %}
+              onchange="psToggle('ps_cryptobot_enabled', this.checked, 'cb')"
+              {% if not ps.cryptobot_configured %}disabled{% endif %}>
+            <div class="ps-toggle-track"></div>
+            <div class="ps-toggle-thumb"></div>
+          </label>
         </div>
       </div>
-      <div style="font-size:.75rem;color:#8892a4;margin-bottom:.75rem">
-        Оплата криптовалютой через <a href="https://t.me/CryptoBot" target="_blank" style="color:#6c63ff">@CryptoBot</a>. Создайте приложение в боте.
-      </div>
-      <form hx-post="/panel/telegram/payment-systems/cryptobot" hx-swap="none"
-            hx-on::after-request="handlePsResponse(event, 'cb')">
-        <div class="mb-3">
-          <label class="form-label">API Token</label>
-          <div class="input-group">
+      <div class="ps-body">
+        <form hx-post="/panel/telegram/payment-systems/cryptobot" hx-swap="none"
+              hx-on::after-request="handlePsResponse(event, 'cb')">
+          <div class="ps-label">API Token</div>
+          <div class="input-group input-group-sm mb-1">
             <input type="password" name="cryptobot_token" id="cb-token" class="form-control"
-              placeholder="{% if ps.cryptobot_configured %}••••••••••••{% else %}12345:AAA...{% endif %}"
-              autocomplete="new-password" />
-            <button type="button" class="btn btn-outline-secondary" onclick="togglePass('cb-token')">
-              <i class="bi bi-eye"></i>
+              placeholder="{% if ps.cryptobot_configured %}••••••••••••{% else %}12345:AAAbbb...{% endif %}"
+              autocomplete="new-password">
+            <button type="button" class="btn btn-outline-secondary" onclick="togglePass('cb-token')"><i class="bi bi-eye"></i></button>
+          </div>
+          {% if ps.cryptobot_configured %}<div class="ps-saved"><i class="bi bi-check-circle-fill me-1"></i>Токен сохранён</div>{% endif %}
+          <div class="ps-actions">
+            <button type="submit" class="btn btn-accent flex-fill"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+            <button type="button" class="btn btn-outline-secondary"
+              hx-post="/panel/telegram/payment-systems/cryptobot/test" hx-swap="none"
+              hx-on::after-request="handlePsResponse(event, 'cb-test')">
+              <i class="bi bi-lightning me-1"></i>Тест
             </button>
           </div>
-          {% if ps.cryptobot_configured %}
-          <div style="font-size:.7rem;color:#22c55e;margin-top:.25rem"><i class="bi bi-check-circle me-1"></i>Токен сохранён. Оставьте пустым чтобы не менять.</div>
-          {% endif %}
-        </div>
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-accent flex-fill"><i class="bi bi-floppy me-1"></i>Сохранить</button>
-          <button type="button" class="btn btn-outline-secondary"
-            hx-post="/panel/telegram/payment-systems/cryptobot/test" hx-swap="none"
-            hx-on::after-request="handlePsResponse(event, 'cb-test')">
-            <i class="bi bi-lightning me-1"></i>Проверить
-          </button>
-        </div>
-      </form>
-      <div id="cb-result" class="mt-2" style="font-size:.8rem"></div>
+        </form>
+        <div id="cb-result" class="mt-2" style="font-size:.78rem"></div>
+      </div>
     </div>
   </div>
 
   <!-- FreeKassa -->
-  <div class="col-lg-6">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between mb-2">
-        <div class="fw-semibold text-white"><i class="bi bi-wallet2 me-2 text-muted"></i>FreeKassa</div>
+  <div class="col-xl-6">
+    <div class="ps-card">
+      <div class="ps-header">
+        <div class="ps-icon" style="background:rgba(16,185,129,.15)"><i class="bi bi-wallet2" style="color:#10b981"></i></div>
+        <div class="flex-fill">
+          <div class="fw-semibold text-white" style="font-size:.9rem">FreeKassa</div>
+          <div style="font-size:.7rem;color:#8892a4">Карты · СБП · Кошельки · <a href="https://freekassa.com" target="_blank" style="color:#6c63ff;text-decoration:none">freekassa.com</a></div>
+        </div>
         <div class="d-flex align-items-center gap-2">
-          <span id="fk-status" class="badge badge-custom {% if ps.freekassa_enabled %}badge-active{% else %}badge-closed{% endif %}">
-            {% if ps.freekassa_enabled %}Включена{% else %}Отключена{% endif %}
+          <div class="ps-status-dot {% if ps.freekassa_enabled %}on{% else %}off{% endif %}"></div>
+          <span id="fk-status" style="font-size:.72rem;color:{% if ps.freekassa_enabled %}#22c55e{% else %}#6b7280{% endif %}">
+            {% if ps.freekassa_enabled %}Активна{% else %}Отключена{% endif %}
           </span>
-          {% if ps.freekassa_configured %}
-          <div class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" id="fk-toggle"
+          <label class="ps-toggle ms-1">
+            <input type="checkbox" id="fk-toggle"
               {% if ps.freekassa_enabled %}checked{% endif %}
-              onchange="psToggle('ps_freekassa_enabled', this.checked, 'fk')">
+              onchange="psToggle('ps_freekassa_enabled', this.checked, 'fk')"
+              {% if not ps.freekassa_configured %}disabled{% endif %}>
+            <div class="ps-toggle-track"></div>
+            <div class="ps-toggle-thumb"></div>
+          </label>
+        </div>
+      </div>
+      <div class="ps-body">
+        <form hx-post="/panel/telegram/payment-systems/freekassa" hx-swap="none"
+              hx-on::after-request="handlePsResponse(event, 'fk')">
+          <div class="row g-2 mb-2">
+            <div class="col-5">
+              <div class="ps-label">Shop ID</div>
+              <input type="text" name="freekassa_shop_id" class="form-control form-control-sm"
+                placeholder="12345" value="{{ ps.freekassa_shop_id or '' }}" autocomplete="off">
+            </div>
+            <div class="col-7">
+              <div class="ps-label">API Key</div>
+              <div class="input-group input-group-sm">
+                <input type="password" name="freekassa_api_key" id="fk-apikey" class="form-control"
+                  placeholder="{% if ps.freekassa_configured %}••••••••{% else %}ключ из ЛК{% endif %}"
+                  autocomplete="new-password">
+                <button type="button" class="btn btn-outline-secondary" onclick="togglePass('fk-apikey')"><i class="bi bi-eye"></i></button>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="ps-label">Секрет 1</div>
+              <div class="input-group input-group-sm">
+                <input type="password" name="freekassa_secret_word_1" id="fk-s1" class="form-control"
+                  placeholder="{% if ps.freekassa_secret1_set %}••••{% else %}слово 1{% endif %}"
+                  autocomplete="new-password">
+                <button type="button" class="btn btn-outline-secondary" onclick="togglePass('fk-s1')"><i class="bi bi-eye"></i></button>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="ps-label">Секрет 2</div>
+              <div class="input-group input-group-sm">
+                <input type="password" name="freekassa_secret_word_2" id="fk-s2" class="form-control"
+                  placeholder="{% if ps.freekassa_secret2_set %}••••{% else %}слово 2{% endif %}"
+                  autocomplete="new-password">
+                <button type="button" class="btn btn-outline-secondary" onclick="togglePass('fk-s2')"><i class="bi bi-eye"></i></button>
+              </div>
+            </div>
           </div>
-          {% endif %}
-        </div>
-      </div>
-      <div style="font-size:.75rem;color:#8892a4;margin-bottom:.75rem">
-        Приём платежей через <a href="https://freekassa.com" target="_blank" style="color:#6c63ff">FreeKassa</a>. Карты, СБП, электронные кошельки.
-      </div>
-      <form hx-post="/panel/telegram/payment-systems/freekassa" hx-swap="none"
-            hx-on::after-request="handlePsResponse(event, 'fk')">
-        <div class="mb-2">
-          <label class="form-label">Shop ID</label>
-          <input type="text" name="freekassa_shop_id" class="form-control"
-            placeholder="12345" value="{{ ps.freekassa_shop_id or '' }}"
-            pattern="[0-9]{1,10}" title="Только цифры" autocomplete="off" />
-        </div>
-        <div class="mb-2">
-          <label class="form-label">API Key</label>
-          <div class="input-group">
-            <input type="password" name="freekassa_api_key" id="fk-apikey" class="form-control"
-              placeholder="{% if ps.freekassa_configured %}••••••••••••{% else %}API ключ из личного кабинета{% endif %}"
-              autocomplete="new-password" />
-            <button type="button" class="btn btn-outline-secondary" onclick="togglePass('fk-apikey')">
-              <i class="bi bi-eye"></i>
+          {% if ps.freekassa_configured %}<div class="ps-saved"><i class="bi bi-check-circle-fill me-1"></i>Данные сохранены</div>{% endif %}
+          <div class="ps-actions">
+            <button type="submit" class="btn btn-accent flex-fill"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+            <button type="button" class="btn btn-outline-secondary"
+              hx-post="/panel/telegram/payment-systems/freekassa/test" hx-swap="none"
+              hx-on::after-request="handlePsResponse(event, 'fk-test')">
+              <i class="bi bi-lightning me-1"></i>Тест
             </button>
           </div>
+        </form>
+        <div id="fk-result" class="mt-2" style="font-size:.78rem"></div>
+        <div class="ps-divider"></div>
+        <div style="font-size:.7rem;color:#8892a4">
+          <i class="bi bi-info-circle me-1"></i>URL оповещения:
+          <code style="color:#a78bfa;font-size:.68rem">https://project.globaltunnel-vpn.cfd/api/v1/payments/webhook/freekassa</code>
         </div>
-        <div class="row g-2 mb-3">
-          <div class="col-6">
-            <label class="form-label">Секретное слово 1</label>
-            <div class="input-group">
-              <input type="password" name="freekassa_secret_word_1" id="fk-s1" class="form-control"
-                placeholder="{% if ps.freekassa_secret1_set %}••••••••{% else %}Слово 1{% endif %}"
-                autocomplete="new-password" />
-              <button type="button" class="btn btn-outline-secondary" onclick="togglePass('fk-s1')">
-                <i class="bi bi-eye"></i>
-              </button>
-            </div>
-          </div>
-          <div class="col-6">
-            <label class="form-label">Секретное слово 2</label>
-            <div class="input-group">
-              <input type="password" name="freekassa_secret_word_2" id="fk-s2" class="form-control"
-                placeholder="{% if ps.freekassa_secret2_set %}••••••••{% else %}Слово 2{% endif %}"
-                autocomplete="new-password" />
-              <button type="button" class="btn btn-outline-secondary" onclick="togglePass('fk-s2')">
-                <i class="bi bi-eye"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-        {% if ps.freekassa_configured %}
-        <div style="font-size:.7rem;color:#22c55e;margin-bottom:.5rem"><i class="bi bi-check-circle me-1"></i>Данные сохранены. Оставьте поля пустыми чтобы не менять.</div>
-        {% endif %}
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-accent flex-fill"><i class="bi bi-floppy me-1"></i>Сохранить</button>
-          <button type="button" class="btn btn-outline-secondary"
-            hx-post="/panel/telegram/payment-systems/freekassa/test" hx-swap="none"
-            hx-on::after-request="handlePsResponse(event, 'fk-test')">
-            <i class="bi bi-lightning me-1"></i>Проверить
-          </button>
-        </div>
-      </form>
-      <div id="fk-result" class="mt-2" style="font-size:.8rem"></div>
+      </div>
     </div>
   </div>
 
   <!-- AiKassa -->
-  <div class="col-lg-6">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between mb-2">
-        <div class="fw-semibold text-white"><i class="bi bi-lightning-charge me-2 text-muted"></i>AiKassa</div>
+  <div class="col-xl-6">
+    <div class="ps-card">
+      <div class="ps-header">
+        <div class="ps-icon" style="background:rgba(139,92,246,.15)"><i class="bi bi-lightning-charge" style="color:#8b5cf6"></i></div>
+        <div class="flex-fill">
+          <div class="fw-semibold text-white" style="font-size:.9rem">AiKassa</div>
+          <div style="font-size:.7rem;color:#8892a4">Агрегатор · <a href="https://aikassa.ru" target="_blank" style="color:#6c63ff;text-decoration:none">aikassa.ru</a></div>
+        </div>
         <div class="d-flex align-items-center gap-2">
-          <span id="ak-status" class="badge badge-custom {% if ps.aikassa_enabled %}badge-active{% else %}badge-closed{% endif %}">
-            {% if ps.aikassa_enabled %}Включена{% else %}Отключена{% endif %}
+          <div class="ps-status-dot {% if ps.aikassa_enabled %}on{% else %}off{% endif %}"></div>
+          <span id="ak-status" style="font-size:.72rem;color:{% if ps.aikassa_enabled %}#22c55e{% else %}#6b7280{% endif %}">
+            {% if ps.aikassa_enabled %}Активна{% else %}Отключена{% endif %}
           </span>
-          {% if ps.aikassa_configured %}
-          <div class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" id="ak-toggle"
+          <label class="ps-toggle ms-1">
+            <input type="checkbox" id="ak-toggle"
               {% if ps.aikassa_enabled %}checked{% endif %}
-              onchange="psToggle('ps_aikassa_enabled', this.checked, 'ak')">
+              onchange="psToggle('ps_aikassa_enabled', this.checked, 'ak')"
+              {% if not ps.aikassa_configured %}disabled{% endif %}>
+            <div class="ps-toggle-track"></div>
+            <div class="ps-toggle-thumb"></div>
+          </label>
+        </div>
+      </div>
+      <div class="ps-body">
+        <form hx-post="/panel/telegram/payment-systems/aikassa" hx-swap="none"
+              hx-on::after-request="handlePsResponse(event, 'ak')">
+          <div class="row g-2 mb-2">
+            <div class="col-5">
+              <div class="ps-label">Shop ID</div>
+              <input type="text" name="aikassa_shop_id" class="form-control form-control-sm"
+                placeholder="shop_abc" value="{{ ps.aikassa_shop_id or '' }}" autocomplete="off">
+            </div>
+            <div class="col-7">
+              <div class="ps-label">API Token</div>
+              <div class="input-group input-group-sm">
+                <input type="password" name="aikassa_token" id="ak-token" class="form-control"
+                  placeholder="{% if ps.aikassa_configured %}••••••••••••{% else %}Bearer токен{% endif %}"
+                  autocomplete="new-password">
+                <button type="button" class="btn btn-outline-secondary" onclick="togglePass('ak-token')"><i class="bi bi-eye"></i></button>
+              </div>
+            </div>
           </div>
-          {% endif %}
-        </div>
-      </div>
-      <div style="font-size:.75rem;color:#8892a4;margin-bottom:.75rem">
-        Платёжный агрегатор <a href="https://aikassa.ru" target="_blank" style="color:#6c63ff">AiKassa</a>. Карты, СБП и другие методы.
-      </div>
-      <form hx-post="/panel/telegram/payment-systems/aikassa" hx-swap="none"
-            hx-on::after-request="handlePsResponse(event, 'ak')">
-        <div class="mb-2">
-          <label class="form-label">Shop ID</label>
-          <input type="text" name="aikassa_shop_id" class="form-control"
-            placeholder="shop_abc123" value="{{ ps.aikassa_shop_id or '' }}"
-            autocomplete="off" />
-        </div>
-        <div class="mb-3">
-          <label class="form-label">API Token</label>
-          <div class="input-group">
-            <input type="password" name="aikassa_token" id="ak-token" class="form-control"
-              placeholder="{% if ps.aikassa_configured %}••••••••••••{% else %}Bearer токен из личного кабинета{% endif %}"
-              autocomplete="new-password" />
-            <button type="button" class="btn btn-outline-secondary" onclick="togglePass('ak-token')">
-              <i class="bi bi-eye"></i>
+          {% if ps.aikassa_configured %}<div class="ps-saved"><i class="bi bi-check-circle-fill me-1"></i>Токен сохранён</div>{% endif %}
+          <div class="ps-actions">
+            <button type="submit" class="btn btn-accent flex-fill"><i class="bi bi-floppy me-1"></i>Сохранить</button>
+            <button type="button" class="btn btn-outline-secondary"
+              hx-post="/panel/telegram/payment-systems/aikassa/test" hx-swap="none"
+              hx-on::after-request="handlePsResponse(event, 'ak-test')">
+              <i class="bi bi-lightning me-1"></i>Тест
             </button>
           </div>
-          {% if ps.aikassa_configured %}
-          <div style="font-size:.7rem;color:#22c55e;margin-top:.25rem"><i class="bi bi-check-circle me-1"></i>Токен сохранён. Оставьте пустым чтобы не менять.</div>
-          {% endif %}
-        </div>
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-accent flex-fill"><i class="bi bi-floppy me-1"></i>Сохранить</button>
-          <button type="button" class="btn btn-outline-secondary"
-            hx-post="/panel/telegram/payment-systems/aikassa/test" hx-swap="none"
-            hx-on::after-request="handlePsResponse(event, 'ak-test')">
-            <i class="bi bi-lightning me-1"></i>Проверить
-          </button>
-        </div>
-      </form>
-      <div id="ak-result" class="mt-2" style="font-size:.8rem"></div>
+        </form>
+        <div id="ak-result" class="mt-2" style="font-size:.78rem"></div>
+      </div>
     </div>
   </div>
 
   <!-- Telegram Stars -->
-  <div class="col-lg-6">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between mb-3">
-        <div class="fw-semibold text-white"><i class="bi bi-star-fill me-2" style="color:#f59e0b"></i>Telegram Stars</div>
-        <span class="badge badge-custom badge-active">Всегда активны</span>
+  <div class="col-xl-6">
+    <div class="ps-card">
+      <div class="ps-header">
+        <div class="ps-icon" style="background:rgba(245,158,11,.15)"><i class="bi bi-star-fill" style="color:#f59e0b"></i></div>
+        <div class="flex-fill">
+          <div class="fw-semibold text-white" style="font-size:.9rem">Telegram Stars</div>
+          <div style="font-size:.7rem;color:#8892a4">Встроенная оплата Telegram · всегда активна</div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <div class="ps-status-dot on"></div>
+          <span style="font-size:.72rem;color:#22c55e">Активны</span>
+        </div>
       </div>
-      <div style="font-size:.75rem;color:#8892a4;margin-bottom:.75rem">
-        Встроенная оплата через Telegram Stars. Работает автоматически — дополнительная настройка не требуется.
-      </div>
-      <div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:.6rem .9rem;font-size:.78rem;color:#22c55e">
-        <i class="bi bi-check-circle-fill me-1"></i>Активно. Курс: 1 Star ≈ 1.5 ₽
-      </div>
-      <div class="mt-2" style="font-size:.75rem;color:#8892a4">
-        Для изменения курса конвертации отредактируйте <code>TelegramStarsService.rub_to_stars()</code>
+      <div class="ps-body">
+        <div style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:10px;padding:.65rem 1rem;font-size:.78rem;color:#22c55e;margin-bottom:12px">
+          <i class="bi bi-check-circle-fill me-1"></i>Работает автоматически — настройка не требуется
+        </div>
+        <form hx-post="/panel/telegram/payment-systems/stars-rate" hx-swap="none"
+              hx-on::after-request="handlePsResponse(event, 'stars')">
+          <div class="ps-label">Курс конвертации</div>
+          <div class="input-group input-group-sm mb-1">
+            <span class="input-group-text" style="background:rgba(255,255,255,.04);border-color:var(--border);color:#8892a4">1 ⭐ =</span>
+            <input type="number" name="stars_rate" class="form-control"
+              value="{{ ps.stars_rate }}" min="0.1" max="100" step="0.1" placeholder="1.5">
+            <span class="input-group-text" style="background:rgba(255,255,255,.04);border-color:var(--border);color:#8892a4">₽</span>
+          </div>
+          <div style="font-size:.68rem;color:#8892a4;margin-bottom:8px">Текущий курс: 1 Star = {{ ps.stars_rate }} ₽</div>
+          <button type="submit" class="btn btn-accent btn-sm w-100"><i class="bi bi-floppy me-1"></i>Сохранить курс</button>
+        </form>
+        <div id="stars-result" class="mt-2" style="font-size:.78rem"></div>
       </div>
     </div>
   </div>
 
-  <!-- Статус всех систем -->
+  <!-- Сводка -->
   <div class="col-12">
-    <div class="card p-3">
-      <div class="fw-semibold text-white mb-3"><i class="bi bi-activity me-2 text-muted"></i>Статус платёжных систем</div>
-      <div class="row g-2">
-        <div class="col-auto">
-          <div class="d-flex align-items-center gap-2 p-2" style="background:rgba(255,255,255,.04);border-radius:8px;font-size:.8rem">
-            <i class="bi bi-bank" style="color:#6c63ff"></i>
-            <span>ЮКасса (карта)</span>
-            <span id="status-yk" class="badge badge-custom {% if ps.yookassa_enabled %}badge-active{% else %}badge-closed{% endif %}">{% if ps.yookassa_enabled %}✓{% else %}✗{% endif %}</span>
-          </div>
+    <div class="ps-card">
+      <div class="ps-header">
+        <div class="ps-icon" style="background:rgba(108,99,255,.15)"><i class="bi bi-activity" style="color:#a78bfa"></i></div>
+        <div class="flex-fill">
+          <div class="fw-semibold text-white" style="font-size:.9rem">Активные системы</div>
+          <div style="font-size:.7rem;color:#8892a4">Обзор всех подключённых методов оплаты</div>
         </div>
-        <div class="col-auto">
-          <div class="d-flex align-items-center gap-2 p-2" style="background:rgba(255,255,255,.04);border-radius:8px;font-size:.8rem">
+      </div>
+      <div class="ps-body">
+        <div class="ps-overview">
+          <div class="ps-chip {% if ps.yookassa_enabled %}active{% endif %}">
+            <div class="ps-status-dot {% if ps.yookassa_enabled %}on{% else %}off{% endif %}"></div>
+            <i class="bi bi-bank" style="color:#a78bfa"></i>
+            <span>ЮКасса</span>
+          </div>
+          <div class="ps-chip {% if ps.yookassa_enabled %}active{% endif %}">
+            <div class="ps-status-dot {% if ps.yookassa_enabled %}on{% else %}off{% endif %}"></div>
             <i class="bi bi-bank2" style="color:#3b82f6"></i>
-            <span>ЮКасса (СБП)</span>
-            <span class="badge badge-custom {% if ps.yookassa_enabled %}badge-active{% else %}badge-closed{% endif %}">{% if ps.yookassa_enabled %}✓{% else %}✗{% endif %}</span>
+            <span>СБП</span>
           </div>
-        </div>
-        <div class="col-auto">
-          <div class="d-flex align-items-center gap-2 p-2" style="background:rgba(255,255,255,.04);border-radius:8px;font-size:.8rem">
+          <div class="ps-chip {% if ps.cryptobot_enabled %}active{% endif %}">
+            <div class="ps-status-dot {% if ps.cryptobot_enabled %}on{% else %}off{% endif %}"></div>
             <i class="bi bi-currency-bitcoin" style="color:#f59e0b"></i>
             <span>CryptoBot</span>
-            <span id="status-cb" class="badge badge-custom {% if ps.cryptobot_enabled %}badge-active{% else %}badge-closed{% endif %}">{% if ps.cryptobot_enabled %}✓{% else %}✗{% endif %}</span>
           </div>
-        </div>
-        <div class="col-auto">
-          <div class="d-flex align-items-center gap-2 p-2" style="background:rgba(255,255,255,.04);border-radius:8px;font-size:.8rem">
+          <div class="ps-chip {% if ps.freekassa_enabled %}active{% endif %}">
+            <div class="ps-status-dot {% if ps.freekassa_enabled %}on{% else %}off{% endif %}"></div>
             <i class="bi bi-wallet2" style="color:#10b981"></i>
             <span>FreeKassa</span>
-            <span id="status-fk" class="badge badge-custom {% if ps.freekassa_enabled %}badge-active{% else %}badge-closed{% endif %}">{% if ps.freekassa_enabled %}✓{% else %}✗{% endif %}</span>
           </div>
-        </div>
-        <div class="col-auto">
-          <div class="d-flex align-items-center gap-2 p-2" style="background:rgba(255,255,255,.04);border-radius:8px;font-size:.8rem">
+          <div class="ps-chip {% if ps.aikassa_enabled %}active{% endif %}">
+            <div class="ps-status-dot {% if ps.aikassa_enabled %}on{% else %}off{% endif %}"></div>
             <i class="bi bi-lightning-charge" style="color:#8b5cf6"></i>
             <span>AiKassa</span>
-            <span id="status-ak" class="badge badge-custom {% if ps.aikassa_enabled %}badge-active{% else %}badge-closed{% endif %}">{% if ps.aikassa_enabled %}✓{% else %}✗{% endif %}</span>
           </div>
-        </div>
-        <div class="col-auto">
-          <div class="d-flex align-items-center gap-2 p-2" style="background:rgba(255,255,255,.04);border-radius:8px;font-size:.8rem">
+          <div class="ps-chip active">
+            <div class="ps-status-dot on"></div>
             <i class="bi bi-star-fill" style="color:#f59e0b"></i>
-            <span>Telegram Stars</span>
-            <span class="badge badge-custom badge-active">✓</span>
+            <span>Stars</span>
           </div>
         </div>
       </div>
@@ -1057,19 +1119,23 @@ async function psToggle(key, enabled, prefix) {
     const d = await r.json();
     if (!d.ok) { showToast(d.message || 'Ошибка', 'error'); return; }
     showToast(d.message, 'success');
-    // Update status badge
-    const badge = document.getElementById(prefix + '-status');
-    if (badge) {
-      badge.className = `badge badge-custom ${enabled ? 'badge-active' : 'badge-closed'}`;
-      const labels = {yk:'Включена', cb:'Включён', fk:'Включена', ak:'Включена'};
-      badge.textContent = enabled ? (labels[prefix] || 'Включена') : 'Отключена';
+    // Update status text and dot
+    const statusEl = document.getElementById(prefix + '-status');
+    const labels = {yk:'Активна', cb:'Активен', fk:'Активна', ak:'Активна'};
+    const labelsOff = {yk:'Отключена', cb:'Отключён', fk:'Отключена', ak:'Отключена'};
+    if (statusEl) {
+      statusEl.textContent = enabled ? (labels[prefix] || 'Активна') : (labelsOff[prefix] || 'Отключена');
+      statusEl.style.color = enabled ? '#22c55e' : '#6b7280';
     }
-    // Update summary badge
-    const sumBadge = document.getElementById('status-' + prefix);
-    if (sumBadge) {
-      sumBadge.className = `badge badge-custom ${enabled ? 'badge-active' : 'badge-closed'}`;
-      sumBadge.textContent = enabled ? '✓' : '✗';
+    // Update dot next to status
+    const dot = statusEl ? statusEl.previousElementSibling : null;
+    if (dot && dot.classList.contains('ps-status-dot')) {
+      dot.classList.toggle('on', enabled);
+      dot.classList.toggle('off', !enabled);
     }
+    // Update overview chips
+    const chip = document.querySelector('.ps-chip[data-ps="' + prefix + '"]');
+    if (chip) chip.classList.toggle('active', enabled);
   } catch(e) { showToast('Ошибка сети', 'error'); }
 }
 
