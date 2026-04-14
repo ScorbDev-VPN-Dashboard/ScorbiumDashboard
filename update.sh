@@ -24,6 +24,16 @@ info "Домен: ${DOMAIN}, HTTPS порт: ${HTTPS_PORT}"
 
 # ── [1/4] git pull ────────────────────────────────────────────────────────────
 info "[1/4] Обновляю код..."
+
+# Бэкап БД перед обновлением
+DB_NAME=$(grep "^DB_NAME=" .env | cut -d= -f2- | xargs)
+DB_USER=$(grep "^DB_USER=" .env | cut -d= -f2- | xargs)
+DB_NAME=${DB_NAME:-vpnbot}
+DB_USER=${DB_USER:-postgres}
+BACKUP_FILE="backup_$(date +%Y%m%d_%H%M%S).sql"
+info "Создаю бэкап БД → ${BACKUP_FILE}..."
+docker exec vpn_db pg_dump -U "${DB_USER}" "${DB_NAME}" > "${BACKUP_FILE}" 2>/dev/null && success "Бэкап создан: ${BACKUP_FILE}" || warn "Не удалось создать бэкап (БД не запущена?)"
+
 git pull || error "git pull failed. Проверьте: git status"
 
 # ── APP_VERSION из pyproject.toml ─────────────────────────────────────────────
@@ -207,12 +217,11 @@ done
 
 # ── [4/4] Миграции ────────────────────────────────────────────────────────────
 info "[4/4] Применяю миграции БД..."
-docker compose -f docker-compose.prod.yml exec app uv run alembic upgrade head
+docker compose -f docker-compose.prod.yml exec app .venv/bin/alembic upgrade head
 success "Миграции применены"
 
 # ── Перезапускаем nginx с новым конфигом ─────────────────────────────────────
 docker compose -f docker-compose.prod.yml up -d nginx
-docker compose -f docker-compose.prod.yml restart nginx
 sleep 3
 NGINX_STATUS=$(docker inspect --format='{{.State.Status}}' vpn_nginx 2>/dev/null || echo "unknown")
 if [[ "$NGINX_STATUS" == "running" ]]; then

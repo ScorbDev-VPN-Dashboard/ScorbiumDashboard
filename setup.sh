@@ -70,13 +70,8 @@ read -rsp "Пароль Marzban: " PASAR_PASS; echo ""
 success "Выбрана панель: Marzban / Pasarguard"
 
 echo ""
-echo -e "${BOLD}── YooKassa (Enter = пропустить) ───────────────────${RESET}"
-read -rp "Shop ID: " YK_SHOP; YK_SHOP=${YK_SHOP:-""}
-read -rp "Secret Key: " YK_SECRET; YK_SECRET=${YK_SECRET:-""}
-
-echo ""
-echo -e "${BOLD}── CryptoBot (Enter = пропустить) ──────────────────${RESET}"
-read -rp "CryptoBot API Token (@CryptoBot → /pay): " CRYPTOBOT_TOKEN; CRYPTOBOT_TOKEN=${CRYPTOBOT_TOKEN:-""}
+echo -e "${BOLD}── YooKassa и CryptoBot ────────────────────────────${RESET}"
+echo -e "${YELLOW}Настройте платёжные системы через панель: Telegram → Платёжные системы${RESET}"
 
 # ── Продакшен-специфичные ─────────────────────────────────────────────────────
 if [[ "$MODE" == "1" ]]; then
@@ -146,9 +141,6 @@ PASARGUARD_ADMIN_LOGIN=${PASAR_LOGIN}
 PASARGUARD_ADMIN_PASSWORD=${PASAR_PASS}
 PASARGUARD_API_KEY=
 VPN_PANEL_TYPE=marzban
-YOOKASSA_SHOP_ID=${YK_SHOP}
-YOOKASSA_SECRET_KEY=${YK_SECRET}
-CRYPTOBOT_TOKEN=${CRYPTOBOT_TOKEN}
 HTTPS_PORT=${HTTPS_PORT}
 DOMAIN=${DOMAIN}
 DB_ENGINE=postgresql
@@ -366,7 +358,7 @@ CRONEOF
 
     # Применяем миграции
     info "Применяю миграции БД..."
-    docker compose -f docker-compose.prod.yml exec app uv run alembic upgrade head
+    docker compose -f docker-compose.prod.yml exec app .venv/bin/alembic upgrade head
     success "Миграции применены"
 
     # Запускаем nginx с SSL
@@ -391,7 +383,7 @@ else
     info "Жду запуска (15 сек)..."
     sleep 15
     info "Применяю миграции БД..."
-    docker compose exec app uv run alembic upgrade head
+    docker compose exec app .venv/bin/alembic upgrade head
     success "Миграции применены"
 fi
 
