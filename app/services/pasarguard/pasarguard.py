@@ -259,46 +259,52 @@ class PasarguardService(VpnPanelInterface):
         if not user:
             raise PasarguardRequestError(f"User {username} not found")
 
-        current_expire = user.get("expire")
-        log.info(
-            f"[extend_user] username={username} current_expire={current_expire!r} type={type(current_expire).__name__}"
-        )
+        raw_expire = user.get("expire")
 
-        # DEBUG - показать весь объект user
-        log.info(f"[extend_user] full user data: {user}")
+        # Приводим к безопасному типу для избежания ошибки '>' not supported between 'str' and 'float'
         from datetime import datetime, timezone, timedelta
 
         now = datetime.now(timezone.utc)
 
-        # Определяем тип expire и парсим
-        if current_expire:
-            if isinstance(current_expire, (int, float)):
-                # Это timestamp число
-                if current_expire > 0:
-                    base = datetime.fromtimestamp(current_expire, tz=timezone.utc)
+        # 首先转换为字符串，然后安全解析
+        current_expire = None
+        if raw_expire is not None:
+            try:
+                # 转成字符串
+                s = str(raw_expire).strip()
+                if not s or s.lower() == "none":
+                    current_expire = None
+                elif s.isdigit():
+                    # 纯数字 timestamp
+                    ts = int(s)
+                    current_expire = (
+                        datetime.fromtimestamp(ts, tz=timezone.utc) if ts > 0 else now
+                    )
                 else:
-                    base = now
-            elif isinstance(current_expire, str):
-                # Это строка - пробуем распознать формат
-                s = current_expire.strip()
-                try:
-                    # Пробуем как ISO формат
-                    base = datetime.fromisoformat(s.replace("Z", "+00:00"))
-                except ValueError:
-                    # Не ISO - пробуем как числовая строка (timestamp)
+                    # 尝试 ISO
                     try:
-                        ts = float(s)
-                        if ts > 0:
-                            base = datetime.fromtimestamp(ts, tz=timezone.utc)
-                        else:
-                            base = now
+                        current_expire = datetime.fromisoformat(
+                            s.replace("Z", "+00:00")
+                        )
                     except ValueError:
-                        # Не удалось распознать
-                        base = now
-            else:
-                base = now
-        else:
+                        # 尝试 float
+                        try:
+                            ts = float(s)
+                            current_expire = (
+                                datetime.fromtimestamp(ts, tz=timezone.utc)
+                                if ts > 0
+                                else now
+                            )
+                        except ValueError:
+                            current_expire = now
+            except Exception as e:
+                log.warning(f"[extend_user] parse expire error: {e}")
+                current_expire = now
+
+        if current_expire is None:
             base = now
+        else:
+            base = current_expire
 
         # Если base уже прошло, используем текущее время
         if base < now:

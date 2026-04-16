@@ -160,6 +160,7 @@ async def get_profile(request: Request, db: AsyncSession = Depends(get_db)):
 
     keys = await VpnKeyService(db).get_all_for_user(user_id)
     ref_count = await ReferralService(db).count_referrals(user_id)
+    plans = await PlanService(db).get_all(only_active=True)
 
     active_keys = []
     archive_keys = []
@@ -189,10 +190,20 @@ async def get_profile(request: Request, db: AsyncSession = Depends(get_db)):
                 "referral_code": user.referral_code,
                 "referrals_count": ref_count,
             },
+            "plans": [
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "duration_days": p.duration_days,
+                    "price": float(p.price or 0),
+                }
+                for p in plans
+            ],
             "active_keys": active_keys,
             "archive_keys": archive_keys,
         }
     )
+
 
 @router.post("/pay/balance")
 async def pay_balance(request: Request, db: AsyncSession = Depends(get_db)):
@@ -235,7 +246,9 @@ async def pay_balance(request: Request, db: AsyncSession = Depends(get_db)):
             {
                 "ok": True,
                 "access_url": key.access_url,
-                "expires_at": key.expires_at.isoformat() if key.expires_at is not None else None,
+                "expires_at": key.expires_at.isoformat()
+                if key.expires_at is not None
+                else None,
                 "plan_name": plan.name,
                 "days": plan.duration_days,
             }
@@ -243,6 +256,57 @@ async def pay_balance(request: Request, db: AsyncSession = Depends(get_db)):
     return JSONResponse(
         {"ok": False, "error": "Failed to create VPN key"}, status_code=500
     )
+
+
+@router.post("/extend/key")
+async def extend_key(request: Request, db: AsyncSession = Depends(get_db)):
+    """Extend subscription using balance."""
+    tg_user = await _get_tg_user(request)
+    if not tg_user:
+        return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
+
+    body = await request.json()
+    key_id = body.get("key_id")
+    plan_id = body.get("plan_id")
+    user_id = tg_user["id"]
+
+    # Получаем ключ
+    key = await VpnKeyService(db).get_by_id(key_id)
+    if not key or key.user_id != user_id:
+        return JSONResponse({"ok": False, "error": "Key not found"}, status_code=404)
+
+    # Получаем план
+    plan = await PlanService(db).get_by_id(plan_id)
+    if not plan or not plan.is_active:
+        return JSONResponse({"ok": False, "error": "Plan not found"}, status_code=404)
+
+    user = await UserService(db).get_by_id(user_id)
+    if not user or float(user.balance or 0) < float(plan.price):
+        return JSONResponse(
+            {"ok": False, "error": "Insufficient balance"}, status_code=400
+        )
+
+    # Списываем баланс
+    updated = await UserService(db).deduct_balance(user_id, plan.price)
+    if not updated:
+        return JSONResponse({"ok": False, "error": "Balance error"}, status_code=400)
+
+    # Продлеваем ключ
+    extended_key = await VpnKeyService(db).extend(key_id, plan.duration_days)
+    await db.commit()
+
+    if extended_key:
+        return JSONResponse(
+            {
+                "ok": True,
+                "expires_at": extended_key.expires_at.isoformat()
+                if extended_key.expires_at is not None
+                else None,
+                "plan_name": plan.name,
+                "days": plan.duration_days,
+            }
+        )
+    return JSONResponse({"ok": False, "error": "Failed to extend key"}, status_code=500)
 
 
 @router.post("/pay/yookassa")
@@ -286,7 +350,9 @@ async def pay_yookassa(request: Request, db: AsyncSession = Depends(get_db)):
             {
                 "ok": True,
                 "payment_id": payment.id,
-                "confirm_url": yk_payment.confirmation.confirmation_url if yk_payment.confirmation else None,
+                "confirm_url": yk_payment.confirmation.confirmation_url
+                if yk_payment.confirmation
+                else None,
             }
         )
     except Exception as e:
@@ -336,7 +402,9 @@ async def pay_sbp(request: Request, db: AsyncSession = Depends(get_db)):
             {
                 "ok": True,
                 "payment_id": payment.id,
-                "confirm_url": yk_payment.confirmation.confirmation_url if yk_payment.confirmation else None,
+                "confirm_url": yk_payment.confirmation.confirmation_url
+                if yk_payment.confirmation
+                else None,
             }
         )
     except Exception as e:
@@ -361,9 +429,12 @@ async def pay_freekassa(request: Request, db: AsyncSession = Depends(get_db)):
 
     settings = await BotSettingsService(db).get_all()
     from app.services.freekassa import FreeKassaService
+
     fk = FreeKassaService.from_settings(settings)
     if not fk:
-        return JSONResponse({"ok": False, "error": "FreeKassa not configured"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "error": "FreeKassa not configured"}, status_code=400
+        )
 
     try:
         payment = await PaymentService(db).create_pending(
@@ -372,8 +443,14 @@ async def pay_freekassa(request: Request, db: AsyncSession = Depends(get_db)):
         await db.flush()
         order_id = f"fk_{payment.id}_{plan.id}"
 
-        base_url = str(config.web.allowed_origins[0]).rstrip("/") if config.web.allowed_origins else ""
-        notification_url = f"{base_url}/api/v1/payments/webhook/freekassa" if base_url else ""
+        base_url = (
+            str(config.web.allowed_origins[0]).rstrip("/")
+            if config.web.allowed_origins
+            else ""
+        )
+        notification_url = (
+            f"{base_url}/api/v1/payments/webhook/freekassa" if base_url else ""
+        )
 
         result = await fk.create_order(
             payment_id=order_id,
@@ -413,13 +490,19 @@ async def check_payment(
     if payment.status == PaymentStatus.SUCCEEDED.value:
         from sqlalchemy import select
         from app.models.vpn_key import VpnKey
+
         result = await db.execute(select(VpnKey).where(VpnKey.id == payment.vpn_key_id))
         key = result.scalar_one_or_none()
-        return JSONResponse({
-            "ok": True, "status": "succeeded",
-            "access_url": key.access_url if key else None,
-            "expires_at": key.expires_at.isoformat() if key and key.expires_at is not None else None,
-        })
+        return JSONResponse(
+            {
+                "ok": True,
+                "status": "succeeded",
+                "access_url": key.access_url if key else None,
+                "expires_at": key.expires_at.isoformat()
+                if key and key.expires_at is not None
+                else None,
+            }
+        )
 
     if payment.status == PaymentStatus.FAILED.value:
         return JSONResponse({"ok": True, "status": "failed"})
@@ -430,6 +513,7 @@ async def check_payment(
 
     try:
         from app.services.yookassa import YookassaService
+
         yk = await YookassaService.create()
         yk_payment = yk.get_payment(str(payment.external_id))
         if yk_payment.status == "succeeded":
@@ -437,6 +521,7 @@ async def check_payment(
             await db.flush()
 
             import json as _json
+
             plan_id = None
             if payment.meta:
                 try:
@@ -454,15 +539,22 @@ async def check_payment(
             if plan_id is not None:
                 plan = await PlanService(db).get_by_id(plan_id)
                 if plan:
-                    key = await VpnKeyService(db).provision(user_id=tg_user["id"], plan=plan)
+                    key = await VpnKeyService(db).provision(
+                        user_id=tg_user["id"], plan=plan
+                    )
                     if key:
                         payment.vpn_key_id = key.id
                     await db.commit()
-                    return JSONResponse({
-                        "ok": True, "status": "succeeded",
-                        "access_url": key.access_url if key else None,
-                        "expires_at": key.expires_at.isoformat() if key and key.expires_at is not None else None,
-                    })
+                    return JSONResponse(
+                        {
+                            "ok": True,
+                            "status": "succeeded",
+                            "access_url": key.access_url if key else None,
+                            "expires_at": key.expires_at.isoformat()
+                            if key and key.expires_at is not None
+                            else None,
+                        }
+                    )
             await db.commit()
             return JSONResponse({"ok": True, "status": "succeeded", "access_url": None})
 
@@ -487,7 +579,9 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
     # YooKassa: env ИЛИ DB + флаг включения
     _yk = _cfg.yookassa
     _yk_env_ok = bool(_yk and _yk.yookassa_shop_id and _yk.yookassa_secret_key)
-    _yk_db_ok = bool(s.get("yookassa_shop_id_override") and s.get("yookassa_secret_key_override"))
+    _yk_db_ok = bool(
+        s.get("yookassa_shop_id_override") and s.get("yookassa_secret_key_override")
+    )
     _yk_toggle = s.get("ps_yookassa_enabled", "0") == "1"
     has_yookassa = _yk_toggle and (_yk_env_ok or _yk_db_ok)
 
@@ -501,7 +595,9 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
 
     # FreeKassa
     _fk_toggle = s.get("ps_freekassa_enabled", "0") == "1"
-    has_freekassa = _fk_toggle and bool(s.get("freekassa_shop_id") and s.get("freekassa_api_key"))
+    has_freekassa = _fk_toggle and bool(
+        s.get("freekassa_shop_id") and s.get("freekassa_api_key")
+    )
 
     # Stars rate
     try:
@@ -541,6 +637,7 @@ async def _fetch_bot_username() -> str:
     global _BOT_USERNAME_CACHE
     try:
         from app.core.server import get_bot
+
         bot = get_bot()
         if bot:
             me = await bot.get_me()
@@ -549,6 +646,7 @@ async def _fetch_bot_username() -> str:
         # Fallback
         from aiogram import Bot
         from app.core.config import config as _cfg2
+
         _bot_tmp = Bot(token=_cfg2.telegram.telegram_bot_token.get_secret_value())
         me = await _bot_tmp.get_me()
         _BOT_USERNAME_CACHE = me.username or ""
