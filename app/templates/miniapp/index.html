@@ -491,6 +491,8 @@ function renderSubs(d) {
     d.archive_keys.forEach(k => h += keyCard(k));
   }
   el.innerHTML = h;
+  // Подгружаем планы если ещё нет
+  if (!d.plans?.length) loadPlans();
 }
 
 function keyCard(k) {
@@ -507,6 +509,10 @@ function keyCard(k) {
   const daysChip = days !== null && k.status === 'active'
     ? `<span class="chip ${days <= 1 ? 'chip-danger' : days <= 3 ? 'chip-warn' : 'chip-ok'}">${days > 0 ? days + ' дн.' : 'Сегодня'}</span>`
     : '';
+  const showExtend = k.status === 'active' && plans.length > 0;
+  let actions = '';
+  if (k.access_url) actions += `<div class="ku" onclick="cp('${k.access_url}')">🔑 ${k.access_url.substring(0, 52)}…<br><small style="color:var(--hi);font-size:10px">Нажми чтобы скопировать</small></div>`;
+  if (showExtend) actions += `<button class="btn bo" style="margin-top:8px" onclick="showExtendModal(${k.id})">🔄 Продлить</button>`;
   return `<div class="kc ${k.status === 'active' ? 'active-key' : ''}">
     <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:4px">
       <div class="kn">${k.name}</div>
@@ -517,8 +523,66 @@ function keyCard(k) {
       ${daysChip}
     </div>
     ${bar}
-    ${k.access_url ? `<div class="ku" onclick="cp('${k.access_url}')">🔑 ${k.access_url.substring(0, 52)}…<br><small style="color:var(--hi);font-size:10px">Нажми чтобы скопировать</small></div>` : ''}
+    ${actions}
   </div>`;
+}
+
+// Extend modal
+let selKeyForExtend = null;
+function showExtendModal(keyId) {
+  selKeyForExtend = keyId;
+  const el = document.getElementById('subs-c');
+  let opts = '';
+  plans.forEach(p => {
+    opts += `<div class="pc${selPlan?.id === p.id ? ' sel' : ''}" onclick="selExtPlan(${p.id})">
+      <div class="pn">${p.name}</div>
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <span class="pp">${p.price} ₽</span>
+        <span style="font-size:13px;color:var(--hi)">${p.duration_days} дней</span>
+      </div>
+    </div>`;
+  });
+  el.innerHTML = `
+    <div class="ph"><div class="pt">🔄 Продлить подписку</div></div>
+    <div class="sl2">Выбери тариф</div>
+    ${opts}
+    <div id="ext-pay-btn" style="display:none;margin-top:12px">
+      <button class="btn bp" onclick="doExtend()">Продлить за баланс</button>
+    </div>
+    <button class="btn bo" style="margin-top:12px" onclick="loadSubs()">◀️ Назад</button>
+  `;
+}
+
+function selExtPlan(id) {
+  selPlan = plans.find(p => p.id === id);
+  document.querySelectorAll('.pc').forEach(el => el.classList.remove('sel'));
+  event.target.closest('.pc')?.classList.add('sel');
+  document.getElementById('ext-pay-btn').style.display = selPlan ? 'block' : 'none';
+}
+
+async function doExtend() {
+  if (!selKeyForExtend || !selPlan) return;
+  const bal = U?.balance || 0;
+  if (bal < selPlan.price) { tg.showAlert('Недостаточно баланса!'); return; }
+  tg.showConfirm(`Продлить за ${selPlan.price} ₽?`, async ok => {
+    if (!ok) return;
+    try {
+      const r = await fetch(B + '/extend/key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': tg.initData },
+        body: JSON.stringify({ key_id: selKeyForExtend, plan_id: selPlan.id })
+      });
+      const d = await r.json();
+      if (d.ok) {
+        if (U) U.balance -= selPlan.price;
+        selPlan = null; selKeyForExtend = null;
+        toast('✅ Подписка продлена!');
+        loadSubs();
+      } else {
+        tg.showAlert('Ошибка: ' + (d.error || 'Неизвестно'));
+      }
+    } catch (e) { tg.showAlert('Ошибка соединения'); }
+  });
 }
 </script>
 

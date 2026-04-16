@@ -74,9 +74,7 @@
             <div class="d-flex gap-1 flex-wrap">
               <button class="btn btn-xs btn-outline-secondary"
                 title="Продлить"
-                data-bs-toggle="modal"
-                data-bs-target="#extendModal"
-                data-sub-id="{{ sub.id }}">
+                onclick="document.getElementById('extendSubId').textContent='{{ sub.id }}';document.getElementById('extendForm').setAttribute('hx-post','/panel/subscriptions/{{ sub.id }}/extend');new bootstrap.Modal(document.getElementById('extendModal')).show()">
                 <i class="bi bi-calendar-plus"></i>
               </button>
               {% if sub.status.value == 'active' %}
