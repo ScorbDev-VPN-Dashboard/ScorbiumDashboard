@@ -204,7 +204,6 @@ class PasarguardService(VpnPanelInterface):
         proxies: Optional[dict] = None,
         group_ids: Optional[list] = None,
     ) -> dict:
-        from datetime import datetime, timezone, timedelta
         import uuid
 
         expire_ts = None
@@ -262,8 +261,6 @@ class PasarguardService(VpnPanelInterface):
         raw_expire = user.get("expire")
 
         # Приводим к безопасному типу для избежания ошибки '>' not supported between 'str' and 'float'
-        from datetime import datetime, timezone, timedelta
-
         now = datetime.now(timezone.utc)
 
         # 首先转换为字符串，然后安全解析
