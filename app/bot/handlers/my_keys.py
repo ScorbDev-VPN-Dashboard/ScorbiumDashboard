@@ -402,7 +402,10 @@ async def extend_key(callback: CallbackQuery) -> None:
             await callback.answer(t("sub_not_found", lang), show_alert=True)
             return
 
-        if key.status.value != "active":
+        status_val = (
+            key.status.value if hasattr(key.status, "value") else str(key.status)
+        )
+        if status_val != "active":
             await callback.answer("Подписка не активна", show_alert=True)
             return
 
