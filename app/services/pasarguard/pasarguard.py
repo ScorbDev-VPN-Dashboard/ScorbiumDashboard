@@ -264,25 +264,38 @@ class PasarguardService(VpnPanelInterface):
 
         now = datetime.now(timezone.utc)
 
-        # Поддерживаем оба формата: timestamp (число) и ISO строка
+        # Определяем тип expire и парсим
         if current_expire:
             if isinstance(current_expire, (int, float)):
-                # timestamp
-                if current_expire > now.timestamp():
+                # Это timestamp число
+                if current_expire > 0:
                     base = datetime.fromtimestamp(current_expire, tz=timezone.utc)
                 else:
                     base = now
             elif isinstance(current_expire, str):
-                # ISO формат
+                # Это строка - пробуем распознать формат
+                s = current_expire.strip()
                 try:
-                    base = datetime.fromisoformat(current_expire.replace("Z", "+00:00"))
-                    if base.tzinfo is None:
-                        base = base.replace(tzinfo=timezone.utc)
-                    if base < now:
-                        base = now
+                    # Пробуем как ISO формат
+                    base = datetime.fromisoformat(s.replace("Z", "+00:00"))
                 except ValueError:
-                    base = now
+                    # Не ISO - пробуем как числовая строка (timestamp)
+                    try:
+                        ts = float(s)
+                        if ts > 0:
+                            base = datetime.fromtimestamp(ts, tz=timezone.utc)
+                        else:
+                            base = now
+                    except ValueError:
+                        # Не удалось распознать
+                        base = now
+            else:
+                base = now
         else:
+            base = now
+
+        # Если base уже прошло, используем текущее время
+        if base < now:
             base = now
 
         # Используем ISO формат (как в create_user)
