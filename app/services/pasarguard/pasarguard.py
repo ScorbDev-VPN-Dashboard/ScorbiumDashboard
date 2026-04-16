@@ -260,31 +260,25 @@ class PasarguardService(VpnPanelInterface):
 
         raw_expire = user.get("expire")
 
-        # Приводим к безопасному типу для избежания ошибки '>' not supported between 'str' and 'float'
         now = datetime.now(timezone.utc)
 
-        # 首先转换为字符串，然后安全解析
         current_expire = None
         if raw_expire is not None:
             try:
-                # 转成字符串
                 s = str(raw_expire).strip()
                 if not s or s.lower() == "none":
                     current_expire = None
                 elif s.isdigit():
-                    # 纯数字 timestamp
                     ts = int(s)
                     current_expire = (
                         datetime.fromtimestamp(ts, tz=timezone.utc) if ts > 0 else now
                     )
                 else:
-                    # 尝试 ISO
                     try:
                         current_expire = datetime.fromisoformat(
                             s.replace("Z", "+00:00")
                         )
                     except ValueError:
-                        # 尝试 float
                         try:
                             ts = float(s)
                             current_expire = (
@@ -303,11 +297,9 @@ class PasarguardService(VpnPanelInterface):
         else:
             base = current_expire
 
-        # Если base уже прошло, используем текущее время
         if base < now:
             base = now
 
-        # Используем ISO формат (как в create_user)
         new_expire = (base + timedelta(days=extra_days)).isoformat()
         log.info(f"[extend_user] base={base} new_expire={new_expire}")
         return await self.modify_user(username, expire=new_expire)
