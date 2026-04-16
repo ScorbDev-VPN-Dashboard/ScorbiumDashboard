@@ -19,16 +19,20 @@ class MarzbanClient:
     def __init__(self) -> None:
         cfg = config.pasarguard
         if cfg is None:
-            raise RuntimeError("Marzban/Pasarguard is not configured. Check PASARGUARD_ADMIN_PANEL in .env")
+            raise RuntimeError(
+                "Marzban/Pasarguard is not configured. Check PASARGUARD_ADMIN_PANEL in .env"
+            )
         self._base = str(cfg.pasarguard_admin_panel).rstrip("/")
         self._login = cfg.pasarguard_admin_login
         self._password = (
             cfg.pasarguard_admin_password.get_secret_value()
-            if cfg.pasarguard_admin_password else None
+            if cfg.pasarguard_admin_password
+            else None
         )
         self._api_key = (
             cfg.pasarguard_api_key.get_secret_value()
-            if cfg.pasarguard_api_key else None
+            if cfg.pasarguard_api_key
+            else None
         )
 
     async def _get_token(self) -> str:
@@ -47,7 +51,9 @@ class MarzbanClient:
                     data={"username": self._login, "password": self._password},
                 )
                 if resp.status_code != 200:
-                    raise PasarguardAuthError(f"Marzban auth failed: {resp.status_code} {resp.text}")
+                    raise PasarguardAuthError(
+                        f"Marzban auth failed: {resp.status_code} {resp.text}"
+                    )
                 data = resp.json()
                 self._token = data["access_token"]
                 self._token_expires = now + timedelta(hours=23)
@@ -70,10 +76,14 @@ class MarzbanClient:
         url = f"{self._base}{path}"
         try:
             async with AsyncClient(timeout=15, verify=False) as client:
-                resp = await client.get(url, headers=await self._headers(), params=params)
+                resp = await client.get(
+                    url, headers=await self._headers(), params=params
+                )
                 if resp.status_code == 401:
                     # Token expired — refresh and retry once
-                    resp = await client.get(url, headers=await self._headers_force_refresh(), params=params)
+                    resp = await client.get(
+                        url, headers=await self._headers_force_refresh(), params=params
+                    )
                 resp.raise_for_status()
                 return resp.json()
         except HTTPStatusError as e:
@@ -86,14 +96,24 @@ class MarzbanClient:
         url = f"{self._base}{path}"
         try:
             async with AsyncClient(timeout=15, verify=False) as client:
-                resp = await client.post(url, headers=await self._headers(), json=payload or {})
+                resp = await client.post(
+                    url, headers=await self._headers(), json=payload or {}
+                )
                 if resp.status_code == 401:
-                    resp = await client.post(url, headers=await self._headers_force_refresh(), json=payload or {})
+                    resp = await client.post(
+                        url,
+                        headers=await self._headers_force_refresh(),
+                        json=payload or {},
+                    )
                 resp.raise_for_status()
                 return resp.json() if resp.content else {}
         except HTTPStatusError as e:
-            log.error(f"Marzban POST {path} → {e.response.status_code}: {e.response.text}")
-            raise PasarguardRequestError(f"HTTP {e.response.status_code}: {e.response.text}")
+            log.error(
+                f"Marzban POST {path} → {e.response.status_code}: {e.response.text}"
+            )
+            raise PasarguardRequestError(
+                f"HTTP {e.response.status_code}: {e.response.text}"
+            )
         except RequestError as e:
             raise PasarguardRequestError(f"Connection error: {e}")
 
@@ -101,13 +121,21 @@ class MarzbanClient:
         url = f"{self._base}{path}"
         try:
             async with AsyncClient(timeout=15, verify=False) as client:
-                resp = await client.put(url, headers=await self._headers(), json=payload or {})
+                resp = await client.put(
+                    url, headers=await self._headers(), json=payload or {}
+                )
                 if resp.status_code == 401:
-                    resp = await client.put(url, headers=await self._headers_force_refresh(), json=payload or {})
+                    resp = await client.put(
+                        url,
+                        headers=await self._headers_force_refresh(),
+                        json=payload or {},
+                    )
                 resp.raise_for_status()
                 return resp.json() if resp.content else {}
         except HTTPStatusError as e:
-            raise PasarguardRequestError(f"HTTP {e.response.status_code}: {e.response.text}")
+            raise PasarguardRequestError(
+                f"HTTP {e.response.status_code}: {e.response.text}"
+            )
         except RequestError as e:
             raise PasarguardRequestError(f"Connection error: {e}")
 
@@ -117,7 +145,9 @@ class MarzbanClient:
             async with AsyncClient(timeout=15, verify=False) as client:
                 resp = await client.delete(url, headers=await self._headers())
                 if resp.status_code == 401:
-                    resp = await client.delete(url, headers=await self._headers_force_refresh())
+                    resp = await client.delete(
+                        url, headers=await self._headers_force_refresh()
+                    )
                 resp.raise_for_status()
         except HTTPStatusError as e:
             raise PasarguardRequestError(f"HTTP {e.response.status_code}")
@@ -150,8 +180,9 @@ class PasarguardService(VpnPanelInterface):
 
     # ── Users ───────────────────────────────────────────────────────────────
 
-    async def get_users(self, offset: int = 0, limit: int = 100,
-                        status: Optional[str] = None) -> dict:
+    async def get_users(
+        self, offset: int = 0, limit: int = 100, status: Optional[str] = None
+    ) -> dict:
         """Список VPN пользователей."""
         params = {"offset": offset, "limit": limit}
         if status:
@@ -178,7 +209,9 @@ class PasarguardService(VpnPanelInterface):
 
         expire_ts = None
         if expire_days > 0:
-            expire_ts = (datetime.now(timezone.utc) + timedelta(days=expire_days)).isoformat()
+            expire_ts = (
+                datetime.now(timezone.utc) + timedelta(days=expire_days)
+            ).isoformat()
 
         uid = str(uuid.uuid4())
         proxy_settings = proxies or {
@@ -195,7 +228,7 @@ class PasarguardService(VpnPanelInterface):
             "username": username,
             "proxy_settings": proxy_settings,
             "expire": expire_ts,
-            "data_limit": data_limit_gb * 1024 ** 3 if data_limit_gb > 0 else 0,
+            "data_limit": data_limit_gb * 1024**3 if data_limit_gb > 0 else 0,
             "data_limit_reset_strategy": "no_reset",
             "status": "active",
         }
@@ -228,14 +261,32 @@ class PasarguardService(VpnPanelInterface):
 
         current_expire = user.get("expire")
         from datetime import datetime, timezone, timedelta
+
         now = datetime.now(timezone.utc)
 
-        if current_expire and current_expire > now.timestamp():
-            base = datetime.fromtimestamp(current_expire, tz=timezone.utc)
+        # Поддерживаем оба формата: timestamp (число) и ISO строка
+        if current_expire:
+            if isinstance(current_expire, (int, float)):
+                # timestamp
+                if current_expire > now.timestamp():
+                    base = datetime.fromtimestamp(current_expire, tz=timezone.utc)
+                else:
+                    base = now
+            elif isinstance(current_expire, str):
+                # ISO формат
+                try:
+                    base = datetime.fromisoformat(current_expire.replace("Z", "+00:00"))
+                    if base.tzinfo is None:
+                        base = base.replace(tzinfo=timezone.utc)
+                    if base < now:
+                        base = now
+                except ValueError:
+                    base = now
         else:
             base = now
 
-        new_expire = int((base + timedelta(days=extra_days)).timestamp())
+        # Используем ISO формат (как в create_user)
+        new_expire = (base + timedelta(days=extra_days)).isoformat()
         return await self.modify_user(username, expire=new_expire)
 
     async def disable_user(self, username: str) -> dict:
