@@ -263,6 +263,9 @@ class PasarguardService(VpnPanelInterface):
         log.info(
             f"[extend_user] username={username} current_expire={current_expire!r} type={type(current_expire).__name__}"
         )
+
+        # DEBUG - показать весь объект user
+        log.info(f"[extend_user] full user data: {user}")
         from datetime import datetime, timezone, timedelta
 
         now = datetime.now(timezone.utc)
