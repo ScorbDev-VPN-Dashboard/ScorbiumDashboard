@@ -310,7 +310,7 @@ class PasarguardService(VpnPanelInterface):
     async def enable_user(self, username: str) -> dict:
         return await self.modify_user(username, status="active")
 
-    # ── Nodes ───────────────────────────────────────────────────────────────
+    # ── Nodes ──────────────────────────────────────────────────────────────
 
     async def get_nodes(self) -> dict:
         return await self._client.get("/api/nodes")
@@ -327,7 +327,7 @@ class PasarguardService(VpnPanelInterface):
             log.warning(f"Marzban get_groups failed: {e}")
             return []
 
-    # ── Subscription link ───────────────────────────────────────────────────
+    # ── Subscription link ──────────────────────────────────────────────────
 
     def get_subscription_url(self, sub_token: str) -> str:
         """Ссылка на подписку для клиента."""
