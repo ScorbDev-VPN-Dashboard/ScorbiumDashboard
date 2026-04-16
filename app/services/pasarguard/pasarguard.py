@@ -260,6 +260,9 @@ class PasarguardService(VpnPanelInterface):
             raise PasarguardRequestError(f"User {username} not found")
 
         current_expire = user.get("expire")
+        log.info(
+            f"[extend_user] username={username} current_expire={current_expire!r} type={type(current_expire).__name__}"
+        )
         from datetime import datetime, timezone, timedelta
 
         now = datetime.now(timezone.utc)
@@ -300,6 +303,7 @@ class PasarguardService(VpnPanelInterface):
 
         # Используем ISO формат (как в create_user)
         new_expire = (base + timedelta(days=extra_days)).isoformat()
+        log.info(f"[extend_user] base={base} new_expire={new_expire}")
         return await self.modify_user(username, expire=new_expire)
 
     async def disable_user(self, username: str) -> dict:
