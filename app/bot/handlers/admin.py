@@ -1,6 +1,11 @@
 from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -27,16 +32,20 @@ class PromoCreateState(StatesGroup):
     waiting_value = State()
     waiting_max_uses = State()
 
+
 class BalanceState(StatesGroup):
     waiting_amount_add = State()
     waiting_amount_deduct = State()
+
 
 class BroadcastState(StatesGroup):
     waiting_text = State()
     waiting_target = State()
 
+
 class SearchState(StatesGroup):
     waiting_query = State()
+
 
 class GiftKeyState(StatesGroup):
     waiting_user_id = State()
@@ -71,8 +80,11 @@ def admin_kb(panel_url: str = "") -> InlineKeyboardMarkup:
     )
     if panel_url:
         from aiogram.types import WebAppInfo
+
         builder.row(
-            InlineKeyboardButton(text="🖥 Открыть панель", web_app=WebAppInfo(url=panel_url))
+            InlineKeyboardButton(
+                text="🖥 Открыть панель", web_app=WebAppInfo(url=panel_url)
+            )
         )
     return builder.as_markup()
 
@@ -96,7 +108,9 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
         revenue = await PaymentService(session).total_revenue()
         pending = await PaymentService(session).count_by_status(PaymentStatus.PENDING)
 
-        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        today = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
         new_today_r = await session.execute(
             select(func.count()).select_from(User).where(User.created_at >= today)
         )
@@ -112,12 +126,16 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
         rev_today = float(rev_today_r.scalar_one())
 
         from app.services.bot_settings import BotSettingsService
-        panel_url = (await BotSettingsService(session).get("panel_url") or "").rstrip("/")
+
+        panel_url = (await BotSettingsService(session).get("panel_url") or "").rstrip(
+            "/"
+        )
 
     miniapp_url = ""
     if panel_url:
         import secrets as _sec, time as _t
         from app.api.panel.views import _miniapp_tokens
+
         token = _sec.token_urlsafe(32)
         _miniapp_tokens[token] = _t.time() + 300
         miniapp_url = f"{panel_url}/panel/miniapp-login?token={token}"
@@ -139,7 +157,9 @@ async def _show_user_detail(callback: CallbackQuery, user_id: int) -> None:
         user = await UserService(session).get_by_id(user_id)
         if not user:
             try:
-                await callback.message.edit_text("Пользователь не найден", reply_markup=_back_admin_kb())
+                await callback.message.edit_text(
+                    "Пользователь не найден", reply_markup=_back_admin_kb()
+                )
             except Exception:
                 pass
             return
@@ -150,13 +170,31 @@ async def _show_user_detail(callback: CallbackQuery, user_id: int) -> None:
         username = user.username
         balance = float(user.balance or 0)
         reg_date = user.created_at.strftime("%d.%m.%Y") if user.created_at else "—"
-        active_keys = [k for k in keys if str(k.status.value if hasattr(k.status, "value") else k.status) == "active"]
+        active_keys = [
+            k
+            for k in keys
+            if str(k.status.value if hasattr(k.status, "value") else k.status)
+            == "active"
+        ]
         active_key = active_keys[0] if active_keys else None
-        active_exp = active_key.expires_at.strftime("%d.%m.%Y") if active_key and active_key.expires_at else None
-        total_spent = sum(float(p.amount) for p in payments if str(p.status.value if hasattr(p.status, "value") else p.status) == "succeeded")
+        active_exp = (
+            active_key.expires_at.strftime("%d.%m.%Y")
+            if active_key and active_key.expires_at
+            else None
+        )
+        total_spent = sum(
+            float(p.amount)
+            for p in payments
+            if str(p.status.value if hasattr(p.status, "value") else p.status)
+            == "succeeded"
+        )
 
     uname = f"@{username}" if username else f"<code>{user_id}</code>"
-    safe_name = full_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") if full_name else "—"
+    safe_name = (
+        full_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        if full_name
+        else "—"
+    )
     text = (
         f"👤 <b>{safe_name}</b> ({uname})\n\n"
         f"🆔 ID: <code>{user_id}</code>\n"
@@ -171,21 +209,35 @@ async def _show_user_detail(callback: CallbackQuery, user_id: int) -> None:
 
     builder = InlineKeyboardBuilder()
     if bool(is_banned):
-        builder.row(InlineKeyboardButton(text="✅ Разбанить", callback_data=f"adm:unban:{user_id}"))
+        builder.row(
+            InlineKeyboardButton(
+                text="✅ Разбанить", callback_data=f"adm:unban:{user_id}"
+            )
+        )
     else:
-        builder.row(InlineKeyboardButton(text="🚫 Забанить", callback_data=f"adm:ban:{user_id}"))
+        builder.row(
+            InlineKeyboardButton(text="🚫 Забанить", callback_data=f"adm:ban:{user_id}")
+        )
     builder.row(
-        InlineKeyboardButton(text="💰 Пополнить", callback_data=f"adm:addbal:{user_id}"),
+        InlineKeyboardButton(
+            text="💰 Пополнить", callback_data=f"adm:addbal:{user_id}"
+        ),
         InlineKeyboardButton(text="💸 Снять", callback_data=f"adm:deductbal:{user_id}"),
     )
     builder.row(
         InlineKeyboardButton(text="🔑 Ключи", callback_data=f"adm:userkeys:{user_id}"),
-        InlineKeyboardButton(text="🎁 Подарить ключ", callback_data=f"adm:giftkey:{user_id}"),
+        InlineKeyboardButton(
+            text="🎁 Подарить ключ", callback_data=f"adm:giftkey:{user_id}"
+        ),
     )
-    builder.row(InlineKeyboardButton(text="✉️ Написать", callback_data=f"adm:msg:{user_id}"))
+    builder.row(
+        InlineKeyboardButton(text="✉️ Написать", callback_data=f"adm:msg:{user_id}")
+    )
     builder.row(InlineKeyboardButton(text="◀️ К списку", callback_data="adm:users"))
     try:
-        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        await callback.message.edit_text(
+            text, reply_markup=builder.as_markup(), parse_mode="HTML"
+        )
     except Exception:
         pass
 
@@ -196,7 +248,9 @@ async def _show_user_keys(callback: CallbackQuery, user_id: int) -> None:
 
     builder = InlineKeyboardBuilder()
     if not keys:
-        builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data=f"adm:user:{user_id}"))
+        builder.row(
+            InlineKeyboardButton(text="◀️ Назад", callback_data=f"adm:user:{user_id}")
+        )
         try:
             await callback.message.edit_text(
                 f"🔑 У пользователя {user_id} нет ключей",
@@ -213,19 +267,26 @@ async def _show_user_keys(callback: CallbackQuery, user_id: int) -> None:
         exp = k.expires_at.strftime("%d.%m.%Y") if k.expires_at else "—"
         lines.append(f"{icon} #{k.id} — {(k.name or '')[:25]} до {exp}")
         if st == "active":
-            builder.row(InlineKeyboardButton(
-                text=f"🚫 Отозвать #{k.id}",
-                callback_data=f"adm:revokekey:{k.id}:{user_id}",
-            ))
-    builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data=f"adm:user:{user_id}"))
+            builder.row(
+                InlineKeyboardButton(
+                    text=f"🚫 Отозвать #{k.id}",
+                    callback_data=f"adm:revokekey:{k.id}:{user_id}",
+                )
+            )
+    builder.row(
+        InlineKeyboardButton(text="◀️ Назад", callback_data=f"adm:user:{user_id}")
+    )
     try:
-        await callback.message.edit_text("\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML")
+        await callback.message.edit_text(
+            "\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML"
+        )
     except Exception:
         pass
 
 
 async def _show_groups(callback: CallbackQuery, saved_ids: list[int]) -> None:
     from app.services.pasarguard.pasarguard import PasarguardService
+
     try:
         groups = await PasarguardService().get_groups()
     except Exception:
@@ -235,34 +296,47 @@ async def _show_groups(callback: CallbackQuery, saved_ids: list[int]) -> None:
         try:
             await callback.message.edit_text(
                 "🌐 <b>Группы VPN</b>\n\n❌ Не удалось загрузить группы из Marzban.",
-                reply_markup=_back_admin_kb(), parse_mode="HTML",
+                reply_markup=_back_admin_kb(),
+                parse_mode="HTML",
             )
         except Exception:
             pass
         return
 
-    lines = ["🌐 <b>Группы VPN (Marzban)</b>\n", "Нажми на группу чтобы включить/выключить:\n"]
+    lines = [
+        "🌐 <b>Группы VPN (Marzban)</b>\n",
+        "Нажми на группу чтобы включить/выключить:\n",
+    ]
     builder = InlineKeyboardBuilder()
     for g in groups:
         gid = g["id"]
         icon = "✅" if gid in saved_ids else "⬜"
         disabled = " 🔴" if g.get("is_disabled") else ""
-        builder.row(InlineKeyboardButton(
-            text=f"{icon} {g['name']}{disabled} ({g.get('total_users', 0)} юз.)",
-            callback_data=f"adm:group:toggle:{gid}",
-        ))
+        builder.row(
+            InlineKeyboardButton(
+                text=f"{icon} {g['name']}{disabled} ({g.get('total_users', 0)} юз.)",
+                callback_data=f"adm:group:toggle:{gid}",
+            )
+        )
         inbounds = ", ".join(g.get("inbound_tags", []))
         lines.append(f"{icon} <b>{g['name']}</b> — {inbounds}")
 
-    lines.append(f"\n💾 Активные: <code>{saved_ids}</code>" if saved_ids else "\n⚠️ Группы не выбраны")
+    lines.append(
+        f"\n💾 Активные: <code>{saved_ids}</code>"
+        if saved_ids
+        else "\n⚠️ Группы не выбраны"
+    )
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back"))
     try:
-        await callback.message.edit_text("\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML")
+        await callback.message.edit_text(
+            "\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML"
+        )
     except Exception:
         pass
 
 
 # ── Main handlers ─────────────────────────────────────────────────────────────
+
 
 @router.message(Command("admin"))
 async def admin_panel(message: Message) -> None:
@@ -305,7 +379,9 @@ async def admin_stats(callback: CallbackQuery) -> None:
         revenue = await PaymentService(session).total_revenue()
         pending = await PaymentService(session).count_by_status(PaymentStatus.PENDING)
 
-        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        today = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
         week_ago = today - timedelta(days=7)
 
         new_today_r = await session.execute(
@@ -337,7 +413,9 @@ async def admin_stats(callback: CallbackQuery) -> None:
         rev_week = float(rev_week_r.scalar_one())
 
         expired_r = await session.execute(
-            select(func.count()).select_from(VpnKey).where(VpnKey.status == VpnKeyStatus.EXPIRED.value)
+            select(func.count())
+            .select_from(VpnKey)
+            .where(VpnKey.status == VpnKeyStatus.EXPIRED.value)
         )
         expired_count = expired_r.scalar_one()
 
@@ -358,11 +436,14 @@ async def admin_stats(callback: CallbackQuery) -> None:
         f"  ⎡ Открытых тикетов: <b>{open_tickets}</b>\n"
         f"  ⎣ Ожидают оплаты: <b>{pending}</b>"
     )
-    await callback.message.edit_text(text, reply_markup=_back_admin_kb(), parse_mode="HTML")
+    await callback.message.edit_text(
+        text, reply_markup=_back_admin_kb(), parse_mode="HTML"
+    )
     await callback.answer()
 
 
 # ── Users ─────────────────────────────────────────────────────────────────────
+
 
 @router.callback_query(F.data == "adm:users")
 async def admin_users(callback: CallbackQuery) -> None:
@@ -401,10 +482,16 @@ async def _show_users_page(callback: CallbackQuery, page: int = 0) -> None:
 
     nav_btns = []
     if page > 0:
-        nav_btns.append(InlineKeyboardButton(text="◀️", callback_data=f"adm:users:page:{page-1}"))
-    nav_btns.append(InlineKeyboardButton(text=f"{page+1}/{total_pages}", callback_data="adm:noop"))
+        nav_btns.append(
+            InlineKeyboardButton(text="◀️", callback_data=f"adm:users:page:{page - 1}")
+        )
+    nav_btns.append(
+        InlineKeyboardButton(text=f"{page + 1}/{total_pages}", callback_data="adm:noop")
+    )
     if page < total_pages - 1:
-        nav_btns.append(InlineKeyboardButton(text="▶️", callback_data=f"adm:users:page:{page+1}"))
+        nav_btns.append(
+            InlineKeyboardButton(text="▶️", callback_data=f"adm:users:page:{page + 1}")
+        )
     if nav_btns:
         builder.row(*nav_btns)
 
@@ -413,15 +500,24 @@ async def _show_users_page(callback: CallbackQuery, page: int = 0) -> None:
         InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back"),
     )
 
-    text = f"👥 <b>Пользователи</b> (всего: {total})\nСтраница {page+1}/{total_pages}\n\n"
+    text = f"👥 <b>Пользователи</b> (всего: {total})\nСтраница {page + 1}/{total_pages}\n\n"
     for u in users:
         status = "🚫" if bool(u.is_banned) else "✅"
         uname = f"@{u.username}" if u.username else f"<code>{u.id}</code>"
-        safe_name = (u.full_name or "—").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        text += f"{status} <b>{safe_name}</b> ({uname}) — {float(u.balance or 0):.0f}₽\n"
+        safe_name = (
+            (u.full_name or "—")
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+        text += (
+            f"{status} <b>{safe_name}</b> ({uname}) — {float(u.balance or 0):.0f}₽\n"
+        )
 
     try:
-        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        await callback.message.edit_text(
+            text, reply_markup=builder.as_markup(), parse_mode="HTML"
+        )
     except Exception:
         pass
 
@@ -441,6 +537,7 @@ async def admin_user_detail(callback: CallbackQuery) -> None:
 
 
 # ── Search ────────────────────────────────────────────────────────────────────
+
 
 @router.callback_query(F.data == "adm:search")
 async def admin_search_start(callback: CallbackQuery, state: FSMContext) -> None:
@@ -472,27 +569,33 @@ async def admin_search_result(message: Message, state: FSMContext) -> None:
         else:
             q = f"%{query.lower()}%"
             result = await session.execute(
-                select(User).where(
+                select(User)
+                .where(
                     or_(
                         User.username.ilike(q),
                         User.full_name.ilike(q),
                     )
-                ).limit(10)
+                )
+                .limit(10)
             )
             users = list(result.scalars().all())
 
     if not users:
-        await message.answer("❌ Пользователи не найдены.", reply_markup=_back_admin_kb())
+        await message.answer(
+            "❌ Пользователи не найдены.", reply_markup=_back_admin_kb()
+        )
         return
 
     builder = InlineKeyboardBuilder()
     for u in users:
         status = "🚫" if bool(u.is_banned) else "✅"
         uname = f"@{u.username}" if u.username else f"id:{u.id}"
-        builder.row(InlineKeyboardButton(
-            text=f"{status} {u.full_name[:20]} ({uname})",
-            callback_data=f"adm:user:{u.id}",
-        ))
+        builder.row(
+            InlineKeyboardButton(
+                text=f"{status} {u.full_name[:20]} ({uname})",
+                callback_data=f"adm:user:{u.id}",
+            )
+        )
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back"))
 
     await message.answer(
@@ -504,20 +607,29 @@ async def admin_search_result(message: Message, state: FSMContext) -> None:
 
 # ── Ban/Unban ─────────────────────────────────────────────────────────────────
 
+
 @router.callback_query(F.data.startswith("adm:ban:"))
 async def admin_ban_user(callback: CallbackQuery) -> None:
     if not _is_admin(callback.from_user.id):
         return
     user_id = int(callback.data.split(":")[2])
-    if user_id == callback.from_user.id or user_id in config.telegram.telegram_admin_ids:
+    if (
+        user_id == callback.from_user.id
+        or user_id in config.telegram.telegram_admin_ids
+    ):
         await callback.answer("❌ Нельзя забанить администратора", show_alert=True)
         return
     async with AsyncSessionFactory() as session:
         await UserService(session).ban(user_id)
         await session.commit()
         from app.services.bot_settings import BotSettingsService
-        ban_msg = await BotSettingsService(session).get("ban_message") or "🚫 Ваш аккаунт заблокирован."
+
+        ban_msg = (
+            await BotSettingsService(session).get("ban_message")
+            or "🚫 Ваш аккаунт заблокирован."
+        )
     from app.services.telegram_notify import TelegramNotifyService
+
     await TelegramNotifyService().send_message(user_id, ban_msg)
     await callback.answer("✅ Заблокирован", show_alert=True)
     await _show_user_detail(callback, user_id)
@@ -532,14 +644,20 @@ async def admin_unban_user(callback: CallbackQuery) -> None:
         await UserService(session).unban(user_id)
         await session.commit()
         from app.services.bot_settings import BotSettingsService
-        unban_msg = await BotSettingsService(session).get("unban_message") or "✅ Ваш аккаунт разблокирован."
+
+        unban_msg = (
+            await BotSettingsService(session).get("unban_message")
+            or "✅ Ваш аккаунт разблокирован."
+        )
     from app.services.telegram_notify import TelegramNotifyService
+
     await TelegramNotifyService().send_message(user_id, unban_msg)
     await callback.answer("✅ Разблокирован", show_alert=True)
     await _show_user_detail(callback, user_id)
 
 
 # ── Balance ───────────────────────────────────────────────────────────────────
+
 
 @router.callback_query(F.data.startswith("adm:addbal:"))
 async def admin_addbal_start(callback: CallbackQuery, state: FSMContext) -> None:
@@ -550,7 +668,8 @@ async def admin_addbal_start(callback: CallbackQuery, state: FSMContext) -> None
     await state.update_data(target_user_id=user_id)
     await callback.message.edit_text(
         f"💰 Введите сумму для пополнения баланса пользователя <code>{user_id}</code> (₽):",
-        reply_markup=_back_admin_kb(), parse_mode="HTML",
+        reply_markup=_back_admin_kb(),
+        parse_mode="HTML",
     )
     await callback.answer()
 
@@ -564,7 +683,8 @@ async def admin_deductbal_start(callback: CallbackQuery, state: FSMContext) -> N
     await state.update_data(target_user_id=user_id)
     await callback.message.edit_text(
         f"💸 Введите сумму для снятия с баланса пользователя <code>{user_id}</code> (₽):",
-        reply_markup=_back_admin_kb(), parse_mode="HTML",
+        reply_markup=_back_admin_kb(),
+        parse_mode="HTML",
     )
     await callback.answer()
 
@@ -575,6 +695,7 @@ async def admin_addbal_confirm(message: Message, state: FSMContext) -> None:
         return
     try:
         from decimal import Decimal
+
         amount = Decimal(message.text.strip())
         if amount <= 0:
             raise ValueError
@@ -589,7 +710,10 @@ async def admin_addbal_confirm(message: Message, state: FSMContext) -> None:
         await session.commit()
     if user:
         from app.services.telegram_notify import TelegramNotifyService
-        await TelegramNotifyService().send_message(user_id, f"💰 На ваш баланс зачислено <b>{amount} ₽</b>")
+
+        await TelegramNotifyService().send_message(
+            user_id, f"💰 На ваш баланс зачислено <b>{amount} ₽</b>"
+        )
         await message.answer(f"✅ Баланс пользователя {user_id} пополнен на {amount} ₽")
     else:
         await message.answer("❌ Пользователь не найден")
@@ -603,6 +727,7 @@ async def admin_deductbal_confirm(message: Message, state: FSMContext) -> None:
         return
     try:
         from decimal import Decimal
+
         amount = Decimal(message.text.strip())
         if amount <= 0:
             raise ValueError
@@ -617,7 +742,10 @@ async def admin_deductbal_confirm(message: Message, state: FSMContext) -> None:
         await session.commit()
     if user:
         from app.services.telegram_notify import TelegramNotifyService
-        await TelegramNotifyService().send_message(user_id, f"💸 С вашего баланса списано <b>{amount} ₽</b>")
+
+        await TelegramNotifyService().send_message(
+            user_id, f"💸 С вашего баланса списано <b>{amount} ₽</b>"
+        )
         await message.answer(f"✅ С баланса пользователя {user_id} снято {amount} ₽")
     else:
         await message.answer("❌ Пользователь не найден или недостаточно средств")
@@ -626,6 +754,7 @@ async def admin_deductbal_confirm(message: Message, state: FSMContext) -> None:
 
 
 # ── Keys ──────────────────────────────────────────────────────────────────────
+
 
 @router.callback_query(F.data.startswith("adm:userkeys:"))
 async def admin_user_keys(callback: CallbackQuery) -> None:
@@ -645,7 +774,9 @@ async def admin_revoke_key(callback: CallbackQuery) -> None:
     async with AsyncSessionFactory() as session:
         key = await VpnKeyService(session).revoke(key_id)
         await session.commit()
-    await callback.answer(f"✅ Ключ #{key_id} отозван" if key else "❌ Ключ не найден", show_alert=True)
+    await callback.answer(
+        f"✅ Ключ #{key_id} отозван" if key else "❌ Ключ не найден", show_alert=True
+    )
     await _show_user_keys(callback, user_id)
 
 
@@ -664,14 +795,20 @@ async def admin_keys(callback: CallbackQuery) -> None:
         st = str(k.status.value if hasattr(k.status, "value") else k.status)
         icon = {"active": "✅", "revoked": "🚫", "expired": "⏰"}.get(st, "❓")
         exp = k.expires_at.strftime("%d.%m.%Y") if k.expires_at else "—"
-        lines.append(f"{icon} #{k.id} user:{k.user_id} — {(k.name or '')[:20]} до {exp}")
+        lines.append(
+            f"{icon} #{k.id} user:{k.user_id} — {(k.name or '')[:20]} до {exp}"
+        )
 
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="🔄 Синхронизировать", callback_data="adm:sync_keys"))
+    builder.row(
+        InlineKeyboardButton(text="🔄 Синхронизировать", callback_data="adm:sync_keys")
+    )
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back"))
 
     await callback.message.edit_text(
-        "\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML",
+        "\n".join(lines),
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
     )
     await callback.answer()
 
@@ -692,6 +829,7 @@ async def admin_sync_keys(callback: CallbackQuery) -> None:
 
 # ── Gift key ──────────────────────────────────────────────────────────────────
 
+
 @router.callback_query(F.data.startswith("adm:giftkey:plan:"))
 async def admin_gift_key_confirm(callback: CallbackQuery) -> None:
     if not _is_admin(callback.from_user.id):
@@ -709,6 +847,7 @@ async def admin_gift_key_confirm(callback: CallbackQuery) -> None:
 
     if key:
         from app.services.telegram_notify import TelegramNotifyService
+
         await TelegramNotifyService().send_message(
             user_id,
             f"🎁 <b>Вам подарена подписка!</b>\n\n"
@@ -741,11 +880,15 @@ async def admin_gift_key_start(callback: CallbackQuery, state: FSMContext) -> No
 
     builder = InlineKeyboardBuilder()
     for plan in plans:
-        builder.row(InlineKeyboardButton(
-            text=f"🎁 {plan.name} — {plan.duration_days} дн.",
-            callback_data=f"adm:giftkey:plan:{user_id}:{plan.id}",
-        ))
-    builder.row(InlineKeyboardButton(text="◀️ Отмена", callback_data=f"adm:user:{user_id}"))
+        builder.row(
+            InlineKeyboardButton(
+                text=f"🎁 {plan.name} — {plan.duration_days} дн.",
+                callback_data=f"adm:giftkey:plan:{user_id}:{plan.id}",
+            )
+        )
+    builder.row(
+        InlineKeyboardButton(text="◀️ Отмена", callback_data=f"adm:user:{user_id}")
+    )
 
     await callback.message.edit_text(
         f"🎁 Подарить ключ пользователю <code>{user_id}</code>\n\nВыберите тариф:",
@@ -756,6 +899,7 @@ async def admin_gift_key_start(callback: CallbackQuery, state: FSMContext) -> No
 
 
 # ── Message to user ───────────────────────────────────────────────────────────
+
 
 class MsgState(StatesGroup):
     waiting_text = State()
@@ -770,7 +914,8 @@ async def admin_msg_start(callback: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(msg_user_id=user_id)
     await callback.message.edit_text(
         f"✉️ Введите сообщение для пользователя <code>{user_id}</code> (HTML):",
-        reply_markup=_back_admin_kb(), parse_mode="HTML",
+        reply_markup=_back_admin_kb(),
+        parse_mode="HTML",
     )
     await callback.answer()
 
@@ -783,13 +928,17 @@ async def admin_msg_send(message: Message, state: FSMContext) -> None:
     user_id = data["msg_user_id"]
     await state.clear()
     from app.services.telegram_notify import TelegramNotifyService
+
     ok = await TelegramNotifyService().send_message(user_id, message.text)
-    await message.answer(f"{'✅ Сообщение отправлено' if ok else '❌ Не удалось отправить'} пользователю {user_id}")
+    await message.answer(
+        f"{'✅ Сообщение отправлено' if ok else '❌ Не удалось отправить'} пользователю {user_id}"
+    )
     text, kb = await _admin_main_text()
     await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 # ── Tickets ───────────────────────────────────────────────────────────────────
+
 
 @router.callback_query(F.data == "adm:tickets")
 async def admin_tickets(callback: CallbackQuery) -> None:
@@ -805,10 +954,12 @@ async def admin_tickets(callback: CallbackQuery) -> None:
     for tk in tickets[:10]:
         st = str(tk.status.value if hasattr(tk.status, "value") else tk.status)
         icon = {"open": "🔵", "in_progress": "🟡", "closed": "⚫"}.get(st, "❓")
-        builder.row(InlineKeyboardButton(
-            text=f"{icon} #{tk.id} — {tk.subject[:30]}",
-            callback_data=f"adm:ticket:{tk.id}",
-        ))
+        builder.row(
+            InlineKeyboardButton(
+                text=f"{icon} #{tk.id} — {tk.subject[:30]}",
+                callback_data=f"adm:ticket:{tk.id}",
+            )
+        )
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back"))
 
     lines = [f"💬 <b>Тикеты поддержки</b> (открытых: {open_count})\n"]
@@ -816,7 +967,9 @@ async def admin_tickets(callback: CallbackQuery) -> None:
         lines.append("Нет тикетов")
 
     await callback.message.edit_text(
-        "\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML",
+        "\n".join(lines),
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
     )
     await callback.answer()
 
@@ -834,8 +987,13 @@ async def admin_ticket_detail(callback: CallbackQuery) -> None:
             return
         subject = ticket.subject
         user_id = ticket.user_id
-        st = str(ticket.status.value if hasattr(ticket.status, "value") else ticket.status)
-        msgs = [{"is_admin": bool(m.is_admin), "text": m.text} for m in (ticket.messages[-5:] if ticket.messages else [])]
+        st = str(
+            ticket.status.value if hasattr(ticket.status, "value") else ticket.status
+        )
+        msgs = [
+            {"is_admin": bool(m.is_admin), "text": m.text}
+            for m in (ticket.messages[-5:] if ticket.messages else [])
+        ]
 
     text = f"💬 <b>Тикет #{ticket_id}</b>\n📌 {subject}\n👤 User: {user_id}\n\n"
     for m in msgs:
@@ -844,10 +1002,16 @@ async def admin_ticket_detail(callback: CallbackQuery) -> None:
 
     builder = InlineKeyboardBuilder()
     if st != "closed":
-        builder.row(InlineKeyboardButton(text="✅ Закрыть", callback_data=f"adm:ticket:close:{ticket_id}"))
+        builder.row(
+            InlineKeyboardButton(
+                text="✅ Закрыть", callback_data=f"adm:ticket:close:{ticket_id}"
+            )
+        )
     builder.row(InlineKeyboardButton(text="◀️ К тикетам", callback_data="adm:tickets"))
 
-    await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    await callback.message.edit_text(
+        text, reply_markup=builder.as_markup(), parse_mode="HTML"
+    )
     await callback.answer()
 
 
@@ -858,6 +1022,7 @@ async def admin_ticket_close(callback: CallbackQuery) -> None:
     ticket_id = int(callback.data.split(":")[3])
     async with AsyncSessionFactory() as session:
         from app.models.support import TicketStatus
+
         await SupportService(session).set_status(ticket_id, TicketStatus.CLOSED)
         await session.commit()
     await callback.answer("✅ Тикет закрыт", show_alert=True)
@@ -865,6 +1030,7 @@ async def admin_ticket_close(callback: CallbackQuery) -> None:
 
 
 # ── Payments ──────────────────────────────────────────────────────────────────
+
 
 @router.callback_query(F.data == "adm:payments")
 async def admin_payments(callback: CallbackQuery) -> None:
@@ -877,20 +1043,32 @@ async def admin_payments(callback: CallbackQuery) -> None:
         revenue = await PaymentService(session).total_revenue()
         pending = await PaymentService(session).count_by_status(PaymentStatus.PENDING)
 
-    lines = [f"💳 <b>Последние платежи</b>\n💰 Выручка: <b>{revenue} ₽</b> | ⏳ Ожидают: <b>{pending}</b>\n"]
+    lines = [
+        f"💳 <b>Последние платежи</b>\n💰 Выручка: <b>{revenue} ₽</b> | ⏳ Ожидают: <b>{pending}</b>\n"
+    ]
     for p in payments:
         st = str(p.status.value if hasattr(p.status, "value") else p.status)
-        icon = {"succeeded": "✅", "pending": "⏳", "failed": "❌", "refunded": "↩️"}.get(st, "❓")
+        icon = {
+            "succeeded": "✅",
+            "pending": "⏳",
+            "failed": "❌",
+            "refunded": "↩️",
+        }.get(st, "❓")
         prov = str(p.provider.value if hasattr(p.provider, "value") else p.provider)
-        lines.append(f"{icon} #{p.id} user:{p.user_id} — <b>{p.amount} {p.currency}</b> ({prov})")
+        lines.append(
+            f"{icon} #{p.id} user:{p.user_id} — <b>{p.amount} {p.currency}</b> ({prov})"
+        )
 
     await callback.message.edit_text(
-        "\n".join(lines), reply_markup=_back_admin_kb(), parse_mode="HTML",
+        "\n".join(lines),
+        reply_markup=_back_admin_kb(),
+        parse_mode="HTML",
     )
     await callback.answer()
 
 
 # ── Promos ────────────────────────────────────────────────────────────────────
+
 
 @router.callback_query(F.data == "adm:promos")
 async def admin_promos(callback: CallbackQuery) -> None:
@@ -905,15 +1083,22 @@ async def admin_promos(callback: CallbackQuery) -> None:
     for p in promos[:15]:
         active = "✅" if bool(p.is_active) else "❌"
         uses = f"{p.current_uses}/{p.max_uses}" if p.max_uses else f"{p.current_uses}/∞"
-        lines.append(f"{active} <code>{p.code}</code> — {p.promo_type} {p.value} ({uses})")
+        lines.append(
+            f"{active} <code>{p.code}</code> — {p.promo_type} {p.value} ({uses})"
+        )
 
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="➕ Создать промокод", callback_data="adm:promo:create"))
+    builder.row(
+        InlineKeyboardButton(
+            text="➕ Создать промокод", callback_data="adm:promo:create"
+        )
+    )
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back"))
 
     await callback.message.edit_text(
         "\n".join(lines) if promos else "🎁 <b>Промокоды</b>\n\nПромокодов нет.",
-        reply_markup=builder.as_markup(), parse_mode="HTML",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
     )
     await callback.answer()
 
@@ -925,7 +1110,8 @@ async def admin_promo_create_start(callback: CallbackQuery, state: FSMContext) -
     await state.set_state(PromoCreateState.waiting_code)
     await callback.message.edit_text(
         "🎁 <b>Создание промокода</b>\n\nВведите код (латиница, заглавные):",
-        reply_markup=_back_admin_kb(), parse_mode="HTML",
+        reply_markup=_back_admin_kb(),
+        parse_mode="HTML",
     )
     await callback.answer()
 
@@ -943,7 +1129,11 @@ async def promo_got_code(message: Message, state: FSMContext) -> None:
         InlineKeyboardButton(text="📅 Дни", callback_data="promo_type:days"),
         InlineKeyboardButton(text="🏷 Скидка %", callback_data="promo_type:discount"),
     )
-    await message.answer(f"Код: <code>{code}</code>\n\nВыберите тип бонуса:", reply_markup=builder.as_markup(), parse_mode="HTML")
+    await message.answer(
+        f"Код: <code>{code}</code>\n\nВыберите тип бонуса:",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(F.data.startswith("promo_type:"))
@@ -953,8 +1143,14 @@ async def promo_got_type(callback: CallbackQuery, state: FSMContext) -> None:
     promo_type = callback.data.split(":")[1]
     await state.update_data(promo_type=promo_type)
     await state.set_state(PromoCreateState.waiting_value)
-    labels = {"balance": "сумму в рублях (например: 100)", "days": "количество дней (например: 7)", "discount": "процент скидки (например: 20)"}
-    await callback.message.edit_text(f"Введите {labels.get(promo_type, 'значение')}:", reply_markup=_back_admin_kb())
+    labels = {
+        "balance": "сумму в рублях (например: 100)",
+        "days": "количество дней (например: 7)",
+        "discount": "процент скидки (например: 20)",
+    }
+    await callback.message.edit_text(
+        f"Введите {labels.get(promo_type, 'значение')}:", reply_markup=_back_admin_kb()
+    )
     await callback.answer()
 
 
@@ -964,13 +1160,17 @@ async def promo_got_value(message: Message, state: FSMContext) -> None:
         return
     try:
         from decimal import Decimal
+
         value = Decimal(message.text.strip())
     except Exception:
         await message.answer("❌ Введите число:")
         return
     await state.update_data(value=str(value))
     await state.set_state(PromoCreateState.waiting_max_uses)
-    await message.answer("Максимальное количество использований (0 = безлимит):", reply_markup=_back_admin_kb())
+    await message.answer(
+        "Максимальное количество использований (0 = безлимит):",
+        reply_markup=_back_admin_kb(),
+    )
 
 
 @router.message(PromoCreateState.waiting_max_uses)
@@ -985,10 +1185,13 @@ async def promo_got_max_uses(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     await state.clear()
     from decimal import Decimal
+
     async with AsyncSessionFactory() as session:
         promo = await PromoService(session).create(
-            code=data["code"], promo_type=data["promo_type"],
-            value=Decimal(data["value"]), max_uses=max_uses,
+            code=data["code"],
+            promo_type=data["promo_type"],
+            value=Decimal(data["value"]),
+            max_uses=max_uses,
         )
         await session.commit()
     await message.answer(
@@ -1000,6 +1203,7 @@ async def promo_got_max_uses(message: Message, state: FSMContext) -> None:
 
 
 # ── Broadcast ─────────────────────────────────────────────────────────────────
+
 
 @router.callback_query(F.data == "adm:broadcast")
 async def admin_broadcast_menu(callback: CallbackQuery) -> None:
@@ -1013,16 +1217,23 @@ async def admin_broadcast_menu(callback: CallbackQuery) -> None:
     lines = ["📢 <b>Рассылки</b>\n"]
     for b in broadcasts:
         st = str(b.status.value if hasattr(b.status, "value") else b.status)
-        icon = {"draft": "📝", "sending": "🔄", "done": "✅", "failed": "❌"}.get(st, "❓")
+        icon = {"draft": "📝", "sending": "🔄", "done": "✅", "failed": "❌"}.get(
+            st, "❓"
+        )
         lines.append(f"{icon} {b.title[:30]} — {b.sent_count} отправлено")
 
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📢 Создать рассылку", callback_data="adm:broadcast:create"))
+    builder.row(
+        InlineKeyboardButton(
+            text="📢 Создать рассылку", callback_data="adm:broadcast:create"
+        )
+    )
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back"))
 
     await callback.message.edit_text(
         "\n".join(lines) if broadcasts else "📢 <b>Рассылки</b>\n\nРассылок нет.",
-        reply_markup=builder.as_markup(), parse_mode="HTML",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
     )
     await callback.answer()
 
@@ -1034,7 +1245,8 @@ async def admin_broadcast_create(callback: CallbackQuery, state: FSMContext) -> 
     await state.set_state(BroadcastState.waiting_text)
     await callback.message.edit_text(
         "📢 <b>Новая рассылка</b>\n\nВведите текст сообщения (HTML поддерживается):",
-        reply_markup=_back_admin_kb(), parse_mode="HTML",
+        reply_markup=_back_admin_kb(),
+        parse_mode="HTML",
     )
     await callback.answer()
 
@@ -1051,10 +1263,13 @@ async def broadcast_got_text(message: Message, state: FSMContext) -> None:
         InlineKeyboardButton(text="👥 Все", callback_data="bc_target:all"),
         InlineKeyboardButton(text="✅ Активные", callback_data="bc_target:active"),
     )
-    builder.row(InlineKeyboardButton(text="⏰ Истёкшие", callback_data="bc_target:expired"))
+    builder.row(
+        InlineKeyboardButton(text="⏰ Истёкшие", callback_data="bc_target:expired")
+    )
     await message.answer(
         f"Текст:\n<i>{message.text[:200]}</i>\n\nВыберите аудиторию:",
-        reply_markup=builder.as_markup(), parse_mode="HTML",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
     )
 
 
@@ -1077,13 +1292,18 @@ async def broadcast_got_target(callback: CallbackQuery, state: FSMContext) -> No
         bc_id = bc.id
 
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📤 Отправить сейчас", callback_data=f"adm:broadcast:send:{bc_id}"))
+    builder.row(
+        InlineKeyboardButton(
+            text="📤 Отправить сейчас", callback_data=f"adm:broadcast:send:{bc_id}"
+        )
+    )
     builder.row(InlineKeyboardButton(text="◀️ Отмена", callback_data="adm:broadcast"))
 
     target_labels = {"all": "Все", "active": "Активные", "expired": "Истёкшие"}
     await callback.message.edit_text(
         f"📢 Черновик создан!\n\nАудитория: <b>{target_labels.get(target, target)}</b>\n\nОтправить?",
-        reply_markup=builder.as_markup(), parse_mode="HTML",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
     )
     await callback.answer()
 
@@ -1103,10 +1323,13 @@ async def broadcast_send(callback: CallbackQuery) -> None:
             reply_markup=_back_admin_kb(),
         )
     else:
-        await callback.message.edit_text("❌ Ошибка запуска рассылки", reply_markup=_back_admin_kb())
+        await callback.message.edit_text(
+            "❌ Ошибка запуска рассылки", reply_markup=_back_admin_kb()
+        )
 
 
 # ── Referrals ─────────────────────────────────────────────────────────────────
+
 
 @router.callback_query(F.data == "adm:referrals")
 async def admin_referrals(callback: CallbackQuery) -> None:
@@ -1127,17 +1350,24 @@ async def admin_referrals(callback: CallbackQuery) -> None:
     ]
     medals = ["🥇", "🥈", "🥉"] + [f"{i}." for i in range(4, 11)]
     for i, r in enumerate(top):
-        medal = medals[i] if i < len(medals) else f"{i+1}."
-        uname = f"@{r['username']}" if r.get("username") else r.get("full_name") or f"<code>{r['user_id']}</code>"
+        medal = medals[i] if i < len(medals) else f"{i + 1}."
+        uname = (
+            f"@{r['username']}"
+            if r.get("username")
+            else r.get("full_name") or f"<code>{r['user_id']}</code>"
+        )
         lines.append(f"{medal} {uname} — {r['referral_count']} реф.")
 
     await callback.message.edit_text(
-        "\n".join(lines), reply_markup=_back_admin_kb(), parse_mode="HTML",
+        "\n".join(lines),
+        reply_markup=_back_admin_kb(),
+        parse_mode="HTML",
     )
     await callback.answer()
 
 
 # ── Groups ────────────────────────────────────────────────────────────────────
+
 
 @router.callback_query(F.data == "adm:groups")
 async def admin_groups(callback: CallbackQuery) -> None:
@@ -1148,6 +1378,7 @@ async def admin_groups(callback: CallbackQuery) -> None:
 
     import json as _json
     from app.services.bot_settings import BotSettingsService
+
     async with AsyncSessionFactory() as session:
         saved_raw = await BotSettingsService(session).get("vpn_group_ids")
 
@@ -1197,6 +1428,7 @@ async def admin_group_toggle(callback: CallbackQuery) -> None:
 
 # ── Commands ──────────────────────────────────────────────────────────────────
 
+
 @router.message(Command("ban"))
 async def ban_user_cmd(message: Message) -> None:
     if not _is_admin(message.from_user.id):
@@ -1209,7 +1441,11 @@ async def ban_user_cmd(message: Message) -> None:
     async with AsyncSessionFactory() as session:
         user = await UserService(session).ban(user_id)
         await session.commit()
-    await message.answer(f"✅ Пользователь {user_id} заблокирован." if user else f"❌ Пользователь {user_id} не найден.")
+    await message.answer(
+        f"✅ Пользователь {user_id} заблокирован."
+        if user
+        else f"❌ Пользователь {user_id} не найден."
+    )
 
 
 @router.message(Command("unban"))
@@ -1224,7 +1460,11 @@ async def unban_user_cmd(message: Message) -> None:
     async with AsyncSessionFactory() as session:
         user = await UserService(session).unban(user_id)
         await session.commit()
-    await message.answer(f"✅ Пользователь {user_id} разблокирован." if user else f"❌ Пользователь {user_id} не найден.")
+    await message.answer(
+        f"✅ Пользователь {user_id} разблокирован."
+        if user
+        else f"❌ Пользователь {user_id} не найден."
+    )
 
 
 @router.message(Command("promo"))
@@ -1243,13 +1483,18 @@ async def create_promo_cmd(message: Message) -> None:
     max_uses = int(args[4]) if len(args) > 4 else 0
     try:
         from decimal import Decimal
+
         async with AsyncSessionFactory() as session:
             promo = await PromoService(session).create(
-                code=code.upper(), promo_type=promo_type.lower(),
-                value=Decimal(value_str), max_uses=max_uses,
+                code=code.upper(),
+                promo_type=promo_type.lower(),
+                value=Decimal(value_str),
+                max_uses=max_uses,
             )
             await session.commit()
-        await message.answer(f"✅ Промокод <code>{promo.code}</code> создан!", parse_mode="HTML")
+        await message.answer(
+            f"✅ Промокод <code>{promo.code}</code> создан!", parse_mode="HTML"
+        )
     except Exception as e:
         await message.answer(f"❌ Ошибка: {e}")
 
@@ -1265,6 +1510,7 @@ async def addbalance_cmd(message: Message) -> None:
     try:
         user_id = int(args[1])
         from decimal import Decimal
+
         amount = Decimal(args[2])
     except Exception:
         await message.answer("❌ Неверные аргументы")
@@ -1274,7 +1520,10 @@ async def addbalance_cmd(message: Message) -> None:
         await session.commit()
     if user:
         from app.services.telegram_notify import TelegramNotifyService
-        await TelegramNotifyService().send_message(user_id, f"💰 На ваш баланс зачислено <b>{amount} ₽</b>")
+
+        await TelegramNotifyService().send_message(
+            user_id, f"💰 На ваш баланс зачислено <b>{amount} ₽</b>"
+        )
         await message.answer(f"✅ Баланс пользователя {user_id} пополнен на {amount} ₽")
     else:
         await message.answer("❌ Пользователь не найден")
@@ -1303,6 +1552,7 @@ async def givekey_cmd(message: Message) -> None:
         await session.commit()
     if key:
         from app.services.telegram_notify import TelegramNotifyService
+
         await TelegramNotifyService().send_message(
             user_id,
             f"🎁 <b>Вам выдана подписка!</b>\n\nТариф: <b>{plan.name}</b> ({plan.duration_days} дней)\n\n"
@@ -1324,3 +1574,18 @@ async def get_file_id(message: Message) -> None:
         f"Вставь это значение в панели: Telegram → Фото для разделов бота",
         parse_mode="HTML",
     )
+
+
+@router.callback_query(F.data == "admin:panel")
+async def show_admin_panel(callback: CallbackQuery) -> None:
+    """Показать админ панель из главного меню."""
+    if not _is_admin(callback.from_user.id):
+        await callback.answer("❌ Доступ запрещён", show_alert=True)
+        return
+    panel_url = config.telegram.telegram_panel_url
+    await callback.message.edit_text(
+        "🛡 <b>Админ панель</b>",
+        reply_markup=admin_kb(panel_url=panel_url),
+        parse_mode="HTML",
+    )
+    await callback.answer()

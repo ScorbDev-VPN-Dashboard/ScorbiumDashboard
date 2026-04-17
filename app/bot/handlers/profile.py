@@ -4,6 +4,7 @@
 - /id — быстро узнать свой Telegram ID
 - Уведомление за 3 дня до истечения подписки (вызывается из vpn_tasks)
 """
+
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
@@ -17,6 +18,7 @@ from app.services.referral import ReferralService
 from app.services.bot_settings import BotSettingsService
 from app.services.i18n import t, get_lang
 from app.bot.utils.menu import get_main_menu_kb as _get_menu_kb
+from app.bot.handlers.admin import _is_admin
 
 router = Router()
 
@@ -33,8 +35,18 @@ async def _build_profile_text(user_id: int, lang: str = "ru") -> tuple[str, obje
         ref_count = await ReferralService(session).count_referrals(user_id)
         settings = await BotSettingsService(session).get_all()
 
-        active_keys = [k for k in keys if str(k.status.value if hasattr(k.status, 'value') else k.status) == "active"]
-        expired_keys = [k for k in keys if str(k.status.value if hasattr(k.status, 'value') else k.status) != "active"]
+        active_keys = [
+            k
+            for k in keys
+            if str(k.status.value if hasattr(k.status, "value") else k.status)
+            == "active"
+        ]
+        expired_keys = [
+            k
+            for k in keys
+            if str(k.status.value if hasattr(k.status, "value") else k.status)
+            != "active"
+        ]
 
         # Nearest expiry
         nearest_exp = None
@@ -49,13 +61,20 @@ async def _build_profile_text(user_id: int, lang: str = "ru") -> tuple[str, obje
 
         # Referral link
         bot_username = settings.get("bot_username_cache", "")
-        ref_link = f"https://t.me/{bot_username}?start={user.referral_code}" if bot_username and user.referral_code else None
+        ref_link = (
+            f"https://t.me/{bot_username}?start={user.referral_code}"
+            if bot_username and user.referral_code
+            else None
+        )
 
         # Total spent
         from app.models.payment import PaymentStatus
+
         total_spent = sum(
-            float(p.amount) for p in payments
-            if str(p.status.value if hasattr(p.status, 'value') else p.status) == PaymentStatus.SUCCEEDED.value
+            float(p.amount)
+            for p in payments
+            if str(p.status.value if hasattr(p.status, "value") else p.status)
+            == PaymentStatus.SUCCEEDED.value
         )
 
     lines = [
@@ -74,6 +93,7 @@ async def _build_profile_text(user_id: int, lang: str = "ru") -> tuple[str, obje
 
     if nearest_exp:
         from datetime import datetime, timezone
+
         days_left = (nearest_exp - datetime.now(timezone.utc)).days
         exp_str = nearest_exp.strftime("%d.%m.%Y")
         if days_left <= 3:
@@ -95,12 +115,16 @@ async def _build_profile_text(user_id: int, lang: str = "ru") -> tuple[str, obje
     text = "\n".join(lines)
 
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text=t("btn_my_subs", lang), callback_data="my_keys"))
+    builder.row(
+        InlineKeyboardButton(text=t("btn_my_subs", lang), callback_data="my_keys")
+    )
     builder.row(
         InlineKeyboardButton(text=t("btn_balance", lang), callback_data="balance"),
         InlineKeyboardButton(text=t("btn_support", lang), callback_data="support"),
     )
-    builder.row(InlineKeyboardButton(text=t("back_main", lang), callback_data="back_main"))
+    builder.row(
+        InlineKeyboardButton(text=t("back_main", lang), callback_data="back_main")
+    )
 
     return text, builder.as_markup()
 
@@ -116,6 +140,7 @@ async def cmd_profile(message: Message) -> None:
     async with AsyncSessionFactory() as session:
         photo = await BotSettingsService(session).get("photo_profile")
     from app.bot.utils.media import answer_with_photo
+
     await answer_with_photo(message, text, reply_markup=kb, photo=photo or None)
 
 
@@ -131,11 +156,15 @@ async def show_profile(callback: CallbackQuery) -> None:
     async with AsyncSessionFactory() as session:
         photo = await BotSettingsService(session).get("photo_profile")
     from app.bot.utils.media import edit_with_photo
+
     try:
         await edit_with_photo(callback, text, reply_markup=kb, photo=photo or None)
     except Exception:
         from app.bot.utils.media import answer_with_photo
-        await answer_with_photo(callback.message, text, reply_markup=kb, photo=photo or None)
+
+        await answer_with_photo(
+            callback.message, text, reply_markup=kb, photo=photo or None
+        )
 
 
 @router.message(Command("id"))
@@ -166,4 +195,6 @@ async def cmd_keys(message: Message) -> None:
 
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="📦 Все подписки", callback_data="my_keys"))
-    await message.answer("\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML")
+    await message.answer(
+        "\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML"
+    )

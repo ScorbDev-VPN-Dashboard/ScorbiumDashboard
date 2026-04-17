@@ -6,6 +6,7 @@
 - /gift      — подарить подписку другу по username
 - Автопродление подписки с баланса
 """
+
 import asyncio
 from datetime import datetime, timezone
 from aiogram import Router, F
@@ -19,11 +20,13 @@ from app.services.user import UserService
 from app.services.referral import ReferralService
 from app.services.bot_settings import BotSettingsService
 from app.bot.utils.menu import get_main_menu_kb as _get_menu_kb
+from app.bot.handlers.admin import _is_admin
 
 router = Router()
 
 
 # ── /status — статус подписок ─────────────────────────────────────────────────
+
 
 @router.message(Command("status"))
 async def cmd_status(message: Message) -> None:
@@ -64,23 +67,32 @@ async def cmd_status(message: Message) -> None:
     builder.row(InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"))
     builder.row(InlineKeyboardButton(text="💳 Продлить", callback_data="buy"))
 
-    await message.answer("\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML")
+    await message.answer(
+        "\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML"
+    )
 
 
 # ── /ping — пинг до серверов ──────────────────────────────────────────────────
+
 
 @router.message(Command("ping", "серверы"))
 async def cmd_ping(message: Message) -> None:
     msg = await message.answer("🔄 Проверяю серверы...")
 
     from app.services.pasarguard.pasarguard import get_vpn_panel
+
     try:
         panel = get_vpn_panel()
         # Only Marzban/Pasarguard has nodes endpoint
         from app.services.pasarguard.pasarguard import PasarguardService
+
         if isinstance(panel, PasarguardService):
             nodes_data = await PasarguardService().get_nodes()
-            nodes = nodes_data.get("nodes", []) if isinstance(nodes_data, dict) else (nodes_data or [])
+            nodes = (
+                nodes_data.get("nodes", [])
+                if isinstance(nodes_data, dict)
+                else (nodes_data or [])
+            )
         else:
             nodes = []
     except Exception:
@@ -91,6 +103,7 @@ async def cmd_ping(message: Message) -> None:
         try:
             import httpx
             from app.core.config import config
+
             _pg = config.pasarguard
             base = str(_pg.pasarguard_admin_panel).rstrip("/") if _pg else ""
             start = asyncio.get_event_loop().time()
@@ -107,8 +120,15 @@ async def cmd_ping(message: Message) -> None:
             status = node.get("status", "unknown")
             name = node.get("name", "Сервер")
             addr = node.get("address", "")
-            icon = {"connected": "🟢", "connecting": "🟡", "error": "🔴", "disabled": "⚫"}.get(status, "❓")
-            lines.append(f"{icon} <b>{name}</b>" + (f" — <code>{addr}</code>" if addr else ""))
+            icon = {
+                "connected": "🟢",
+                "connecting": "🟡",
+                "error": "🔴",
+                "disabled": "⚫",
+            }.get(status, "❓")
+            lines.append(
+                f"{icon} <b>{name}</b>" + (f" — <code>{addr}</code>" if addr else "")
+            )
         text = "\n".join(lines)
 
     try:
@@ -118,6 +138,7 @@ async def cmd_ping(message: Message) -> None:
 
 
 # ── /top — топ рефереров ──────────────────────────────────────────────────────
+
 
 async def _build_top_text(user_id: int) -> str:
     async with AsyncSessionFactory() as session:
@@ -133,8 +154,12 @@ async def _build_top_text(user_id: int) -> str:
     lines = ["🏆 <b>Топ рефереров</b>\n"]
 
     for i, r in enumerate(top):
-        medal = medals[i] if i < len(medals) else f"{i+1}."
-        uname = f"@{r['username']}" if r.get("username") else r.get("full_name") or f"<code>{r['user_id']}</code>"
+        medal = medals[i] if i < len(medals) else f"{i + 1}."
+        uname = (
+            f"@{r['username']}"
+            if r.get("username")
+            else r.get("full_name") or f"<code>{r['user_id']}</code>"
+        )
         is_me = " ← вы" if r["user_id"] == user_id else ""
         lines.append(f"{medal} {uname} — <b>{r['referral_count']}</b> реф.{is_me}")
 
@@ -150,6 +175,7 @@ async def _build_top_text(user_id: int) -> str:
 async def cmd_top(message: Message) -> None:
     text = await _build_top_text(message.from_user.id)
     await message.answer(text, parse_mode="HTML")
+
 
 @router.message(Command("gift"))
 async def cmd_gift(message: Message) -> None:
@@ -172,13 +198,16 @@ async def cmd_gift(message: Message) -> None:
     async with AsyncSessionFactory() as session:
         from sqlalchemy import select
         from app.models.user import User
+
         result = await session.execute(
             select(User).where(User.username == target_username)
         )
         target = result.scalar_one_or_none()
 
         if not target:
-            await message.answer(f"❌ Пользователь @{target_username} не найден в системе.")
+            await message.answer(
+                f"❌ Пользователь @{target_username} не найден в системе."
+            )
             return
 
         if target.id == message.from_user.id:
@@ -189,10 +218,12 @@ async def cmd_gift(message: Message) -> None:
         balance = float(sender.balance or 0) if sender else 0.0
 
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(
-        text=f"🎁 Подарить @{target_username}",
-        callback_data=f"gift:confirm:{target.id}:{target_username}",
-    ))
+    builder.row(
+        InlineKeyboardButton(
+            text=f"🎁 Подарить @{target_username}",
+            callback_data=f"gift:confirm:{target.id}:{target_username}",
+        )
+    )
     builder.row(InlineKeyboardButton(text="◀️ Отмена", callback_data="back_main"))
 
     await message.answer(
@@ -213,6 +244,7 @@ async def gift_select_plan(callback: CallbackQuery) -> None:
 
     async with AsyncSessionFactory() as session:
         from app.services.plan import PlanService
+
         plans = await PlanService(session).get_all(only_active=True)
         sender = await UserService(session).get_by_id(callback.from_user.id)
         balance = float(sender.balance or 0) if sender else 0.0
@@ -220,10 +252,12 @@ async def gift_select_plan(callback: CallbackQuery) -> None:
     builder = InlineKeyboardBuilder()
     for plan in plans:
         if balance >= float(plan.price):
-            builder.row(InlineKeyboardButton(
-                text=f"🎁 {plan.name} — {plan.price} ₽",
-                callback_data=f"gift:buy:{target_id}:{plan.id}",
-            ))
+            builder.row(
+                InlineKeyboardButton(
+                    text=f"🎁 {plan.name} — {plan.price} ₽",
+                    callback_data=f"gift:buy:{target_id}:{plan.id}",
+                )
+            )
     builder.row(InlineKeyboardButton(text="◀️ Отмена", callback_data="back_main"))
 
     try:
@@ -253,7 +287,9 @@ async def gift_buy(callback: CallbackQuery) -> None:
             await callback.answer("Тариф не найден", show_alert=True)
             return
 
-        sender = await UserService(session).deduct_balance(callback.from_user.id, plan.price)
+        sender = await UserService(session).deduct_balance(
+            callback.from_user.id, plan.price
+        )
         if not sender:
             await callback.answer("❌ Недостаточно средств на балансе", show_alert=True)
             return
@@ -262,7 +298,11 @@ async def gift_buy(callback: CallbackQuery) -> None:
         await session.commit()
 
         target = await UserService(session).get_by_id(target_id)
-        target_name = f"@{target.username}" if target and target.username else f"<code>{target_id}</code>"
+        target_name = (
+            f"@{target.username}"
+            if target and target.username
+            else f"<code>{target_id}</code>"
+        )
 
     if key:
         await TelegramNotifyService().send_message(
@@ -289,6 +329,7 @@ async def gift_buy(callback: CallbackQuery) -> None:
 
 
 # ── Автопродление ─────────────────────────────────────────────────────────────
+
 
 @router.message(Command("autorenew", "автопродление"))
 async def cmd_autorenew(message: Message) -> None:
@@ -319,7 +360,9 @@ async def cmd_autorenew(message: Message) -> None:
     builder.row(InlineKeyboardButton(text="💰 Пополнить баланс", callback_data="buy"))
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="back_main"))
 
-    await message.answer("\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML")
+    await message.answer(
+        "\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML"
+    )
 
 
 @router.callback_query(F.data == "top_referrers")
@@ -340,22 +383,25 @@ async def cb_status(callback: CallbackQuery) -> None:
 
 # ── Серверы ───────────────────────────────────────────────────────────────────
 
+
 @router.callback_query(F.data == "servers")
 async def cb_servers(callback: CallbackQuery) -> None:
     await callback.answer()
-    
+
     async with AsyncSessionFactory() as session:
         from app.services.i18n import t, get_lang
+
         settings = await BotSettingsService(session).get_all()
         user = await UserService(session).get_by_id(callback.from_user.id)
         user_lang = user.language if user and user.language else None
         lang = get_lang(settings, user_lang)
-        
+
         try:
             from app.services.pasarguard.pasarguard import PasarguardService
+
             svc = PasarguardService()
             result = await svc.get_nodes()
-            
+
             if isinstance(result, list):
                 nodes = result
             elif isinstance(result, dict):
@@ -364,37 +410,46 @@ async def cb_servers(callback: CallbackQuery) -> None:
                 nodes = []
         except Exception:
             nodes = []
-        
+
         builder = InlineKeyboardBuilder()
-        builder.row(InlineKeyboardButton(
-            text="◀️ Назад" if lang == "ru" else "◀️ Back", 
-            callback_data="back_main"
-        ))
-        
+        builder.row(
+            InlineKeyboardButton(
+                text="◀️ Назад" if lang == "ru" else "◀️ Back", callback_data="back_main"
+            )
+        )
+
         if not nodes:
-            text = ("🌐 <b>Серверы</b>\n\nИнформация о серверах недоступна." 
-                   if lang == "ru" else 
-                   "🌐 <b>Servers</b>\n\nServer info unavailable.")
+            text = (
+                "🌐 <b>Серверы</b>\n\nИнформация о серверах недоступна."
+                if lang == "ru"
+                else "🌐 <b>Servers</b>\n\nServer info unavailable."
+            )
         else:
-            lines = ["🌐 <b>Серверы VPN</b>\n" if lang == "ru" else "🌐 <b>VPN Servers</b>\n"]
-            
+            lines = [
+                "🌐 <b>Серверы VPN</b>\n" if lang == "ru" else "🌐 <b>VPN Servers</b>\n"
+            ]
+
             for node in nodes:
                 name = node.get("name", "—")
                 status = node.get("status", "")
                 address = node.get("address", "")
                 icon = "🟢" if status in ("connected", "healthy", "online") else "🔴"
-                lines.append(f"{icon} <b>{name}</b>" + (f"\n   <code>{address}</code>" if address else ""))
-            
+                lines.append(
+                    f"{icon} <b>{name}</b>"
+                    + (f"\n   <code>{address}</code>" if address else "")
+                )
+
             text = "\n".join(lines)
-        
+
         from app.bot.utils.media import edit_with_photo
+
         await edit_with_photo(
-            callback=callback,
-            text=text,
-            reply_markup=builder.as_markup()
+            callback=callback, text=text, reply_markup=builder.as_markup()
         )
 
+
 # ── /extend — продление через баланс ─────────────────────────────────────────
+
 
 @router.message(Command("extend", "продлить"))
 async def cmd_extend(message: Message) -> None:
@@ -403,11 +458,15 @@ async def cmd_extend(message: Message) -> None:
         keys = await VpnKeyService(session).get_active_for_user(message.from_user.id)
         user = await UserService(session).get_by_id(message.from_user.id)
         from app.services.plan import PlanService
+
         plans = await PlanService(session).get_all(only_active=True)
         balance = float(user.balance or 0) if user else 0.0
 
     if not keys:
-        await message.answer("📦 Нет активных подписок для продления.\n\nИспользуй /buy чтобы купить новую.", parse_mode="HTML")
+        await message.answer(
+            "📦 Нет активных подписок для продления.\n\nИспользуй /buy чтобы купить новую.",
+            parse_mode="HTML",
+        )
         return
 
     if not plans:
@@ -417,10 +476,12 @@ async def cmd_extend(message: Message) -> None:
     builder = InlineKeyboardBuilder()
     for plan in plans:
         can_afford = "✅" if balance >= float(plan.price) else "💰"
-        builder.row(InlineKeyboardButton(
-            text=f"{can_afford} {plan.name} — {plan.price} ₽ ({plan.duration_days} дн.)",
-            callback_data=f"plan:{plan.id}",
-        ))
+        builder.row(
+            InlineKeyboardButton(
+                text=f"{can_afford} {plan.name} — {plan.price} ₽ ({plan.duration_days} дн.)",
+                callback_data=f"plan:{plan.id}",
+            )
+        )
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="back_main"))
 
     await message.answer(

@@ -2,6 +2,7 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery
 from app.bot.keyboards.payments import plans_kb, payment_methods_kb
 from app.bot.utils.menu import get_main_menu_kb as _get_menu_kb
+from app.bot.handlers.admin import _is_admin
 from app.core.database import AsyncSessionFactory
 from app.services.plan import PlanService
 from app.services.bot_settings import BotSettingsService
@@ -26,9 +27,15 @@ async def show_plans(callback: CallbackQuery) -> None:
         lang = await _get_user_lang(callback.from_user.id, session)
 
     from app.bot.utils.media import edit_with_photo
+
     if not plans:
         async with AsyncSessionFactory() as session:
-            kb = await _get_menu_kb(session, lang=lang, user_id=callback.from_user.id)
+            kb = await _get_menu_kb(
+                session,
+                lang=lang,
+                user_id=callback.from_user.id,
+                is_admin=_is_admin(callback.from_user.id),
+            )
         await edit_with_photo(callback, t("no_plans", lang), reply_markup=kb)
         await callback.answer()
         return
@@ -75,7 +82,9 @@ async def select_plan(callback: CallbackQuery) -> None:
         _yk_key_db = bool(await _svc.get("yookassa_secret_key_override"))
         _stars_rate = float(await _svc.get("stars_rate") or "1.5")
     _yk_env = _cfg.yookassa
-    _yk_env_ok = bool(_yk_env and _yk_env.yookassa_shop_id and _yk_env.yookassa_secret_key)
+    _yk_env_ok = bool(
+        _yk_env and _yk_env.yookassa_shop_id and _yk_env.yookassa_secret_key
+    )
     _yk_configured = _yk_env_ok or bool(_yk_shop_db and _yk_key_db)
     has_yookassa = _yk_toggle and _yk_configured
     has_sbp = _sbp_toggle and _yk_configured
@@ -95,9 +104,11 @@ async def select_plan(callback: CallbackQuery) -> None:
     has_freekassa = _fk_toggle and bool(_fk_shop and _fk_key)
 
     from app.services.telegram_stars import TelegramStarsService
+
     stars = TelegramStarsService.rub_to_stars(plan_price, rate=_stars_rate)
 
     from app.bot.utils.media import edit_with_photo
+
     await edit_with_photo(
         callback,
         t("choose_payment", lang, plan_name=plan_name, price=plan_price),

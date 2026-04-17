@@ -1,22 +1,33 @@
 """
 Главное меню бота — строится динамически из keyboard_layout в bot_settings.
 """
+
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.bot.keyboards.builder import btn
 
 _DEFAULT_LAYOUT = [
-    [{"id": "my_keys",  "label": "🔑 Мои подписки",  "callback": "my_keys"}],
-    [{"id": "buy",      "label": "💳 Купить",         "callback": "buy"}],
-    [{"id": "balance",  "label": "💰 Баланс",         "callback": "balance"},
-     {"id": "promo",    "label": "🎁 Промокод",       "callback": "enter_promo"}],
-    [{"id": "connect",  "label": "📲 Как подключить", "callback": "connect:menu"},
-     {"id": "about",    "label": "ℹ️ О проекте",      "callback": "about"}],
-    [{"id": "profile",  "label": "👤 Профиль",        "callback": "profile"},
-     {"id": "servers",  "label": "🌐 Серверы",        "callback": "servers"}],
+    [{"id": "my_keys", "label": "🔑 Мои подписки", "callback": "my_keys"}],
+    [{"id": "buy", "label": "💳 Купить", "callback": "buy"}],
+    [
+        {"id": "balance", "label": "💰 Баланс", "callback": "balance"},
+        {"id": "promo", "label": "🎁 Промокод", "callback": "enter_promo"},
+    ],
+    [
+        {"id": "connect", "label": "📲 Как подключить", "callback": "connect:menu"},
+        {"id": "about", "label": "ℹ️ О проекте", "callback": "about"},
+    ],
+    [
+        {"id": "profile", "label": "👤 Профиль", "callback": "profile"},
+        {"id": "servers", "label": "🌐 Серверы", "callback": "servers"},
+    ],
     [{"id": "top_referrers", "label": "🏆 Топ рефереров", "callback": "top_referrers"}],
-    [{"id": "support",  "label": "💬 Поддержка",      "callback": "support"}],
-    [{"id": "miniapp",  "label": "🌐 Mini App",       "callback": "miniapp"}],
+    [{"id": "support", "label": "💬 Поддержка", "callback": "support"}],
+    [{"id": "miniapp", "label": "🌐 Mini App", "callback": "miniapp"}],
+]
+
+_ADMIN_ROW = [
+    [{"id": "admin_panel", "label": "🛡 Админ панель", "callback": "admin:panel"}],
 ]
 
 
@@ -26,6 +37,7 @@ def main_menu_kb(
     layout: list = None,
     styles: dict = None,
     emojis: dict = None,
+    is_admin: bool = False,
     **kwargs,
 ) -> InlineKeyboardMarkup:
     if layout is None:
@@ -49,17 +61,45 @@ def main_menu_kb(
             emoji_id = emojis.get(bid) or None
 
             if bid == "support" and support_url:
-                row_btns.append(btn(label, url=support_url, style=style, emoji_id=emoji_id))
+                row_btns.append(
+                    btn(label, url=support_url, style=style, emoji_id=emoji_id)
+                )
             elif bid == "miniapp" and miniapp_url:
                 from aiogram.types import WebAppInfo
-                row_btns.append(InlineKeyboardButton(text=label, web_app=WebAppInfo(url=miniapp_url)))
+
+                row_btns.append(
+                    InlineKeyboardButton(
+                        text=label, web_app=WebAppInfo(url=miniapp_url)
+                    )
+                )
             else:
-                row_btns.append(btn(label, callback_data=callback, style=style, emoji_id=emoji_id))
+                row_btns.append(
+                    btn(label, callback_data=callback, style=style, emoji_id=emoji_id)
+                )
 
         if len(row_btns) == 1:
             builder.row(row_btns[0])
         else:
             builder.row(*row_btns)
+
+    if is_admin:
+        for row in _ADMIN_ROW:
+            if not row:
+                continue
+            row_btns = []
+            for b in row:
+                bid = b.get("id", "")
+                label = b.get("label", "")
+                callback = b.get("callback", bid)
+                style = styles.get(bid) or None
+                emoji_id = emojis.get(bid) or None
+                row_btns.append(
+                    btn(label, callback_data=callback, style=style, emoji_id=emoji_id)
+                )
+            if len(row_btns) == 1:
+                builder.row(row_btns[0])
+            else:
+                builder.row(*row_btns)
 
     return builder.as_markup()
 
@@ -67,5 +107,9 @@ def main_menu_kb(
 def back_kb(lang: str = "ru") -> InlineKeyboardMarkup:
     labels = {"ru": "◀️ Главное меню", "en": "◀️ Main menu", "fa": "◀️ منوی اصلی"}
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text=labels.get(lang, "◀️ Главное меню"), callback_data="back_main"))
+    builder.row(
+        InlineKeyboardButton(
+            text=labels.get(lang, "◀️ Главное меню"), callback_data="back_main"
+        )
+    )
     return builder.as_markup()

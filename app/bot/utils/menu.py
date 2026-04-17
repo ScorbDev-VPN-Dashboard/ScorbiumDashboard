@@ -1,12 +1,25 @@
 """Утилита для получения главного меню с настройками из БД."""
+
 import json
 from aiogram.types import InlineKeyboardMarkup
 from app.bot.keyboards.main import main_menu_kb, _DEFAULT_LAYOUT
 from app.services.bot_settings import BotSettingsService
 
 _BUTTON_IDS = [
-    "my_keys", "buy", "profile", "balance", "promo", "support",
-    "connect", "about", "servers", "top_referrers", "status", "language", "trial", "miniapp",
+    "my_keys",
+    "buy",
+    "profile",
+    "balance",
+    "promo",
+    "support",
+    "connect",
+    "about",
+    "servers",
+    "top_referrers",
+    "status",
+    "language",
+    "trial",
+    "miniapp",
 ]
 
 # Переводы лейблов кнопок по умолчанию
@@ -71,14 +84,18 @@ def _translate_layout(layout: list, lang: str, settings: dict) -> list:
             bid = b.get("id", "")
             # Check admin override in settings: i18n_{lang}_btn_{id}
             override = settings.get(f"i18n_{lang}_btn_{bid}", "").strip()
-            default_label = _BTN_LABELS.get(lang, _BTN_LABELS["ru"]).get(bid, b.get("label", ""))
+            default_label = _BTN_LABELS.get(lang, _BTN_LABELS["ru"]).get(
+                bid, b.get("label", "")
+            )
             label = override if override else default_label
             new_row.append({**b, "label": label})
         result.append(new_row)
     return result
 
 
-async def get_main_menu_kb(session, lang: str = "ru", user_id: int = None) -> InlineKeyboardMarkup:
+async def get_main_menu_kb(
+    session, lang: str = "ru", user_id: int = None, is_admin: bool = False
+) -> InlineKeyboardMarkup:
     s = await BotSettingsService(session).get_all()
 
     # Load layout
@@ -92,6 +109,7 @@ async def get_main_menu_kb(session, lang: str = "ru", user_id: int = None) -> In
     if user_id and s.get("trial_enabled", "0") == "1":
         from sqlalchemy import select
         from app.models.vpn_key import VpnKey
+
         result = await session.execute(
             select(VpnKey).where(VpnKey.user_id == user_id).limit(1)
         )
@@ -111,8 +129,11 @@ async def get_main_menu_kb(session, lang: str = "ru", user_id: int = None) -> In
 
     return main_menu_kb(
         support_url=s.get("support_url", ""),
-        miniapp_url=f"{s.get('panel_url','').rstrip('/')}/app/" if s.get("panel_url") else "",
+        miniapp_url=f"{s.get('panel_url', '').rstrip('/')}/app/"
+        if s.get("panel_url")
+        else "",
         layout=layout,
         styles=styles,
         emojis=emojis,
+        is_admin=is_admin,
     )
