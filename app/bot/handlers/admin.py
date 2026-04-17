@@ -1582,7 +1582,12 @@ async def show_admin_panel(callback: CallbackQuery) -> None:
     if not _is_admin(callback.from_user.id):
         await callback.answer("❌ Доступ запрещён", show_alert=True)
         return
-    panel_url = config.telegram.telegram_panel_url
+    async with AsyncSessionFactory() as session:
+        from app.services.bot_settings import BotSettingsService
+
+        panel_url = (await BotSettingsService(session).get("panel_url") or "").rstrip(
+            "/"
+        )
     await callback.message.edit_text(
         "🛡 <b>Админ панель</b>",
         reply_markup=admin_kb(panel_url=panel_url),
