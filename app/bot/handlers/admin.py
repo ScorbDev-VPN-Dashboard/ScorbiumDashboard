@@ -20,8 +20,9 @@ from app.services.promo import PromoService
 from app.services.referral import ReferralService
 from app.services.broadcast import BroadcastService
 from app.services.plan import PlanService
-from app.models.payment import PaymentStatus
+from app.models.payment import PaymentStatus, PaymentType
 from app.utils.log import log
+from app.utils.html_utils import sanitize_search_query
 
 router = Router()
 
@@ -116,14 +117,19 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
         )
         new_today = new_today_r.scalar_one()
 
+        from sqlalchemy import cast, Numeric
+
         rev_today_r = await session.execute(
-            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+            select(
+                func.coalesce(func.sum(cast(Payment.amount, Numeric)), 0).label("total")
+            ).where(
                 Payment.status == PaymentStatus.SUCCEEDED.value,
-                Payment.payment_type == "subscription",
+                Payment.payment_type == PaymentType.SUBSCRIPTION.value,
                 Payment.created_at >= today,
             )
         )
-        rev_today = float(rev_today_r.scalar_one())
+        rev_today_val = rev_today_r.scalar_one()
+        rev_today = float(rev_today_val) if rev_today_val else 0.0
 
         from app.services.bot_settings import BotSettingsService
 
@@ -394,23 +400,31 @@ async def admin_stats(callback: CallbackQuery) -> None:
         )
         new_week = new_week_r.scalar_one()
 
+        from sqlalchemy import cast, Numeric
+
         rev_today_r = await session.execute(
-            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+            select(
+                func.coalesce(func.sum(cast(Payment.amount, Numeric)), 0).label("total")
+            ).where(
                 Payment.status == PaymentStatus.SUCCEEDED.value,
-                Payment.payment_type == "subscription",
+                Payment.payment_type == PaymentType.SUBSCRIPTION.value,
                 Payment.created_at >= today,
             )
         )
-        rev_today = float(rev_today_r.scalar_one())
+        rev_today_val = rev_today_r.scalar_one()
+        rev_today = float(rev_today_val) if rev_today_val else 0.0
 
         rev_week_r = await session.execute(
-            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+            select(
+                func.coalesce(func.sum(cast(Payment.amount, Numeric)), 0).label("total")
+            ).where(
                 Payment.status == PaymentStatus.SUCCEEDED.value,
-                Payment.payment_type == "subscription",
+                Payment.payment_type == PaymentType.SUBSCRIPTION.value,
                 Payment.created_at >= week_ago,
             )
         )
-        rev_week = float(rev_week_r.scalar_one())
+        rev_week_val = rev_week_r.scalar_one()
+        rev_week = float(rev_week_val) if rev_week_val else 0.0
 
         expired_r = await session.execute(
             select(func.count())
@@ -559,15 +573,21 @@ async def admin_search_result(message: Message, state: FSMContext) -> None:
     await state.clear()
     query = message.text.strip().lstrip("@")
 
+    from app.utils.html_utils import sanitize_search_query
+
+    safe_query = sanitize_search_query(query, max_length=50)
+
     async with AsyncSessionFactory() as session:
         from sqlalchemy import select, or_
         from app.models.user import User
 
-        if query.isdigit():
-            result = await session.execute(select(User).where(User.id == int(query)))
+        if safe_query.isdigit():
+            result = await session.execute(
+                select(User).where(User.id == int(safe_query))
+            )
             users = list(result.scalars().all())
         else:
-            q = f"%{query.lower()}%"
+            q = f"%{safe_query.lower()}%"
             result = await session.execute(
                 select(User)
                 .where(

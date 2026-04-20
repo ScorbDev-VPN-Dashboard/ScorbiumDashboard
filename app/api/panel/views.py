@@ -3,7 +3,7 @@ import io
 import json
 import subprocess
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Optional
@@ -11,6 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import cast, Numeric
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_db
@@ -209,13 +210,16 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     new_today = new_today_r.scalar_one()
 
     rev_today_r = await db.execute(
-        select(func.coalesce(func.sum(Payment.amount), 0)).where(
+        select(
+            func.coalesce(func.sum(cast(Payment.amount, Numeric)), 0).label("total")
+        ).where(
             Payment.status == PaymentStatus.SUCCEEDED.value,
             Payment.payment_type == PaymentType.SUBSCRIPTION.value,
             Payment.created_at >= today_start,
         )
     )
-    rev_today = float(rev_today_r.scalar_one())
+    rev_today_val = rev_today_r.scalar_one()
+    rev_today = float(rev_today_val) if rev_today_val else 0.0
 
     expired_r = await db.execute(
         select(func.count())
@@ -229,14 +233,17 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         day_start = today_start - timedelta(days=i)
         day_end = day_start + timedelta(days=1)
         r = await db.execute(
-            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+            select(
+                func.coalesce(func.sum(cast(Payment.amount, Numeric)), 0).label("total")
+            ).where(
                 Payment.status == PaymentStatus.SUCCEEDED.value,
                 Payment.payment_type == PaymentType.SUBSCRIPTION.value,
                 Payment.created_at >= day_start,
                 Payment.created_at < day_end,
             )
         )
-        rev_week.append(float(r.scalar_one()))
+        val = r.scalar_one()
+        rev_week.append(float(val) if val else 0.0)
 
     ctx["stats"] = {
         "total_users": await UserService(db).count_all(),
@@ -612,9 +619,12 @@ async def payments_page(
     _require_auth(request)
     ctx = await _base_ctx(request, db, "payments")
     from app.models.payment import PaymentType
+
     ps = PaymentStatus(status) if status else None
     pt = PaymentType(payment_type) if payment_type else None
-    ctx["payments"] = await PaymentService(db).get_all(limit=200, status=ps, payment_type=pt)
+    ctx["payments"] = await PaymentService(db).get_all(
+        limit=200, status=ps, payment_type=pt
+    )
     ctx["total_topups"] = await PaymentService(db).total_topups()
     ctx["current_status"] = status or ""
     ctx["current_type"] = payment_type or ""
@@ -1046,7 +1056,11 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
     cb_token_set = bool((await svc.get("cryptobot_token") or "").strip())
 
     # Also check env-level yookassa
-    yk_env_ok = bool(config.yookassa and config.yookassa.yookassa_shop_id and config.yookassa.yookassa_secret_key)
+    yk_env_ok = bool(
+        config.yookassa
+        and config.yookassa.yookassa_shop_id
+        and config.yookassa.yookassa_secret_key
+    )
 
     # FreeKassa & AiKassa
     fk_shop = await svc.get("freekassa_shop_id") or ""
@@ -1065,10 +1079,16 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
     sbp_toggle = (await svc.get("ps_sbp_enabled") or "0") == "1"
 
     from types import SimpleNamespace
+
     ctx["ps"] = SimpleNamespace(
         yookassa_enabled=(yk_env_ok or yk_key_set) and yk_toggle,
         yookassa_configured=yk_env_ok or yk_key_set,
-        yookassa_shop_id=yk_shop or (str(config.yookassa.yookassa_shop_id) if config.yookassa and config.yookassa.yookassa_shop_id else ""),
+        yookassa_shop_id=yk_shop
+        or (
+            str(config.yookassa.yookassa_shop_id)
+            if config.yookassa and config.yookassa.yookassa_shop_id
+            else ""
+        ),
         yookassa_toggle=yk_toggle,
         cryptobot_enabled=cb_token_set and cb_toggle,
         cryptobot_configured=cb_token_set,
@@ -1087,6 +1107,7 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
     )
 
     from app.services.pasarguard.pasarguard import PasarguardService
+
     marzban = PasarguardService()
     try:
         stats = await marzban.get_system_stats()
@@ -1101,7 +1122,9 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
 
 # ── Payment Systems ───────────────────────────────────────────────────────────
 
-_ALLOWED_PS_KEYS = frozenset(["yookassa_shop_id_override", "yookassa_secret_key_override", "cryptobot_token"])
+_ALLOWED_PS_KEYS = frozenset(
+    ["yookassa_shop_id_override", "yookassa_secret_key_override", "cryptobot_token"]
+)
 
 
 @router.post("/telegram/payment-systems/yookassa")
@@ -1120,15 +1143,26 @@ async def ps_save_yookassa(request: Request, db: AsyncSession = Depends(get_db))
     # Валидация shop_id
     if shop_id_raw:
         if not re.fullmatch(r"\d{5,8}", shop_id_raw):
-            return JSONResponse({"ok": False, "message": "Shop ID: 5-8 цифр"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "message": "Shop ID: 5-8 цифр"}, status_code=400
+            )
         await svc.set("yookassa_shop_id_override", shop_id_raw)
 
     # Валидация secret_key
     if secret_key_raw:
         if len(secret_key_raw) < 10:
-            return JSONResponse({"ok": False, "message": "Secret Key слишком короткий (мин. 10 символов)"}, status_code=400)
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "message": "Secret Key слишком короткий (мин. 10 символов)",
+                },
+                status_code=400,
+            )
         if not re.fullmatch(r"[A-Za-z0-9_\-]+", secret_key_raw):
-            return JSONResponse({"ok": False, "message": "Secret Key содержит недопустимые символы"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "message": "Secret Key содержит недопустимые символы"},
+                status_code=400,
+            )
         await svc.set("yookassa_secret_key_override", secret_key_raw)
 
     await db.commit()
@@ -1153,19 +1187,27 @@ async def ps_test_yookassa(request: Request, db: AsyncSession = Depends(get_db))
 
     # Fallback to env config
     if not shop_id_str or not secret_key:
-        if config.yookassa and config.yookassa.yookassa_shop_id and config.yookassa.yookassa_secret_key:
+        if (
+            config.yookassa
+            and config.yookassa.yookassa_shop_id
+            and config.yookassa.yookassa_secret_key
+        ):
             shop_id_str = str(config.yookassa.yookassa_shop_id)
             secret_key = config.yookassa.yookassa_secret_key.get_secret_value()
 
     if not shop_id_str or not secret_key:
-        return JSONResponse({"ok": False, "message": "ЮКасса не настроена"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "message": "ЮКасса не настроена"}, status_code=400
+        )
 
     try:
         import yookassa as _yk
+
         _yk.Configuration.account_id = int(shop_id_str)
         _yk.Configuration.secret_key = secret_key
         # Делаем тестовый запрос — получаем список платежей (пустой список = успех)
         import httpx
+
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(
                 "https://api.yookassa.ru/v3/payments",
@@ -1174,12 +1216,24 @@ async def ps_test_yookassa(request: Request, db: AsyncSession = Depends(get_db))
             )
         if resp.status_code in (200, 401):
             if resp.status_code == 401:
-                return JSONResponse({"ok": False, "message": "Неверные учётные данные ЮКассы"}, status_code=400)
-            return JSONResponse({"ok": True, "message": f"✅ ЮКасса подключена (shop_id: {shop_id_str})"})
-        return JSONResponse({"ok": False, "message": f"Ошибка API: {resp.status_code}"}, status_code=400)
+                return JSONResponse(
+                    {"ok": False, "message": "Неверные учётные данные ЮКассы"},
+                    status_code=400,
+                )
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "message": f"✅ ЮКасса подключена (shop_id: {shop_id_str})",
+                }
+            )
+        return JSONResponse(
+            {"ok": False, "message": f"Ошибка API: {resp.status_code}"}, status_code=400
+        )
     except Exception as e:
         log.error(f"YooKassa test error: {e}")
-        return JSONResponse({"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400
+        )
 
 
 @router.post("/telegram/payment-systems/cryptobot")
@@ -1193,17 +1247,27 @@ async def ps_save_cryptobot(request: Request, db: AsyncSession = Depends(get_db)
     token_raw = str(form.get("cryptobot_token", "")).strip()
 
     if not token_raw:
-        return JSONResponse({"ok": False, "message": "Токен не указан"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "message": "Токен не указан"}, status_code=400
+        )
 
     # Валидация: только цифры, буквы, двоеточие, дефис, подчёркивание
     if not re.fullmatch(r"[\d]+:[A-Za-z0-9_\-]+", token_raw):
-        return JSONResponse({"ok": False, "message": "Неверный формат токена (ожидается: 12345:AAA...)"}, status_code=400)
+        return JSONResponse(
+            {
+                "ok": False,
+                "message": "Неверный формат токена (ожидается: 12345:AAA...)",
+            },
+            status_code=400,
+        )
 
     svc = BotSettingsService(db)
     await svc.set("cryptobot_token", token_raw)
     await db.commit()
 
-    return JSONResponse({"ok": True, "message": "CryptoBot токен сохранён", "enabled": True})
+    return JSONResponse(
+        {"ok": True, "message": "CryptoBot токен сохранён", "enabled": True}
+    )
 
 
 @router.post("/telegram/payment-systems/cryptobot/test")
@@ -1216,20 +1280,33 @@ async def ps_test_cryptobot(request: Request, db: AsyncSession = Depends(get_db)
     token = (await svc.get("cryptobot_token") or "").strip()
 
     if not token:
-        return JSONResponse({"ok": False, "message": "CryptoBot не настроен"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "message": "CryptoBot не настроен"}, status_code=400
+        )
 
     try:
         from app.services.cryptobot import CryptoBotService
+
         crypto = CryptoBotService(token)
         info = await crypto.get_me()
         if info:
             name = info.get("name", "")
             app_id = info.get("app_id", "")
-            return JSONResponse({"ok": True, "message": f"✅ CryptoBot подключён: {name} (ID: {app_id})"})
-        return JSONResponse({"ok": False, "message": "Не удалось получить данные от CryptoBot"}, status_code=400)
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "message": f"✅ CryptoBot подключён: {name} (ID: {app_id})",
+                }
+            )
+        return JSONResponse(
+            {"ok": False, "message": "Не удалось получить данные от CryptoBot"},
+            status_code=400,
+        )
     except Exception as e:
         log.error(f"CryptoBot test error: {e}")
-        return JSONResponse({"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400
+        )
 
 
 @router.post("/telegram/payment-systems/toggle")
@@ -1238,26 +1315,37 @@ async def ps_toggle(request: Request, db: AsyncSession = Depends(get_db)):
     _require_auth(request)
     from fastapi.responses import JSONResponse
 
-    _ALLOWED_TOGGLE_KEYS = frozenset([
-        "ps_yookassa_enabled", "ps_cryptobot_enabled",
-        "ps_freekassa_enabled", "ps_aikassa_enabled", "ps_stars_enabled",
-        "ps_sbp_enabled",
-    ])
+    _ALLOWED_TOGGLE_KEYS = frozenset(
+        [
+            "ps_yookassa_enabled",
+            "ps_cryptobot_enabled",
+            "ps_freekassa_enabled",
+            "ps_aikassa_enabled",
+            "ps_stars_enabled",
+            "ps_sbp_enabled",
+        ]
+    )
 
     form = await request.form()
     key = str(form.get("key", "")).strip()
     enabled = str(form.get("enabled", "0")).strip()
 
     if key not in _ALLOWED_TOGGLE_KEYS:
-        return JSONResponse({"ok": False, "message": "Недопустимый ключ"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "message": "Недопустимый ключ"}, status_code=400
+        )
     if enabled not in ("0", "1"):
-        return JSONResponse({"ok": False, "message": "Недопустимое значение"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "message": "Недопустимое значение"}, status_code=400
+        )
 
     svc = BotSettingsService(db)
     await svc.set(key, enabled)
     await db.commit()
     state = "включена" if enabled == "1" else "отключена"
-    return JSONResponse({"ok": True, "message": f"Система {state}", "enabled": enabled == "1"})
+    return JSONResponse(
+        {"ok": True, "message": f"Система {state}", "enabled": enabled == "1"}
+    )
 
 
 @router.post("/telegram/payment-systems/freekassa")
@@ -1277,14 +1365,23 @@ async def ps_save_freekassa(request: Request, db: AsyncSession = Depends(get_db)
 
     if shop_id_raw:
         if not re.fullmatch(r"\d{1,10}", shop_id_raw):
-            return JSONResponse({"ok": False, "message": "Shop ID: только цифры (до 10 знаков)"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "message": "Shop ID: только цифры (до 10 знаков)"},
+                status_code=400,
+            )
         await svc.set("freekassa_shop_id", shop_id_raw)
 
     if api_key_raw:
         if len(api_key_raw) < 8:
-            return JSONResponse({"ok": False, "message": "API Key слишком короткий (мин. 8 символов)"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "message": "API Key слишком короткий (мин. 8 символов)"},
+                status_code=400,
+            )
         if not re.fullmatch(r"[A-Za-z0-9_\-]+", api_key_raw):
-            return JSONResponse({"ok": False, "message": "API Key содержит недопустимые символы"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "message": "API Key содержит недопустимые символы"},
+                status_code=400,
+            )
         await svc.set("freekassa_api_key", api_key_raw)
 
     if secret1_raw:
@@ -1298,7 +1395,9 @@ async def ps_save_freekassa(request: Request, db: AsyncSession = Depends(get_db)
     saved_key = bool(await svc.get("freekassa_api_key"))
     configured = bool(saved_shop and saved_key)
 
-    return JSONResponse({"ok": True, "message": "FreeKassa сохранена", "configured": configured})
+    return JSONResponse(
+        {"ok": True, "message": "FreeKassa сохранена", "configured": configured}
+    )
 
 
 @router.post("/telegram/payment-systems/freekassa/test")
@@ -1312,23 +1411,36 @@ async def ps_test_freekassa(request: Request, db: AsyncSession = Depends(get_db)
     api_key = (await svc.get("freekassa_api_key") or "").strip()
 
     if not shop_id or not api_key:
-        return JSONResponse({"ok": False, "message": "FreeKassa не настроена"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "message": "FreeKassa не настроена"}, status_code=400
+        )
 
     try:
         from app.services.freekassa import FreeKassaService
+
         fk = FreeKassaService(shop_id, api_key)
         data = await fk.get_balance()
         if data is None:
-            return JSONResponse({"ok": False, "message": "Нет ответа от FreeKassa"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "message": "Нет ответа от FreeKassa"}, status_code=400
+            )
         if data.get("type") == "error":
             msg = data.get("message", "Ошибка API")
-            return JSONResponse({"ok": False, "message": f"FreeKassa: {msg}"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "message": f"FreeKassa: {msg}"}, status_code=400
+            )
         balance = data.get("balance", [])
-        rub = next((b.get("value", 0) for b in balance if b.get("currency") == "RUB"), 0)
-        return JSONResponse({"ok": True, "message": f"✅ FreeKassa подключена. Баланс: {rub} ₽"})
+        rub = next(
+            (b.get("value", 0) for b in balance if b.get("currency") == "RUB"), 0
+        )
+        return JSONResponse(
+            {"ok": True, "message": f"✅ FreeKassa подключена. Баланс: {rub} ₽"}
+        )
     except Exception as e:
         log.error(f"FreeKassa test error: {e}")
-        return JSONResponse({"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400
+        )
 
 
 @router.post("/telegram/payment-systems/aikassa")
@@ -1346,14 +1458,23 @@ async def ps_save_aikassa(request: Request, db: AsyncSession = Depends(get_db)):
 
     if shop_id_raw:
         if not re.fullmatch(r"[A-Za-z0-9_\-]{1,64}", shop_id_raw):
-            return JSONResponse({"ok": False, "message": "Shop ID содержит недопустимые символы"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "message": "Shop ID содержит недопустимые символы"},
+                status_code=400,
+            )
         await svc.set("aikassa_shop_id", shop_id_raw)
 
     if token_raw:
         if len(token_raw) < 10:
-            return JSONResponse({"ok": False, "message": "Токен слишком короткий (мин. 10 символов)"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "message": "Токен слишком короткий (мин. 10 символов)"},
+                status_code=400,
+            )
         if not re.fullmatch(r"[A-Za-z0-9_\-\.]+", token_raw):
-            return JSONResponse({"ok": False, "message": "Токен содержит недопустимые символы"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "message": "Токен содержит недопустимые символы"},
+                status_code=400,
+            )
         await svc.set("aikassa_token", token_raw)
 
     await db.commit()
@@ -1362,7 +1483,9 @@ async def ps_save_aikassa(request: Request, db: AsyncSession = Depends(get_db)):
     saved_token = bool(await svc.get("aikassa_token"))
     configured = bool(saved_shop and saved_token)
 
-    return JSONResponse({"ok": True, "message": "AiKassa сохранена", "configured": configured})
+    return JSONResponse(
+        {"ok": True, "message": "AiKassa сохранена", "configured": configured}
+    )
 
 
 @router.post("/telegram/payment-systems/aikassa/test")
@@ -1376,21 +1499,30 @@ async def ps_test_aikassa(request: Request, db: AsyncSession = Depends(get_db)):
     token = (await svc.get("aikassa_token") or "").strip()
 
     if not shop_id or not token:
-        return JSONResponse({"ok": False, "message": "AiKassa не настроена"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "message": "AiKassa не настроена"}, status_code=400
+        )
 
     try:
         from app.services.aikassa import AiKassaService
+
         ak = AiKassaService(shop_id, token)
         data = await ak.get_shop_info()
         if data is None:
-            return JSONResponse({"ok": False, "message": "Нет ответа от AiKassa"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "message": "Нет ответа от AiKassa"}, status_code=400
+            )
         if isinstance(data, dict) and data.get("error"):
-            return JSONResponse({"ok": False, "message": f"AiKassa: {data['error']}"}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "message": f"AiKassa: {data['error']}"}, status_code=400
+            )
         name = data.get("name", shop_id) if isinstance(data, dict) else shop_id
         return JSONResponse({"ok": True, "message": f"✅ AiKassa подключена: {name}"})
     except Exception as e:
         log.error(f"AiKassa test error: {e}")
-        return JSONResponse({"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400
+        )
 
 
 @router.post("/telegram/payment-systems/stars-rate")
@@ -1406,11 +1538,15 @@ async def ps_save_stars_rate(request: Request, db: AsyncSession = Depends(get_db
     if not rate_raw:
         return JSONResponse({"ok": False, "message": "Курс не указан"}, status_code=400)
     if not re.fullmatch(r"\d+(\.\d+)?", rate_raw):
-        return JSONResponse({"ok": False, "message": "Некорректное значение курса"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "message": "Некорректное значение курса"}, status_code=400
+        )
 
     rate = float(rate_raw)
     if rate <= 0 or rate > 1000:
-        return JSONResponse({"ok": False, "message": "Курс должен быть от 0.1 до 1000"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "message": "Курс должен быть от 0.1 до 1000"}, status_code=400
+        )
 
     svc = BotSettingsService(db)
     await svc.set("stars_rate", str(rate))

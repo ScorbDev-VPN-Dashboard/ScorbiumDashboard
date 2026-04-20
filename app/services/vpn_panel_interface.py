@@ -2,6 +2,7 @@
 Abstract interface for VPN panel backend (Marzban/Pasarguard).
 All panel services must implement this interface.
 """
+
 from abc import ABC, abstractmethod
 from typing import Optional
 

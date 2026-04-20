@@ -11,18 +11,62 @@
   <style>
     :root {
       --sw: 240px;
-      --accent: #6c63ff;
-      --accent2: #574fd6;
-      --bg: #080812;
-      --surface: #10101e;
-      --surface2: #16162a;
-      --border: rgba(255,255,255,.07);
-      --muted: #7a849a;
-      --text: #d0d8ea;
+      --accent: #6366f1;
+      --accent2: #4f46e5;
+      --accent-light: #818cf8;
+      
+      /* Dark theme (default) */
+      --bg: #0f0f17;
+      --bg-subtle: #1a1a2e;
+      --surface: #16162e;
+      --surface2: #1e1e38;
+      --surface-hover: #252547;
+      --border: rgba(255,255,255,.08);
+      --border-light: rgba(255,255,255,.12);
+      --muted: #9ca3af;
+      --muted-light: #6b7280;
+      --text: #f3f4f6;
+      --text-secondary: #d1d5db;
+      --card-bg: #1e1e38;
+      --input-bg: rgba(255,255,255,.04);
+      
+      /* Status colors */
+      --success: #22c55e;
+      --warning: #eab308;
+      --danger: #ef4444;
+      --info: #3b82f6;
     }
+    
+    [data-bs-theme="light"] {
+      --bg: #f8f9fc;
+      --bg-subtle: #e9ecef;
+      --surface: #ffffff;
+      --surface2: #f1f3f9;
+      --surface-hover: #eef0f5;
+      --border: rgba(0,0,0,.08);
+      --border-light: rgba(0,0,0,.12);
+      --muted: #64748b;
+      --muted-light: #94a3b8;
+      --text: #1f2937;
+      --text-secondary: #4b5563;
+      --card-bg: #ffffff;
+      --input-bg: rgba(0,0,0,.04);
+      
+      --success: #16a34a;
+      --warning: #ca8a04;
+      --danger: #dc2626;
+      --info: #2563eb;
+    }
+    
     *, *::before, *::after { box-sizing: border-box; }
     html, body { height: 100%; }
-    body { background: var(--bg); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: var(--text); margin: 0; }
+    body { 
+      background: var(--bg); 
+      font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif; 
+      color: var(--text); 
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+    }
 
     /* ── Sidebar ── */
     .sidebar {
@@ -36,45 +80,54 @@
       overflow: hidden;
     }
     .sidebar-brand {
-      padding: 1.25rem 1.25rem .9rem;
-      font-size: 1.05rem; font-weight: 700; color: #fff;
+      padding: 1.1rem 1.25rem .8rem;
+      font-size: 1.1rem; font-weight: 700; color: var(--text);
       border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; gap: .5rem;
+      display: flex; align-items: center; gap: .6rem;
     }
     .sidebar-brand .logo-icon {
-      width: 32px; height: 32px; border-radius: 8px;
-      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      width: 34px; height: 34px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
       display: flex; align-items: center; justify-content: center;
-      font-size: .9rem; color: #fff; flex-shrink: 0;
+      font-size: 1rem; color: #fff; flex-shrink: 0;
     }
-    .sidebar-nav { padding: .5rem 0; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+    .sidebar-nav { padding: .4rem 0; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
     .nav-section {
-      font-size: .6rem; font-weight: 700; letter-spacing: 1.2px;
+      font-size: .6rem; font-weight: 700; letter-spacing: 1px;
       text-transform: uppercase; color: var(--muted);
-      padding: .9rem 1.25rem .3rem;
+      padding: .8rem 1.25rem .3rem;
     }
     .nav-item a {
-      display: flex; align-items: center; gap: .6rem;
+      display: flex; align-items: center; gap: .65rem;
       padding: .5rem 1.25rem;
       color: var(--muted); text-decoration: none;
       font-size: .82rem; font-weight: 500;
       transition: all .15s; position: relative;
+      border-radius: 0;
     }
-    .nav-item a:hover { color: #fff; background: rgba(108,99,255,.1); }
+    .nav-item a:hover { 
+      color: var(--text); 
+      background: var(--surface-hover); 
+    }
     .nav-item a.active {
-      color: #fff; background: rgba(108,99,255,.18);
+      color: var(--accent);
+      background: rgba(99, 102, 241,.1);
       border-left: 3px solid var(--accent);
       padding-left: calc(1.25rem - 3px);
     }
+    [data-bs-theme="light"] .nav-item a.active {
+      background: rgba(99, 102, 241,.12);
+    }
     .nav-item a i { font-size: .95rem; width: 1rem; text-align: center; flex-shrink: 0; }
     .nav-badge {
-      margin-left: auto; background: #ef4444; color: #fff;
-      font-size: .6rem; font-weight: 700; padding: .15rem .4rem;
+      margin-left: auto; background: var(--danger); color: #fff;
+      font-size: .6rem; font-weight: 700; padding: .15rem .45rem;
       border-radius: 10px; line-height: 1.4;
     }
-    .nav-badge-warn { background: #eab308; }
+    .nav-badge-warn { background: var(--warning); color: #000; }
+    
     .sidebar-footer {
-      padding: .9rem 1.25rem;
+      padding: .75rem 1.25rem;
       border-top: 1px solid var(--border);
     }
     .sidebar-footer a {
@@ -82,12 +135,28 @@
       color: var(--muted); text-decoration: none; font-size: .8rem;
       transition: color .15s;
     }
-    .sidebar-footer a:hover { color: #ef4444; }
+    .sidebar-footer a:hover { color: var(--danger); }
 
-    /* ── Overlay (mobile) ── */
+    /* Theme toggle */
+    .theme-toggle {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .4rem .6rem;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: .9rem;
+      transition: all .2s;
+    }
+    .theme-toggle:hover {
+      background: var(--surface-hover);
+      color: var(--text);
+    }
+
+    /* ── Overlay ── */
     .sidebar-overlay {
       display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,.6); z-index: 199;
+      background: rgba(0,0,0,.5); z-index: 199;
     }
     .sidebar-overlay.show { display: block; }
 
@@ -98,25 +167,25 @@
     }
     .topbar {
       background: var(--surface); border-bottom: 1px solid var(--border);
-      padding: .7rem 1.5rem;
+      padding: .65rem 1.5rem;
       display: flex; align-items: center; justify-content: space-between;
       position: sticky; top: 0; z-index: 100;
       gap: .75rem;
     }
     .topbar-left { display: flex; align-items: center; gap: .75rem; }
-    .topbar-title { font-size: .95rem; font-weight: 600; color: #fff; }
+    .topbar-title { font-size: 1rem; font-weight: 600; color: var(--text); }
     .hamburger {
       display: none; background: none; border: none;
-      color: var(--muted); font-size: 1.2rem; padding: .2rem .4rem;
+      color: var(--muted); font-size: 1.3rem; padding: .3rem .5rem;
       cursor: pointer; border-radius: 6px;
     }
-    .hamburger:hover { color: #fff; background: rgba(255,255,255,.06); }
+    .hamburger:hover { color: var(--text); background: var(--surface-hover); }
     .page-content { padding: 1.5rem; flex: 1; }
 
     /* ── Cards ── */
     .card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 14px;
+      background: var(--card-bg); border: 1px solid var(--border);
+      border-radius: 14px; box-shadow: none;
     }
     .card-header {
       background: transparent; border-bottom: 1px solid var(--border);
@@ -126,41 +195,42 @@
 
     /* ── Stat cards ── */
     .stat-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 14px; padding: 1.1rem 1.25rem;
-      display: flex; align-items: center; gap: .9rem;
-      transition: border-color .2s, transform .2s;
+      background: var(--card-bg); border: 1px solid var(--border);
+      border-radius: 14px; padding: 1.1rem 1.2rem;
+      display: flex; align-items: center; gap: .85rem;
+      transition: all .2s;
     }
-    .stat-card:hover { border-color: rgba(108,99,255,.3); transform: translateY(-1px); }
+    .stat-card:hover { border-color: var(--accent); transform: translateY(-2px); }
     .stat-icon {
-      width: 46px; height: 46px; border-radius: 11px;
+      width: 48px; height: 48px; border-radius: 12px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.3rem; flex-shrink: 0;
+      font-size: 1.35rem; flex-shrink: 0;
     }
-    .stat-value { font-size: 1.55rem; font-weight: 700; line-height: 1; color: #fff; }
+    .stat-value { font-size: 1.65rem; font-weight: 700; line-height: 1; color: var(--text); }
     .stat-label { font-size: .72rem; color: var(--muted); margin-top: .2rem; }
     .stat-trend { font-size: .7rem; margin-top: .25rem; }
 
     /* ── Tables ── */
     .table { color: var(--text); }
     .table thead th {
-      font-size: .67rem; font-weight: 700; letter-spacing: .9px;
+      font-size: .65rem; font-weight: 700; letter-spacing: .8px;
       text-transform: uppercase; color: var(--muted);
-      border-color: var(--border); padding: .65rem 1rem;
+      border-color: var(--border); padding: .6rem 1rem;
       white-space: nowrap;
+      background: var(--surface);
     }
     .table td {
-      border-color: rgba(255,255,255,.04);
+      border-color: var(--border);
       padding: .65rem 1rem; vertical-align: middle; font-size: .83rem;
     }
-    .table tbody tr:hover { background: rgba(255,255,255,.025); }
+    .table tbody tr:hover { background: var(--surface-hover); }
 
     /* ── Badges ── */
-    .badge-active   { background: rgba(34,197,94,.15);  color: #22c55e; }
-    .badge-expired  { background: rgba(239,68,68,.15);  color: #ef4444; }
-    .badge-pending  { background: rgba(234,179,8,.15);  color: #eab308; }
-    .badge-open     { background: rgba(59,130,246,.15); color: #3b82f6; }
-    .badge-closed   { background: rgba(107,114,128,.15);color: #6b7280; }
+    .badge-active   { background: rgba(34,197,94,.15);  color: var(--success); }
+    .badge-expired  { background: rgba(239,68,68,.15);  color: var(--danger); }
+    .badge-pending  { background: rgba(234,179,8,.15);  color: var(--warning); }
+    .badge-open     { background: rgba(59,130,246,.15); color: var(--info); }
+    .badge-closed   { background: rgba(107,114,128,.15);color: var(--muted); }
     .badge-custom {
       padding: .22rem .55rem; border-radius: 6px;
       font-size: .67rem; font-weight: 700; letter-spacing: .3px;
@@ -170,22 +240,28 @@
     .btn-accent {
       background: var(--accent); border: none; color: #fff;
       font-size: .78rem; font-weight: 600;
-      transition: background .15s, transform .1s;
+      transition: all .15s;
     }
     .btn-accent:hover { background: var(--accent2); color: #fff; transform: translateY(-1px); }
-    .btn-accent:active { transform: translateY(0); }
+    
+    .btn-outline {
+      background: transparent; border: 1px solid var(--border); color: var(--text);
+    }
+    .btn-outline:hover {
+      background: var(--surface-hover); border-color: var(--border-light); color: var(--text);
+    }
 
     /* ── Forms ── */
     .form-control, .form-select {
-      background: rgba(255,255,255,.04); border-color: var(--border);
+      background: var(--input-bg); border-color: var(--border);
       color: var(--text); font-size: .83rem;
     }
     .form-control:focus, .form-select:focus {
-      background: rgba(255,255,255,.06); border-color: var(--accent);
-      color: #fff; box-shadow: 0 0 0 3px rgba(108,99,255,.18);
+      background: var(--input-bg); border-color: var(--accent);
+      color: var(--text); box-shadow: 0 0 0 3px rgba(99,102,241,.15);
     }
     .form-control::placeholder { color: var(--muted); }
-    .form-label { font-size: .77rem; color: var(--muted); font-weight: 500; margin-bottom: .35rem; }
+    .form-label { font-size: .75rem; color: var(--muted); font-weight: 500; margin-bottom: .35rem; }
 
     /* ── Toast ── */
     #toast-container { position: fixed; bottom: 1.25rem; right: 1.25rem; z-index: 9999; max-width: 320px; }
@@ -193,20 +269,19 @@
       background: var(--surface2); border: 1px solid var(--border);
       border-radius: 10px; padding: .7rem 1rem;
       display: flex; align-items: center; gap: .6rem;
-      font-size: .82rem; color: #fff; margin-top: .4rem;
+      font-size: .82rem; color: var(--text); margin-top: .4rem;
       animation: slideIn .2s ease;
-      box-shadow: 0 8px 24px rgba(0,0,0,.4);
+      box-shadow: 0 8px 24px rgba(0,0,0,.25);
     }
-    @keyframes slideIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ── Progress bars ── */
+    .progress { background: var(--surface2); border-radius: 6px; height: 8px; }
+    .progress-bar { background: var(--accent); }
 
     /* ── Scrollbar ── */
-    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 4px; }
-
-    /* ── HTMX ── */
-    .htmx-indicator { display: none; }
-    .htmx-request .htmx-indicator { display: inline-block; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
 
     /* ── Responsive ── */
     @media (max-width: 768px) {
@@ -216,13 +291,19 @@
       .hamburger { display: flex; align-items: center; }
       .page-content { padding: 1rem .75rem; }
       .topbar { padding: .6rem 1rem; }
-      .stat-value { font-size: 1.3rem; }
-      .stat-icon { width: 40px; height: 40px; font-size: 1.1rem; }
+      .stat-value { font-size: 1.35rem; }
+      .stat-icon { width: 42px; height: 42px; font-size: 1.15rem; }
     }
     @media (max-width: 480px) {
       .page-content { padding: .75rem .5rem; }
       .card { border-radius: 10px; }
     }
+    
+    /* Animations */
+    @keyframes slideIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    
+    .fade-in { animation: fadeIn .3s ease; }
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -234,7 +315,8 @@
 <!-- Sidebar -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
-    <span style="color:#fff">{{ app_name | default('VPN') | truncate(16, true, '') }}</span>
+    <span class="logo-icon"><i class="bi bi-shield-lock-fill"></i></span>
+    <span style="color:var(--text)">{{ app_name | default('VPN') | truncate(16, true, '') }}</span>
     <button class="hamburger ms-auto d-md-none" onclick="closeSidebar()" style="display:flex">
       <i class="bi bi-x-lg"></i>
     </button>
@@ -294,7 +376,7 @@
     </div>
     <div class="nav-item">
       <a href="/panel/referrals" class="{% if active == 'referrals' %}active{% endif %}">
-        <i class="bi bi-diagram-3-fill"></i> Рефералка
+        <i class="bi bi-diagram-3-fill"></i> Рефералы
       </a>
     </div>
     <div class="nav-item">
@@ -324,7 +406,7 @@
     {% endif %}
     <div class="nav-item">
       <a href="/panel/backup" class="{% if active == 'backup' %}active{% endif %}">
-        <i class="bi bi-database-fill-down"></i> Резервная копия
+        <i class="bi bi-database-fill-down"></i> Резерв. копия
       </a>
     </div>
     <div class="nav-item">
@@ -335,12 +417,15 @@
   </nav>
 
   <div class="sidebar-footer">
-    <div style="font-size:.65rem;color:#4a5568;margin-bottom:.5rem;text-align:center">
-      v{{ app_version | default('1.0.0') }} · {{ app_name | default('VPN Panel') }}
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <button class="theme-toggle" onclick="toggleTheme()" title="Сменить тему">
+        <i class="bi bi-cloud-sun-fill" id="themeIcon"></i>
+      </button>
+      <span style="font-size:.65rem;color:var(--muted)">v{{ app_version | default('1.0') }}</span>
+      <a href="/panel/logout" title="Выйти">
+        <i class="bi bi-box-arrow-left"></i>
+      </a>
     </div>
-    <a href="/panel/logout">
-      <i class="bi bi-box-arrow-left"></i> Выйти
-    </a>
   </div>
 </aside>
 
@@ -353,15 +438,15 @@
       </button>
       <span class="topbar-title">{% block page_title %}{% endblock %}</span>
     </div>
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-3">
+      <span style="font-size:.8rem;color:var(--muted)">
+        <i class="bi bi-clock me-1"></i>{{ current_time | default('12:00') }}
+      </span>
       {% if open_tickets is defined and open_tickets %}
-      <a href="/panel/support" class="text-decoration-none" style="font-size:.75rem;color:#ef4444">
+      <a href="/panel/support" class="text-decoration-none" style="font-size:.75rem;color:var(--danger)">
         <i class="bi bi-bell-fill me-1"></i>{{ open_tickets }}
       </a>
       {% endif %}
-      <span class="badge badge-custom badge-active" style="font-size:.65rem">
-        <i class="bi bi-circle-fill me-1" style="font-size:.45rem"></i>Online
-      </span>
     </div>
   </header>
 
@@ -376,6 +461,36 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js"></script>
 <script>
+  // Theme handling
+  function getTheme() {
+    return document.documentElement.getAttribute('data-bs-theme');
+  }
+  
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-bs-theme', theme);
+    localStorage.setItem('theme', theme);
+    updateThemeIcon();
+  }
+  
+  function toggleTheme() {
+    const current = getTheme();
+    setTheme(current === 'dark' ? 'light' : 'dark');
+  }
+  
+  function updateThemeIcon() {
+    const icon = document.getElementById('themeIcon');
+    if (icon) {
+      icon.className = getTheme() === 'dark' ? 'bi bi-moon-stars-fill' : 'bi bi-sun-fill';
+    }
+  }
+  
+  // Load saved theme
+  (function() {
+    const saved = localStorage.getItem('theme');
+    if (saved) setTheme(saved);
+    else updateThemeIcon();
+  })();
+
   function openSidebar() {
     document.getElementById('sidebar').classList.add('open');
     document.getElementById('sidebarOverlay').classList.add('show');
@@ -388,11 +503,11 @@
   function showToast(msg, type = 'success') {
     const id = 'toast-' + Date.now();
     const icon = type === 'success' ? 'check-circle-fill' : type === 'error' ? 'x-circle-fill' : 'info-circle-fill';
-    const color = type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : '#3b82f6';
+    const color = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--danger)' : 'var(--info)';
     const el = document.createElement('div');
     el.id = id;
     el.className = 'vpn-toast';
-    el.innerHTML = `<i class="bi bi-${icon}" style="color:${color};font-size:1rem;flex-shrink:0"></i><span style="flex:1">${msg}</span><button onclick="document.getElementById('${id}').remove()" style="background:none;border:none;color:#7a849a;cursor:pointer;padding:0;font-size:.9rem"><i class="bi bi-x"></i></button>`;
+    el.innerHTML = `<i class="bi bi-${icon}" style="color:${color};font-size:1rem;flex-shrink:0"></i><span style="flex:1">${msg}</span><button onclick="document.getElementById('${id}').remove()" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0;font-size:.9rem"><i class="bi bi-x"></i></button>`;
     document.getElementById('toast-container').appendChild(el);
     setTimeout(() => el?.remove(), 4000);
   }

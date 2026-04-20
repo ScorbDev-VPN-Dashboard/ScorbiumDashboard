@@ -16,7 +16,6 @@ class FreeKassaService:
     API_URL = "https://api.fk.life/v1"
     PAY_URL = "https://pay.fk.money/"
 
-    # Разрешённые IP для webhook-уведомлений
     ALLOWED_IPS = {"168.119.157.136", "168.119.60.227", "178.154.197.79", "51.250.54.238"}
 
     def __init__(self, shop_id: str, api_key: str, secret_word_1: str = "", secret_word_2: str = "") -> None:
@@ -136,7 +135,7 @@ class FreeKassaService:
         payment_id: str,
         amount: float,
         currency: str = "RUB",
-        currency_id: int = 36,  # Card RUB API
+        currency_id: int = 36,
         email: str = "user@vpn.bot",
         ip: str = "127.0.0.1",
         notification_url: str = "",
@@ -176,151 +175,3 @@ class FreeKassaService:
         secret1 = (settings.get("freekassa_secret_word_1") or "").strip()
         secret2 = (settings.get("freekassa_secret_word_2") or "").strip()
         return FreeKassaService(shop_id, api_key, secret1, secret2)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-import asyncio
-import sys
-
-async def test_freekassa_payment():
-    """
-    Тестовая функция для проверки создания заказа в FreeKassa
-    """
-    # Настройки - замените на свои реальные данные из кабинета FreeKassa
-    SETTINGS = {
-        "freekassa_shop_id": "72218",      # Замените на ваш shop_id
-        "freekassa_api_key": "b4d6aec713d8a6af7630be5f68ba62f2",       # Замените на ваш API ключ
-        "freekassa_secret_word_1": "(qC-s^*?Ho380}H", # Замените на secret word 1
-        "freekassa_secret_word_2": "[{RxfxpcaEx]OdL", # Замените на secret word 2
-    }
-    
-    # Инициализация сервиса
-    service = FreeKassaService.from_settings(SETTINGS)
-    if not service:
-        print("❌ Ошибка: Не удалось инициализировать FreeKassaService")
-        print("   Проверьте настройки: shop_id и api_key обязательны")
-        return
-    
-    print("✅ FreeKassaService инициализирован")
-    print(f"   Shop ID: {service._shop_id}")
-    print(f"   API Key: {service._api_key[:5]}...{service._api_key[-5:]}")
-    print()
-    
-    # Тест 1: Проверка баланса (проверяет правильность API ключа)
-    print("🔍 Тест 1: Проверка соединения через get_balance()")
-    balance_result = await service.get_balance()
-    
-    if balance_result:
-        if balance_result.get("type") == "error":
-            print(f"❌ Ошибка баланса: {balance_result.get('message')}")
-            print(f"   Данные: {balance_result.get('data')}")
-        else:
-            print(f"✅ Баланс успешно получен: {balance_result}")
-    else:
-        print("❌ Не удалось получить баланс (пустой ответ)")
-    
-    print("\n" + "="*50 + "\n")
-    
-    # Тест 2: Создание заказа через API
-    print("🔍 Тест 2: Создание заказа через API")
-    
-    # Тестовые данные
-    test_order_id = f"test_{int(asyncio.get_event_loop().time())}"
-    test_amount = 100.00
-    test_email = "test@example.com"
-    test_ip = "127.0.0.1"
-    
-    # URL для уведомлений (замените на свои, если есть)
-    notification_url = "https://your-domain.com/webhook/freekassa"
-    success_url = "https://your-domain.com/payment/success"
-    failure_url = "https://your-domain.com/payment/failure"
-    
-    print(f"   Order ID: {test_order_id}")
-    print(f"   Amount: {test_amount} RUB")
-    print(f"   Email: {test_email}")
-    print(f"   IP: {test_ip}")
-    print()
-    
-    # Создаем заказ
-    order_result = await service.create_order(
-        payment_id=test_order_id,
-        amount=test_amount,
-        currency="RUB",
-        currency_id=36,  # 36 = RUB через карту
-        email=test_email,
-        ip=test_ip,
-        notification_url=notification_url,
-        success_url=success_url,
-        failure_url=failure_url,
-    )
-    
-    if order_result:
-        if order_result.get("type") == "error":
-            print(f"❌ Ошибка создания заказа: {order_result.get('message')}")
-            print(f"   Данные: {order_result.get('data')}")
-        else:
-            print("✅ Заказ успешно создан!")
-            print(f"   Order ID в системе: {order_result.get('orderId')}")
-            print(f"   Order Hash: {order_result.get('orderHash')}")
-            print(f"\n💰 ССЫЛКА ДЛЯ ОПЛАТЫ: {order_result.get('location')}")
-            print("\n" + "="*50)
-            print("📝 ИНСТРУКЦИЯ:")
-            print("   1. Откройте ссылку выше в браузере")
-            print("   2. Оплатите заказ")
-            print("   3. После оплаты FreeKassa отправит уведомление на ваш webhook")
-            print("="*50)
-            
-            # Дополнительно: проверяем статус заказа
-            print("\n🔍 Тест 3: Проверка статуса заказа")
-            check_result = await service.get_orders(test_order_id)
-            if check_result:
-                print(f"   Статус заказа: {check_result}")
-            else:
-                print("   ❌ Не удалось проверить статус")
-    else:
-        print("❌ Не удалось создать заказ (пустой ответ)")
-    
-    print("\n" + "="*50)
-    print("🔗 Альтернативный метод (прямая форма оплаты):")
-    payment_url = service.create_payment_url(
-        order_id=test_order_id,
-        amount=test_amount,
-        currency="RUB",
-        email=test_email,
-        lang="ru"
-    )
-    print(f"   {payment_url}")
-
-def main():
-    """Запуск теста"""
-    print("="*60)
-    print("🚀 ТЕСТИРОВАНИЕ FREEKASSA API")
-    print("="*60)
-    print("\n⚠️  ВНИМАНИЕ: Замените настройки в коде на реальные данные!")
-    print("   - shop_id: из кабинета FreeKassa")
-    print("   - api_key: из раздела API")
-    print("   - secret_word_1 и secret_word_2: из настроек магазина")
-    print("\n" + "="*60 + "\n")
-    
-    response = input("Вы заменили настройки? (y/N): ")
-    if response.lower() != 'y':
-        print("\n❌ Пожалуйста, замените настройки в переменной SETTINGS")
-        print("   Затем запустите скрипт снова")
-        sys.exit(1)
-    
-    asyncio.run(test_freekassa_payment())
-
-if __name__ == "__main__":
-    main()

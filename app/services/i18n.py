@@ -7,14 +7,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "welcome": "👋 Привет, {name}!\n\nЭто VPN-бот. Выбери действие:",
         "welcome_back": "С возвращением, {name}!",
         "main_menu": "Главное меню:",
-
         # Кнопки меню
         "btn_my_keys": "🔑 Мои подписки",
         "btn_buy": "💳 Купить подписку",
         "btn_support": "💬 Поддержка",
         "btn_balance": "💰 Баланс",
         "btn_promo": "🎁 Промокод",
-
         # Покупка
         "choose_plan": "💳 <b>Выбери план подписки:</b>",
         "no_plans": "😔 Нет доступных тарифов. Попробуй позже.",
@@ -25,7 +23,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "pay_crypto": "₿ Криптовалюта (CryptoBot)",
         "pay_balance": "💰 Баланс ({balance:.0f} ₽)",
         "pay_back": "◀️ Назад",
-
         # Оплата
         "payment_success": "✅ Оплата прошла успешно!",
         "payment_pending": "⏳ Оплата ещё не поступила. Попробуйте позже.",
@@ -35,7 +32,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "payment_go": "💳 Перейти к оплате",
         "subscription_url": "🔑 <b>Ссылка подписки:</b>\n<code>{url}</code>\n\n📅 Действует <b>{days} дней</b>\n\n💡 Скопируй ссылку и вставь в VPN-клиент",
         "key_error": "⚠️ Не удалось создать ключ. Обратитесь в поддержку.",
-
         # Подписки
         "my_keys_title": "📦 <b>Мои подписки</b>",
         "no_keys": "📦 У тебя пока нет подписок.\n\nКупи подписку, чтобы получить VPN-доступ.",
@@ -47,25 +43,21 @@ STRINGS: dict[str, dict[str, str]] = {
         "archive_empty": "Архив пуст",
         "back_main": "◀️ Главное меню",
         "back": "◀️ Назад",
-
         # Статусы
         "status_active": "✅ Активна",
         "status_expired": "⏰ Истекла",
         "status_revoked": "❌ Отозвана",
-
         # Баланс
         "balance_title": "💰 <b>Ваш баланс:</b> <b>{balance:.2f} ₽</b>",
         "referrals_count": "👥 <b>Рефералов:</b> {count}",
         "referral_bonus": "🎁 <b>Бонус за реферала:</b> {bonus}",
         "referral_link": "🔗 <b>Ваша реферальная ссылка:</b>\n<code>{link}</code>",
-
         # Промокод
         "enter_promo": "🎁 Введите промокод:",
         "promo_balance": "✅ Промокод применён!\n\n💰 На баланс зачислено <b>{value} ₽</b>",
         "promo_days": "✅ Промокод применён!\n\n📅 Добавлено <b>{value} дней</b> к подписке",
         "promo_discount": "✅ Промокод применён!\n\n🏷 Скидка <b>{value}%</b> на следующую покупку",
         "promo_invalid": "❌ Промокод недействителен или уже использован",
-
         # Поддержка
         "support_title": "💬 <b>Поддержка</b>",
         "support_no_tickets": "У вас нет обращений. Создайте новый тикет.",
@@ -79,7 +71,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "ticket_not_found": "❌ Тикет не найден.",
         "write_reply": "✏️ Написать ответ",
         "close_ticket": "🔒 Закрыть тикет",
-
         # Системные
         "banned": "🚫 Ваш аккаунт заблокирован. Обратитесь в поддержку.",
         "bot_disabled": "🔧 Бот временно отключён. Попробуйте позже.",
@@ -88,7 +79,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "subscribed_btn": "✅ Я подписался",
         "not_subscribed": "❌ Вы ещё не подписались на канал.",
         "too_fast": "⏳ Слишком много запросов. Подождите немного.",
-
         # Профиль
         "profile_title": "👤 <b>Мой профиль</b>",
         "profile_id": "🆔 ID: <code>{id}</code>",
@@ -105,20 +95,17 @@ STRINGS: dict[str, dict[str, str]] = {
         "profile_expiry_warn": "⚠️ Ближайшее истечение: <b>{date}</b> (через {days} дн.)",
         "profile_expiry": "📅 Ближайшее истечение: <b>{date}</b>",
     },
-
     "en": {
         # Main menu
         "welcome": "👋 Hello, {name}!\n\nThis is a VPN bot. Choose an action:",
         "welcome_back": "Welcome back, {name}!",
         "main_menu": "Main menu:",
-
         # Menu buttons
         "btn_my_keys": "🔑 My subscriptions",
         "btn_buy": "💳 Buy subscription",
         "btn_support": "💬 Support",
         "btn_balance": "💰 Balance",
         "btn_promo": "🎁 Promo code",
-
         # Purchase
         "choose_plan": "💳 <b>Choose a subscription plan:</b>",
         "no_plans": "😔 No plans available. Try again later.",
@@ -129,7 +116,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "pay_crypto": "₿ Cryptocurrency (CryptoBot)",
         "pay_balance": "💰 Balance ({balance:.0f} ₽)",
         "pay_back": "◀️ Back",
-
         # Payment
         "payment_success": "✅ Payment successful!",
         "payment_pending": "⏳ Payment not received yet. Try again later.",
@@ -139,7 +125,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "payment_go": "💳 Go to payment",
         "subscription_url": "🔑 <b>Subscription link:</b>\n<code>{url}</code>\n\n📅 Valid for <b>{days} days</b>\n\n💡 Copy the link and paste it into your VPN client",
         "key_error": "⚠️ Failed to create key. Contact support.",
-
         # Subscriptions
         "my_keys_title": "📦 <b>My subscriptions</b>",
         "no_keys": "📦 You have no subscriptions yet.\n\nBuy a subscription to get VPN access.",
@@ -151,25 +136,21 @@ STRINGS: dict[str, dict[str, str]] = {
         "archive_empty": "Archive is empty",
         "back_main": "◀️ Main menu",
         "back": "◀️ Back",
-
         # Statuses
         "status_active": "✅ Active",
         "status_expired": "⏰ Expired",
         "status_revoked": "❌ Revoked",
-
         # Balance
         "balance_title": "💰 <b>Your balance:</b> <b>{balance:.2f} ₽</b>",
         "referrals_count": "👥 <b>Referrals:</b> {count}",
         "referral_bonus": "🎁 <b>Referral bonus:</b> {bonus}",
         "referral_link": "🔗 <b>Your referral link:</b>\n<code>{link}</code>",
-
         # Promo
         "enter_promo": "🎁 Enter promo code:",
         "promo_balance": "✅ Promo applied!\n\n💰 <b>{value} ₽</b> added to balance",
         "promo_days": "✅ Promo applied!\n\n📅 <b>{value} days</b> added to subscription",
         "promo_discount": "✅ Promo applied!\n\n🏷 <b>{value}%</b> discount on next purchase",
         "promo_invalid": "❌ Invalid or already used promo code",
-
         # Support
         "support_title": "💬 <b>Support</b>",
         "support_no_tickets": "You have no tickets. Create a new one.",
@@ -183,7 +164,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "ticket_not_found": "❌ Ticket not found.",
         "write_reply": "✏️ Write reply",
         "close_ticket": "🔒 Close ticket",
-
         # System
         "banned": "🚫 Your account is banned. Contact support.",
         "bot_disabled": "🔧 Bot is temporarily disabled. Try again later.",
@@ -192,7 +172,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "subscribed_btn": "✅ I subscribed",
         "not_subscribed": "❌ You haven't subscribed to the channel yet.",
         "too_fast": "⏳ Too many requests. Please wait.",
-
         # Profile
         "profile_title": "👤 <b>My Profile</b>",
         "profile_id": "🆔 ID: <code>{id}</code>",
@@ -233,20 +212,17 @@ STRINGS: dict[str, dict[str, str]] = {
         "btn_my_subs": "🔑 My subscriptions",
         "btn_all_subs": "📦 All subscriptions",
     },
-
     "fa": {
         # منوی اصلی
         "welcome": "👋 سلام، {name}!\n\nاین یک ربات VPN است. یک گزینه انتخاب کنید:",
         "welcome_back": "خوش برگشتی، {name}!",
         "main_menu": "منوی اصلی:",
-
         # دکمه‌های منو
         "btn_my_keys": "🔑 اشتراک‌های من",
         "btn_buy": "💳 خرید اشتراک",
         "btn_support": "💬 پشتیبانی",
         "btn_balance": "💰 موجودی",
         "btn_promo": "🎁 کد تخفیف",
-
         # خرید
         "choose_plan": "💳 <b>یک طرح اشتراک انتخاب کنید:</b>",
         "no_plans": "😔 هیچ طرحی موجود نیست. بعداً دوباره امتحان کنید.",
@@ -257,7 +233,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "pay_crypto": "₿ ارز دیجیتال (CryptoBot)",
         "pay_balance": "💰 موجودی ({balance:.0f} ₽)",
         "pay_back": "◀️ بازگشت",
-
         # پرداخت
         "payment_success": "✅ پرداخت موفق بود!",
         "payment_pending": "⏳ پرداخت هنوز دریافت نشده. بعداً دوباره امتحان کنید.",
@@ -267,7 +242,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "payment_go": "💳 رفتن به پرداخت",
         "subscription_url": "🔑 <b>لینک اشتراک:</b>\n<code>{url}</code>\n\n📅 معتبر برای <b>{days} روز</b>\n\n💡 لینک را کپی کرده و در کلاینت VPN وارد کنید",
         "key_error": "⚠️ ایجاد کلید ناموفق بود. با پشتیبانی تماس بگیرید.",
-
         # اشتراک‌ها
         "my_keys_title": "📦 <b>اشتراک‌های من</b>",
         "no_keys": "📦 هنوز اشتراکی ندارید.\n\nبرای دسترسی به VPN اشتراک بخرید.",
@@ -279,25 +253,21 @@ STRINGS: dict[str, dict[str, str]] = {
         "archive_empty": "آرشیو خالی است",
         "back_main": "◀️ منوی اصلی",
         "back": "◀️ بازگشت",
-
         # وضعیت‌ها
         "status_active": "✅ فعال",
         "status_expired": "⏰ منقضی شده",
         "status_revoked": "❌ لغو شده",
-
         # موجودی
         "balance_title": "💰 <b>موجودی شما:</b> <b>{balance:.2f} ₽</b>",
         "referrals_count": "👥 <b>معرفی‌ها:</b> {count}",
         "referral_bonus": "🎁 <b>پاداش معرفی:</b> {bonus}",
         "referral_link": "🔗 <b>لینک معرفی شما:</b>\n<code>{link}</code>",
-
         # کد تخفیف
         "enter_promo": "🎁 کد تخفیف را وارد کنید:",
         "promo_balance": "✅ کد تخفیف اعمال شد!\n\n💰 <b>{value} ₽</b> به موجودی اضافه شد",
         "promo_days": "✅ کد تخفیف اعمال شد!\n\n📅 <b>{value} روز</b> به اشتراک اضافه شد",
         "promo_discount": "✅ کد تخفیف اعمال شد!\n\n🏷 تخفیف <b>{value}%</b> برای خرید بعدی",
         "promo_invalid": "❌ کد تخفیف نامعتبر یا قبلاً استفاده شده",
-
         # پشتیبانی
         "support_title": "💬 <b>پشتیبانی</b>",
         "support_no_tickets": "هیچ تیکتی ندارید. یک تیکت جدید ایجاد کنید.",
@@ -311,7 +281,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "ticket_not_found": "❌ تیکت پیدا نشد.",
         "write_reply": "✏️ نوشتن پاسخ",
         "close_ticket": "🔒 بستن تیکت",
-
         # سیستم
         "banned": "🚫 حساب شما مسدود شده. با پشتیبانی تماس بگیرید.",
         "bot_disabled": "🔧 ربات موقتاً غیرفعال است. بعداً دوباره امتحان کنید.",
@@ -320,7 +289,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "subscribed_btn": "✅ عضو شدم",
         "not_subscribed": "❌ هنوز در کانال عضو نشده‌اید.",
         "too_fast": "⏳ درخواست‌های زیادی. لطفاً صبر کنید.",
-
         # پروفایل
         "profile_title": "👤 <b>پروفایل من</b>",
         "profile_id": "🆔 شناسه: <code>{id}</code>",
@@ -364,47 +332,49 @@ STRINGS: dict[str, dict[str, str]] = {
 }
 
 
-STRINGS["ru"].update({
-    "choose_language": "🌐 Выберите язык:",
-    "language_set": "✅ Язык изменён на русский",
-    "btn_language": "🌐 Язык",
-    # my_keys
-    "no_keys_buy": "😔 Нет активных подписок",
-    "key_detail_status": "📊 Статус:",
-    "key_detail_expires": "📅 Действует до:",
-    "key_detail_price": "💰 Стоимость:",
-    "key_detail_link": "🔑 <b>Ссылка подписки:</b>",
-    "key_detail_hint": "💡 Скопируй и вставь в VPN-клиент",
-    "key_detail_no_url": "⚠️ Ссылка недоступна.",
-    "btn_how_connect": "📲 Как подключить?",
-    "btn_about": "ℹ️ О проекте",
-    "btn_connect": "📲 Как подключить",
-    "btn_buy_sub": "💳 Купить подписку",
-    "connect_title": "📲 <b>Как подключить VPN?</b>\n\nВыбери своё устройство:",
-    "connect_not_found": "Инструкция не найдена",
-    "archive_empty_alert": "Архив пуст",
-    "sub_not_found": "Подписка не найдена",
-    # profile
-    "profile_not_found": "❌ Профиль не найден.",
-    "btn_my_subs": "🔑 Мои подписки",
-    "btn_all_subs": "📦 Все подписки",
-    # topup balance
-    "topup_title": "💳 <b>Пополнение баланса</b>\n\nВыберите сумму или введите свою:",
-    "topup_custom": "✏️ Ввести сумму",
-    "topup_enter_amount": "💰 Введите сумму пополнения (₽):\n\nМинимум: 50 ₽",
-    "topup_invalid_amount": "❌ Неверная сумма. Введите число от 50 до 100000:",
-    "topup_success": "✅ Баланс пополнен на <b>{amount} ₽</b>\n\nТекущий баланс: <b>{balance:.2f} ₽</b>",
-    "topup_error": "❌ Ошибка при создании платежа. Попробуйте позже.",
-    "topup_check": "🔄 Проверить пополнение",
-    "topup_go": "💳 Перейти к оплате",
-    "autorenew_on": "🔄 Автосписание: <b>включено</b>",
-    "autorenew_off": "🔄 Автосписание: <b>выключено</b>",
-    "autorenew_enabled": "✅ Автосписание включено.\n\nПри истечении подписки сумма будет автоматически списана с баланса.",
-    "autorenew_disabled": "❌ Автосписание выключено.",
-    "btn_topup": "💳 Пополнить баланс",
-    "btn_autorenew_on": "🔄 Вкл. автосписание",
-    "btn_autorenew_off": "⏸ Выкл. автосписание",
-})
+STRINGS["ru"].update(
+    {
+        "choose_language": "🌐 Выберите язык:",
+        "language_set": "✅ Язык изменён на русский",
+        "btn_language": "🌐 Язык",
+        # my_keys
+        "no_keys_buy": "😔 Нет активных подписок",
+        "key_detail_status": "📊 Статус:",
+        "key_detail_expires": "📅 Действует до:",
+        "key_detail_price": "💰 Стоимость:",
+        "key_detail_link": "🔑 <b>Ссылка подписки:</b>",
+        "key_detail_hint": "💡 Скопируй и вставь в VPN-клиент",
+        "key_detail_no_url": "⚠️ Ссылка недоступна.",
+        "btn_how_connect": "📲 Как подключить?",
+        "btn_about": "ℹ️ О проекте",
+        "btn_connect": "📲 Как подключить",
+        "btn_buy_sub": "💳 Купить подписку",
+        "connect_title": "📲 <b>Как подключить VPN?</b>\n\nВыбери своё устройство:",
+        "connect_not_found": "Инструкция не найдена",
+        "archive_empty_alert": "Архив пуст",
+        "sub_not_found": "Подписка не найдена",
+        # profile
+        "profile_not_found": "❌ Профиль не найден.",
+        "btn_my_subs": "🔑 Мои подписки",
+        "btn_all_subs": "📦 Все подписки",
+        # topup balance
+        "topup_title": "💳 <b>Пополнение баланса</b>\n\nВыберите сумму или введите свою:",
+        "topup_custom": "✏️ Ввести сумму",
+        "topup_enter_amount": "💰 Введите сумму пополнения (₽):\n\nМинимум: 50 ₽",
+        "topup_invalid_amount": "❌ Неверная сумма. Введите число от 50 до 100000:",
+        "topup_success": "✅ Баланс пополнен на <b>{amount} ₽</b>\n\nТекущий баланс: <b>{balance:.2f} ₽</b>",
+        "topup_error": "❌ Ошибка при создании платежа. Попробуйте позже.",
+        "topup_check": "🔄 Проверить пополнение",
+        "topup_go": "💳 Перейти к оплате",
+        "autorenew_on": "🔄 Автосписание: <b>включено</b>",
+        "autorenew_off": "🔄 Автосписание: <b>выключено</b>",
+        "autorenew_enabled": "✅ Автосписание включено.\n\nПри истечении подписки сумма будет автоматически списана с баланса.",
+        "autorenew_disabled": "❌ Автосписание выключено.",
+        "btn_topup": "💳 Пополнить баланс",
+        "btn_autorenew_on": "🔄 Вкл. автосписание",
+        "btn_autorenew_off": "⏸ Выкл. автосписание",
+    }
+)
 
 
 def t(key: str, lang: str = "ru", **kwargs) -> str:
