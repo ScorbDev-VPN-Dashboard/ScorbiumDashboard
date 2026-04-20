@@ -67,6 +67,12 @@ class VpnKeyService:
 
     async def provision(self, user_id: int, plan: Plan) -> Optional[VpnKey]:
 
+        from app.services.bot_settings import BotSettingsService
+
+        async with AsyncSessionFactory() as check_session:
+            if await BotSettingsService(check_session).is_mute_all_enabled():
+                return None
+
         expires_at = datetime.now(timezone.utc) + timedelta(days=plan.duration_days)
         key = VpnKey(
             user_id=user_id,
