@@ -19,7 +19,9 @@ class ReferralService:
         )
         # Sum bonus_value where bonus_type = days
         bonus_sum = await self.session.execute(
-            select(func.sum(Referral.bonus_value)).where(Referral.bonus_type == ReferralBonusType.DAYS.value)
+            select(func.sum(Referral.bonus_value)).where(
+                Referral.bonus_type == ReferralBonusType.DAYS.value
+            )
         )
         return {
             "total_referrals": total.scalar_one(),
@@ -67,10 +69,11 @@ class ReferralService:
         # bonus_days kept for compat but ignored
         bonus_days: int = 0,
     ) -> Optional[Referral]:
-        existing = await self.session.execute(
-            select(Referral).where(Referral.referred_id == referred_id)
+        result = await self.session.execute(
+            select(Referral).where(Referral.referred_id == referred_id).limit(1)
         )
-        if existing.scalar_one_or_none():
+        existing = result.scalar_one_or_none()
+        if existing:
             return None
         ref = Referral(
             referrer_id=referrer_id,
@@ -83,12 +86,15 @@ class ReferralService:
         return ref
 
     async def pay_bonus(self, referral_id: int) -> Optional[Referral]:
-        result = await self.session.execute(select(Referral).where(Referral.id == referral_id))
+        result = await self.session.execute(
+            select(Referral).where(Referral.id == referral_id)
+        )
         ref = result.scalar_one_or_none()
         if not ref or ref.is_paid:
             return ref
 
         from app.services.user import UserService
+
         user_svc = UserService(self.session)
 
         bonus_type = ref.bonus_type or "days"
@@ -104,6 +110,7 @@ class ReferralService:
         elif bonus_type == ReferralBonusType.DAYS.value:
             from app.models.vpn_key import VpnKey, VpnKeyStatus
             from app.services.pasarguard.pasarguard import get_vpn_panel
+
             key_result = await self.session.execute(
                 select(VpnKey).where(
                     VpnKey.user_id == ref.referrer_id,
@@ -113,10 +120,13 @@ class ReferralService:
             key = key_result.scalar_one_or_none()
             if key and key.expires_at:
                 from datetime import timedelta
+
                 key.expires_at = key.expires_at + timedelta(days=int(bonus_value))
                 if key.pasarguard_key_id:
                     try:
-                        await get_vpn_panel().extend_user(key.pasarguard_key_id, int(bonus_value))
+                        await get_vpn_panel().extend_user(
+                            key.pasarguard_key_id, int(bonus_value)
+                        )
                     except Exception as e:
                         log.warning(f"Failed to extend VPN for referral bonus: {e}")
         elif bonus_type == ReferralBonusType.PERCENT.value:
@@ -129,6 +139,8 @@ class ReferralService:
 
     async def count_referrals(self, referrer_id: int) -> int:
         result = await self.session.execute(
-            select(func.count()).select_from(Referral).where(Referral.referrer_id == referrer_id)
+            select(func.count())
+            .select_from(Referral)
+            .where(Referral.referrer_id == referrer_id)
         )
         return result.scalar_one()

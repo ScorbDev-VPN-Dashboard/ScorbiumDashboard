@@ -20,8 +20,10 @@ from app.services.promo import PromoService
 from app.services.referral import ReferralService
 from app.services.broadcast import BroadcastService
 from app.services.plan import PlanService
-from app.models.payment import PaymentStatus
+from app.services.bot_settings import BotSettingsService
+from app.models.payment import PaymentStatus, PaymentType
 from app.utils.log import log
+from app.utils.html_utils import sanitize_search_query
 
 router = Router()
 
@@ -56,7 +58,7 @@ def _is_admin(user_id: int) -> bool:
     return user_id in config.telegram.telegram_admin_ids
 
 
-def admin_kb(panel_url: str = "") -> InlineKeyboardMarkup:
+def admin_kb(panel_url: str = "", mute_all: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(text="👥 Пользователи", callback_data="adm:users"),
@@ -77,6 +79,13 @@ def admin_kb(panel_url: str = "") -> InlineKeyboardMarkup:
     builder.row(
         InlineKeyboardButton(text="🌐 Группы VPN", callback_data="adm:groups"),
         InlineKeyboardButton(text="🔍 Поиск юзера", callback_data="adm:search"),
+    )
+    mute_icon = "🔴" if mute_all else "🟢"
+    builder.row(
+        InlineKeyboardButton(
+            text=f"{mute_icon} ⛔️ MUTE ALL", callback_data="adm:mute_all"
+        ),
+        InlineKeyboardButton(text="📊 Трафик", callback_data="adm:traffic"),
     )
     if panel_url:
         from aiogram.types import WebAppInfo
@@ -116,20 +125,29 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
         )
         new_today = new_today_r.scalar_one()
 
+        from sqlalchemy import cast, Numeric
+
         rev_today_r = await session.execute(
-            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+            select(
+                func.coalesce(func.sum(cast(Payment.amount, Numeric)), 0).label("total")
+            ).where(
                 Payment.status == PaymentStatus.SUCCEEDED.value,
-                Payment.payment_type == "subscription",
+                Payment.payment_type == PaymentType.SUBSCRIPTION.value,
                 Payment.created_at >= today,
             )
         )
-        rev_today = float(rev_today_r.scalar_one())
+        rev_today_val = rev_today_r.scalar_one()
+        rev_today = float(rev_today_val) if rev_today_val else 0.0
 
         from app.services.bot_settings import BotSettingsService
 
         panel_url = (await BotSettingsService(session).get("panel_url") or "").rstrip(
             "/"
         )
+<<<<<<< HEAD
+=======
+        mute_all = await BotSettingsService(session).is_mute_all_enabled()
+>>>>>>> test
 
     miniapp_url = ""
     if panel_url:
@@ -140,8 +158,10 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
         _miniapp_tokens[token] = _t.time() + 300
         miniapp_url = f"{panel_url}/panel/miniapp-login?token={token}"
 
+    mute_status = "🔴 <b>ВЫКЛ</b>" if mute_all else "🟢 <b>ВКЛ</b>"
     text = (
         f"👑 <b>Админ-панель</b>\n\n"
+        f"⛔️ Режим MUTE: {mute_status}\n\n"
         f"👥 Пользователей: <b>{total_users}</b> (+{new_today} сегодня)\n"
         f"✅ Активных подписок: <b>{active_subs}</b>\n"
         f"💬 Открытых тикетов: <b>{open_tickets}</b>\n"
@@ -149,7 +169,7 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
         f"💰 Выручка всего: <b>{revenue} ₽</b>\n"
         f"📈 Выручка сегодня: <b>{rev_today:.2f} ₽</b>"
     )
-    return text, admin_kb(panel_url=miniapp_url)
+    return text, admin_kb(panel_url=miniapp_url, mute_all=mute_all)
 
 
 async def _show_user_detail(callback: CallbackQuery, user_id: int) -> None:
@@ -394,23 +414,31 @@ async def admin_stats(callback: CallbackQuery) -> None:
         )
         new_week = new_week_r.scalar_one()
 
+        from sqlalchemy import cast, Numeric
+
         rev_today_r = await session.execute(
-            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+            select(
+                func.coalesce(func.sum(cast(Payment.amount, Numeric)), 0).label("total")
+            ).where(
                 Payment.status == PaymentStatus.SUCCEEDED.value,
-                Payment.payment_type == "subscription",
+                Payment.payment_type == PaymentType.SUBSCRIPTION.value,
                 Payment.created_at >= today,
             )
         )
-        rev_today = float(rev_today_r.scalar_one())
+        rev_today_val = rev_today_r.scalar_one()
+        rev_today = float(rev_today_val) if rev_today_val else 0.0
 
         rev_week_r = await session.execute(
-            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+            select(
+                func.coalesce(func.sum(cast(Payment.amount, Numeric)), 0).label("total")
+            ).where(
                 Payment.status == PaymentStatus.SUCCEEDED.value,
-                Payment.payment_type == "subscription",
+                Payment.payment_type == PaymentType.SUBSCRIPTION.value,
                 Payment.created_at >= week_ago,
             )
         )
-        rev_week = float(rev_week_r.scalar_one())
+        rev_week_val = rev_week_r.scalar_one()
+        rev_week = float(rev_week_val) if rev_week_val else 0.0
 
         expired_r = await session.execute(
             select(func.count())
@@ -440,6 +468,120 @@ async def admin_stats(callback: CallbackQuery) -> None:
         text, reply_markup=_back_admin_kb(), parse_mode="HTML"
     )
     await callback.answer()
+
+
+# ── Mute All ──────────────────────────────────────────────────────────────────
+
+
+@router.callback_query(F.data == "adm:mute_all")
+async def admin_mute_all(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        await callback.answer("⛔ Нет доступа", show_alert=True)
+        return
+
+    async with AsyncSessionFactory() as session:
+        settings = BotSettingsService(session)
+        current = await settings.is_mute_all_enabled()
+        await settings.set_mute_all(not current)
+        await session.commit()
+
+        status = "🔴 ВЫКЛЮЧЕН" if current else "🟢 ВКЛЮЧЕН"
+        await callback.answer(f"⛔️ MUTE ALL: {status}", show_alert=True)
+
+    text, kb = await _admin_main_text()
+    try:
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    except Exception:
+        await callback.message.answer(text, reply_markup=kb, parse_mode="HTML")
+    await callback.answer()
+
+
+# ── Traffic Analysis ────────────────────────────────────────────────────────
+
+
+@router.callback_query(F.data == "adm:traffic")
+async def admin_traffic(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        await callback.answer("⛔ Нет доступа", show_alert=True)
+        return
+    await callback.answer("📊 Анализ трафика...")
+
+    async with AsyncSessionFactory() as session:
+        settings = BotSettingsService(session)
+        threshold_gb = await settings.get_traffic_abuse_threshold()
+        speed_limit = await settings.get_traffic_abuse_speed_limit()
+
+    from app.services.bot_settings import create_traffic_analysis_service
+
+    service = await create_traffic_analysis_service()
+
+    data = await service.get_all_users_with_traffic()
+    users = data.get("users", [])
+
+    abusers = []
+    for u in users:
+        if u.get("total_gb", 0) >= threshold_gb:
+            abusers.append(u)
+
+    abusers.sort(key=lambda x: x.get("total_gb", 0), reverse=True)
+    top_abusers = abusers[:10]
+
+    lines = [f"📊 <b>Анализ трафика</b>\nПорог: {threshold_gb} ГБ\n\n"]
+    if not top_abusers:
+        lines.append("✅ Нарушителей не обнаружено")
+    else:
+        lines.append(f"⛔️ <b>Топ нарушителей:</b>\n")
+        for u in top_abusers:
+            gb = u.get("total_gb", 0)
+            username = u.get("username", "")
+            lines.append(f"  {username}: {gb:.1f} ГБ")
+
+    builder = InlineKeyboardBuilder()
+    for u in top_abusers[:5]:
+        username = u.get("username", "")
+        builder.row(
+            InlineKeyboardButton(
+                text=f"🔒 Ограничить {username[:15]}",
+                callback_data=f"adm:speed_limit:{username}",
+            )
+        )
+    builder.row(InlineKeyboardButton(text="🔄 Обновить", callback_data="adm:traffic"))
+    builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="adm:back"))
+
+    await callback.message.edit_text(
+        "\n".join(lines),
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:speed_limit:"))
+async def admin_speed_limit(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        await callback.answer("⛔ Нет доступа", show_alert=True)
+        return
+
+    username = callback.data.split(":")[2]
+
+    async with AsyncSessionFactory() as session:
+        settings = BotSettingsService(session)
+        speed_mbps = await settings.get_traffic_abuse_speed_limit()
+
+    from app.services.bot_settings import create_traffic_analysis_service
+
+    service = await create_traffic_analysis_service()
+
+    success = await service.apply_speed_limit(username, speed_mbps)
+
+    if success:
+        await callback.answer(
+            f"✅ Лимит {speed_mbps} Мбит/с для {username}", show_alert=True
+        )
+    else:
+        await callback.answer(f"❌ Ошибка ограничения {username}", show_alert=True)
+
+    await admin_traffic(callback)
 
 
 # ── Users ─────────────────────────────────────────────────────────────────────
@@ -559,15 +701,21 @@ async def admin_search_result(message: Message, state: FSMContext) -> None:
     await state.clear()
     query = message.text.strip().lstrip("@")
 
+    from app.utils.html_utils import sanitize_search_query
+
+    safe_query = sanitize_search_query(query, max_length=50)
+
     async with AsyncSessionFactory() as session:
         from sqlalchemy import select, or_
         from app.models.user import User
 
-        if query.isdigit():
-            result = await session.execute(select(User).where(User.id == int(query)))
+        if safe_query.isdigit():
+            result = await session.execute(
+                select(User).where(User.id == int(safe_query))
+            )
             users = list(result.scalars().all())
         else:
-            q = f"%{query.lower()}%"
+            q = f"%{safe_query.lower()}%"
             result = await session.execute(
                 select(User)
                 .where(

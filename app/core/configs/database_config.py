@@ -167,7 +167,6 @@ class _DatabaseConfig(BaseSettings):
 def get_database_config() -> _DatabaseConfig:
     return _DatabaseConfig()
 
-#[ ]: Переделать инициализацию конфигурации.
 try:
     database = get_database_config()
     log.success("✅ Database config initialized successfully")

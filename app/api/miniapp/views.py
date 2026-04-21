@@ -69,6 +69,7 @@ async def miniapp_index(request: Request, db: AsyncSession = Depends(get_db)):
     from app.core.config import config as _cfg
 
     settings = await BotSettingsService(db).get_all()
+    panel_url = (settings.get("panel_url") or "").rstrip("/")
     return templates.TemplateResponse(
         "index.html",
         {
@@ -77,6 +78,7 @@ async def miniapp_index(request: Request, db: AsyncSession = Depends(get_db)):
             "support_url": settings.get("support_url", ""),
             "about_text": settings.get("about_text", ""),
             "bot_language": settings.get("bot_language", "ru"),
+            "panel_url": panel_url,
         },
     )
 
@@ -108,6 +110,7 @@ async def miniapp_auth(request: Request, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     settings = await BotSettingsService(db).get_all()
+    is_admin = user_id in config.telegram.telegram_admin_ids
 
     return JSONResponse(
         {
@@ -118,8 +121,57 @@ async def miniapp_auth(request: Request, db: AsyncSession = Depends(get_db)):
                 "full_name": user.full_name,
                 "balance": float(user.balance or 0),
                 "referral_code": user.referral_code,
+                "is_admin": is_admin,
             },
             "lang": settings.get("bot_language", "ru"),
+        }
+    )
+
+
+@router.get("/admin/stats")
+async def admin_stats(request: Request, db: AsyncSession = Depends(get_db)):
+    """Get admin statistics."""
+    tg_user = await _get_tg_user(request)
+    if not tg_user:
+        return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
+
+    user_id = tg_user["id"]
+    if user_id not in config.telegram.telegram_admin_ids:
+        return JSONResponse({"ok": False, "error": "Not admin"}, status_code=403)
+
+    from datetime import datetime, timezone
+    from sqlalchemy import select, func
+    from app.models.payment import Payment, PaymentStatus, PaymentType
+    from app.models.user import User
+    from app.models.vpn_key import VpnKey, VpnKeyStatus
+
+    total_users = await UserService(db).count_all()
+    active_subs = await VpnKeyService(db).count_active()
+
+    today = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    new_today_r = await db.execute(
+        select(func.count()).select_from(User).where(User.created_at >= today)
+    )
+    new_today = new_today_r.scalar_one()
+
+    revenue_r = await db.execute(
+        select(func.sum(Payment.amount)).where(
+            Payment.status == PaymentStatus.SUCCEEDED.value,
+            Payment.payment_type == PaymentType.SUBSCRIPTION.value,
+        )
+    )
+    revenue_val = revenue_r.scalar_one()
+    revenue = float(revenue_val) if revenue_val else 0.0
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "total_users": total_users,
+            "active_subs": active_subs,
+            "new_today": new_today,
+            "revenue": revenue,
         }
     )
 
@@ -179,6 +231,8 @@ async def get_profile(request: Request, db: AsyncSession = Depends(get_db)):
         else:
             archive_keys.append(key_data)
 
+    is_admin = user_id in config.telegram.telegram_admin_ids
+
     return JSONResponse(
         {
             "ok": True,
@@ -189,6 +243,7 @@ async def get_profile(request: Request, db: AsyncSession = Depends(get_db)):
                 "balance": float(user.balance or 0),
                 "referral_code": user.referral_code,
                 "referrals_count": ref_count,
+                "is_admin": is_admin,
             },
             "plans": [
                 {

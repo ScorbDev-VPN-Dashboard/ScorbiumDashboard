@@ -291,6 +291,12 @@ body {
   <div id="profile-c"><div class="ld"><div class="ls"></div></div></div>
 </div>
 
+<!-- ── ADMIN ── -->
+<div id="s-admin" class="scr">
+  <div class="ph"><div class="pt">👑 Админ</div></div>
+  <div id="admin-c"><div class="ld"><div class="ls"></div></div></div>
+</div>
+
 <!-- ── NAV ── -->
 <nav class="nav">
   <button class="nb on" onclick="go('home')" id="n-home">
@@ -309,6 +315,10 @@ body {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     Профиль
   </button>
+  <button class="nb" onclick="go('admin')" id="n-admin" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    Админ
+  </button>
 </nav>
 
 <div class="toast" id="toast"></div>
@@ -320,6 +330,7 @@ const B = '/app';
 let U = null, plans = [], selPlan = null, cur = 'home';
 let HAS_YOOKASSA = false, HAS_SBP = false, HAS_CRYPTOBOT = false, HAS_FREEKASSA = false, STARS_RATE = 1.5, BOT_USERNAME = '';
 const su = '{{ support_url }}';
+const PANEL_URL = '{{ panel_url }}';
 
 // ── Theme ──────────────────────────────────────────────────────────────────
 const saved = localStorage.getItem('theme') || (tg.colorScheme === 'light' ? 'light' : 'dark');
@@ -338,9 +349,10 @@ function go(t) {
   document.getElementById('s-' + t).classList.add('on');
   document.getElementById('n-' + t).classList.add('on');
   cur = t;
-  if (t === 'subs') loadSubs();
-  if (t === 'buy') renderBuy();
-  if (t === 'profile') loadProfile();
+if (t === 'subs') loadSubs();
+    if (t === 'buy') renderBuy();
+    if (t === 'profile') loadProfile();
+    if (t === 'admin') loadAdmin();
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
@@ -368,6 +380,8 @@ async function init() {
     U = d.user;
     renderHome();
     loadPlans();
+    // Показываем вкладку Админ если админ
+    if (U.is_admin) document.getElementById('n-admin').style.display = 'block';
     const pid = localStorage.getItem('ppid');
     if (pid) { go('buy'); showCheck(+pid); }
   } catch (e) { showErr('Нет соединения'); }
@@ -837,8 +851,37 @@ async function loadProfile() {
     </div>`}
 
     ${su ? `<div class="card"><button class="btn bo" onclick="tg.openLink('${su}')">💬 Написать в поддержку</button></div>` : ''}
+    ${u.is_admin ? `<div class="card" style="border-color:var(--a);background:var(--a3)"><button class="btn bp" onclick="tg.openLink('${PANEL_URL || ''}/admin')">👑 Админ-панель</button></div>` : ''}
     `;
   } catch (e) { el.innerHTML = '<div class="em"><div class="ei">⚠️</div><div class="em-title">Ошибка загрузки</div></div>'; }
+}
+
+// ── Admin ─────────────────────────────────────────────────────────────────
+async function loadAdmin() {
+  const el = document.getElementById('admin-c');
+  el.innerHTML = '<div class="ld"><div class="ls"></div></div>';
+  try {
+    const r = await fetch(B + '/admin/stats', { headers: { 'X-Telegram-Init-Data': tg.initData } });
+    const d = await r.json();
+    if (!d.ok) { el.innerHTML = '<div class="em"><div class="ei">❌</div><div class="em-title">Нет доступа</div></div>'; return; }
+    renderAdmin(d);
+  } catch (e) { el.innerHTML = '<div class="em"><div class="ei">⚠️</div><div class="em-title">Ошибка загрузки</div></div>'; }
+}
+
+function renderAdmin(d) {
+  const el = document.getElementById('admin-c');
+  el.innerHTML = `
+  <div class="stats-grid">
+    <div class="stat-item"><div class="stat-val">${d.total_users}</div><div class="stat-lbl">👥 Пользователей</div></div>
+    <div class="stat-item"><div class="stat-val">${d.active_subs}</div><div class="stat-lbl">🔑 Активных</div></div>
+    <div class="stat-item"><div class="stat-val">${d.new_today}</div><div class="stat-lbl">🆕 Новых сегодня</div></div>
+    <div class="stat-item"><div class="stat-val">${d.revenue.toFixed(0)} ₽</div><div class="stat-lbl">💰 Выручка</div></div>
+  </div>
+  <div class="card">
+    <div class="sl2">⚡ Быстрые действия</div>
+    <button class="btn bp" onclick="tg.openLink('${PANEL_URL || ''}/admin')">🖥 Открыть панель</button>
+  </div>
+  `;
 }
 
 // ── Utils ──────────────────────────────────────────────────────────────────

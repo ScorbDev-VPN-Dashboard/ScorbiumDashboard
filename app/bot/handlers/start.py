@@ -20,6 +20,7 @@ from app.services.support import SupportService
 from app.services.telegram_notify import TelegramNotifyService
 from app.services.i18n import t, get_lang
 from app.core.config import config
+from app.utils.html_utils import escape_html, truncate
 
 router = Router()
 
@@ -659,16 +660,21 @@ async def support_reply_message(message: Message, state: FSMContext) -> None:
             reply_markup=kb,
             parse_mode="HTML",
         )
+
         notify = TelegramNotifyService()
         uname = (
             f"@{message.from_user.username}"
             if message.from_user.username
             else f"<code>{message.from_user.id}</code>"
         )
+<<<<<<< HEAD
+=======
+        safe_text = escape_html(truncate(text, 300))
+>>>>>>> test
         for admin_id in config.telegram.telegram_admin_ids:
             await notify.send_message(
                 admin_id,
-                f"💬 <b>Ответ в тикете #{ticket_id}</b>\n\n👤 {uname}:\n{text[:300]}",
+                f"💬 <b>Ответ в тикете #{ticket_id}</b>\n\n👤 {uname}:\n{safe_text}",
             )
     else:
         await message.answer(t("ticket_not_found", lang), reply_markup=kb)
@@ -720,7 +726,7 @@ async def support_message(message: Message, state: FSMContext) -> None:
 
     await state.clear()
     await message.answer(
-        t("ticket_created", lang, id=ticket_id, subject=subject),
+        t("ticket_created", lang, id=ticket_id, subject=escape_html(subject)),
         reply_markup=kb,
         parse_mode="HTML",
     )
@@ -731,10 +737,15 @@ async def support_message(message: Message, state: FSMContext) -> None:
         if message.from_user.username
         else f"<code>{message.from_user.id}</code>"
     )
+<<<<<<< HEAD
+=======
+    safe_subject = escape_html(subject)
+    safe_text = escape_html(truncate(text, 300))
+>>>>>>> test
     for admin_id in config.telegram.telegram_admin_ids:
         await notify.send_message(
             admin_id,
-            f"🆕 <b>Новый тикет #{ticket_id}</b>\n\n👤 {uname}\n📌 {subject}\n\n💬 {text[:300]}",
+            f"🆕 <b>Новый тикет #{ticket_id}</b>\n\n👤 {uname}\n📌 {safe_subject}\n\n💬 {safe_text}",
         )
 
 

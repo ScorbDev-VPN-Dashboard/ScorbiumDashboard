@@ -10,8 +10,6 @@ from app.services.vpn_panel_interface import VpnPanelInterface
 
 
 class MarzbanClient:
-    """Low-level async HTTP client for Marzban panel."""
-
     _token: Optional[str] = None
     _token_expires: Optional[datetime] = None
     _lock = asyncio.Lock()
@@ -61,7 +59,6 @@ class MarzbanClient:
                 return self._token
 
     async def _headers(self) -> dict:
-        # Ignore static API key — always use auto-refreshing login/password flow
         token = await self._get_token()
         return {"Authorization": f"Bearer {token}"}
 
@@ -156,11 +153,6 @@ class MarzbanClient:
 
 
 class PasarguardService(VpnPanelInterface):
-    """
-    High-level Marzban/Pasarguard API service.
-    Implements VpnPanelInterface.
-    """
-
     def __init__(self) -> None:
         self._client = MarzbanClient()
 

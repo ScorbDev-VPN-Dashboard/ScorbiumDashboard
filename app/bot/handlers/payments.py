@@ -52,7 +52,8 @@ async def _provision_and_notify(
         if payment and key:
             payment.vpn_key_id = key.id
 
-        # Сохраняем данные до commit
+        settings = await BotSettingsService(session).get_all()
+
         provider_str = payment.provider if payment else "—"
         amount_str = str(payment.amount) if payment else str(plan.price)
         plan_name = plan.name
@@ -71,16 +72,27 @@ async def _provision_and_notify(
         )
         full_name = user.full_name if user else "—"
 
+<<<<<<< HEAD
         success_msg = settings.get("payment_success_message") or t(
             "payment_success", lang
         )
 
         if key and key.access_url:
+=======
+        if key and key.access_url:
+            success_msg = settings.get("payment_success_message") or t(
+                "payment_success", lang
+            )
+>>>>>>> test
             text = f"{success_msg}\n\n" + t(
                 "subscription_url", lang, url=key.access_url, days=plan_days
             )
         else:
-            text = f"{success_msg}\n\n" + t("key_error", lang)
+            mute_all_msg = (
+                settings.get("mute_all_message")
+                or "⛔️ Ведутся технические работы. Напишите через час."
+            )
+            text = mute_all_msg
 
     # Уведомляем пользователя
     try:

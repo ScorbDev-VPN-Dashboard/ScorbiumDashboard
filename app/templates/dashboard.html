@@ -6,12 +6,57 @@
 <style>
   .gradient-card { position: relative; overflow: hidden; }
   .gradient-card::before {
-    content: ''; position: absolute; inset: 0; opacity: .06;
+    content: ''; position: absolute; inset: 0; opacity: .08;
     background: radial-gradient(circle at top right, #fff, transparent 70%);
     pointer-events: none;
   }
-  .activity-dot {
-    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px;
+  [data-bs-theme="light"] .gradient-card::before {
+    background: radial-gradient(circle at top right, var(--accent), transparent 60%);
+  }
+  .stat-card { transition: all .2s; }
+  .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,.15); }
+  
+  .chart-container { position: relative; height: 100px; }
+  
+  .quick-action-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: .75rem 1rem;
+    color: var(--text);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    transition: all .2s;
+    font-size: .82rem;
+  }
+  .quick-action-btn:hover {
+    background: var(--surface-hover);
+    border-color: var(--accent);
+    transform: translateX(4px);
+  }
+  .quick-action-btn i { font-size: 1.1rem; }
+  
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  .status-dot.online { background: var(--success); box-shadow: 0 0 8px var(--success); }
+  .status-dot.offline { background: var(--danger); }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .5; }
+  }
+  
+  .mini-chart {
+    display: flex; align-items: flex-end; gap: 3px; height: 40px;
+  }
+  .mini-chart-bar {
+    flex: 1; background: var(--accent); border-radius: 3px 3px 0 0;
+    transition: height .3s ease;
+    min-width: 4px;
   }
 </style>
 {% endblock %}
@@ -19,100 +64,166 @@
 {% block content %}
 
 <!-- KPI row -->
-<div class="row g-3 mb-3">
+<div class="row g-3 mb-4">
   <div class="col-6 col-xl-3">
-    <div class="stat-card gradient-card" style="border-color:rgba(108,99,255,.25)">
-      <div class="stat-icon" style="background:rgba(108,99,255,.18);color:#a78bfa">
+    <div class="stat-card gradient-card" style="border-color:rgba(99,102,241,.25)">
+      <div class="stat-icon" style="background:rgba(99,102,241,.15);color:var(--accent)">
         <i class="bi bi-people-fill"></i>
       </div>
       <div>
         <div class="stat-value">{{ stats.total_users }}</div>
         <div class="stat-label">Пользователей</div>
-        <div class="stat-trend" style="color:#22c55e">+{{ stats.new_users_today }} сегодня</div>
+        <div class="stat-trend" style="color:var(--success)">+{{ stats.new_users_today }} сегодня</div>
       </div>
     </div>
   </div>
   <div class="col-6 col-xl-3">
     <div class="stat-card gradient-card" style="border-color:rgba(34,197,94,.2)">
-      <div class="stat-icon" style="background:rgba(34,197,94,.15);color:#22c55e">
+      <div class="stat-icon" style="background:rgba(34,197,94,.15);color:var(--success)">
         <i class="bi bi-calendar-check-fill"></i>
       </div>
       <div>
         <div class="stat-value">{{ stats.active_subscriptions }}</div>
         <div class="stat-label">Активных подписок</div>
-        <div class="stat-trend" style="color:#ef4444">{{ stats.expired_keys }} истекших</div>
+        <div class="stat-trend" style="color:var(--danger)">{{ stats.expired_keys }} истекших</div>
       </div>
     </div>
   </div>
   <div class="col-6 col-xl-3">
     <div class="stat-card gradient-card" style="border-color:rgba(234,179,8,.2)">
-      <div class="stat-icon" style="background:rgba(234,179,8,.15);color:#eab308">
+      <div class="stat-icon" style="background:rgba(234,179,8,.15);color:var(--warning)">
         <i class="bi bi-currency-ruble"></i>
       </div>
       <div>
         <div class="stat-value">{{ stats.total_revenue | int }}</div>
         <div class="stat-label">Выручка (₽)</div>
-        <div class="stat-trend" style="color:#22c55e">+{{ stats.revenue_today | int }} сегодня</div>
+        <div class="stat-trend" style="color:var(--success)">+{{ stats.revenue_today | int }} сегодня</div>
       </div>
     </div>
   </div>
   <div class="col-6 col-xl-3">
     <div class="stat-card gradient-card" style="border-color:rgba(59,130,246,.2)">
-      <div class="stat-icon" style="background:rgba(59,130,246,.15);color:#3b82f6">
+      <div class="stat-icon" style="background:rgba(59,130,246,.15);color:var(--info)">
         <i class="bi bi-headset"></i>
       </div>
       <div>
         <div class="stat-value">{{ stats.open_tickets }}</div>
         <div class="stat-label">Открытых тикетов</div>
-        <div class="stat-trend" style="color:#eab308">{{ stats.pending_payments }} ожид. оплат</div>
+        <div class="stat-trend" style="color:var(--warning)">{{ stats.pending_payments }} ожид.</div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Revenue chart (last 7 days) -->
-<div class="card p-3 mb-3">
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <div style="font-size:.82rem;font-weight:600;color:#fff">
-      <i class="bi bi-bar-chart-fill me-2" style="color:var(--accent)"></i>Выручка за 7 дней
-    </div>
-    <span style="font-size:.75rem;color:#8892a4">{{ stats.total_revenue | int }} ₽ всего</span>
-  </div>
-  <canvas id="revenueChart" height="80"></canvas>
-</div>
-
-<!-- Marzban VPN stats -->
-{% if marzban_stats %}
-<div class="card mb-3 p-3" style="border-color:rgba(108,99,255,.2)">
-  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-    <div style="font-size:.82rem;font-weight:600;color:#fff">
-      <i class="bi bi-hdd-network-fill me-2" style="color:var(--accent)"></i>Marzban VPN Panel
-    </div>
-    <div class="d-flex align-items-center gap-2">
-      <span style="width:7px;height:7px;border-radius:50%;background:#22c55e;display:inline-block;box-shadow:0 0 6px #22c55e"></span>
-      <span style="font-size:.72rem;color:#22c55e;font-weight:600">Подключено</span>
-    </div>
-  </div>
-  <div class="row g-2">
-    {% set mz_items = [
-      ('bi-wifi', 'rgba(34,197,94,.1)', '#22c55e', 'Онлайн', marzban_stats.get('users_active', 0)),
-      ('bi-people', 'rgba(108,99,255,.1)', '#a78bfa', 'Всего юзеров', marzban_stats.get('total_user', 0)),
-      ('bi-arrow-down-circle', 'rgba(59,130,246,.1)', '#3b82f6', 'Входящий', (marzban_stats.get('incoming_bandwidth', 0) / 1073741824) | round(1)|string + ' GB'),
-      ('bi-arrow-up-circle', 'rgba(239,68,68,.1)', '#ef4444', 'Исходящий', (marzban_stats.get('outgoing_bandwidth', 0) / 1073741824) | round(1)|string + ' GB'),
-    ] %}
-    {% for icon, bg, color, label, val in mz_items %}
-    <div class="col-6 col-md-3">
-      <div style="background:{{ bg }};border-radius:10px;padding:.65rem .9rem">
-        <div style="font-size:.68rem;color:var(--muted);margin-bottom:.2rem">
-          <i class="bi {{ icon }} me-1" style="color:{{ color }}"></i>{{ label }}
+<!-- Charts row -->
+<div class="row g-3 mb-4">
+  <!-- Revenue chart -->
+  <div class="col-lg-8">
+    <div class="card p-3">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div style="font-size:.85rem;font-weight:600;color:var(--text)">
+          <i class="bi bi-bar-chart-fill me-2" style="color:var(--accent)"></i>Выручка за 7 дней
         </div>
-        <div style="font-size:1.1rem;font-weight:700;color:#fff">{{ val }}</div>
+        <span style="font-size:.75rem;color:var(--muted)">{{ stats.total_revenue | int }} ₽ всего</span>
+      </div>
+      <div class="chart-wrapper" style="height:100px;position:relative">
+        <canvas id="revenueChart"></canvas>
       </div>
     </div>
-    {% endfor %}
+  </div>
+  
+  <!-- Mini stats -->
+  <div class="col-lg-4">
+    <div class="card p-3 h-100">
+      <div style="font-size:.85rem;font-weight:600;color:var(--text);margin-bottom:1rem">
+        <i class="bi bi-pie-chart-fill me-2" style="color:var(--accent)"></i>Активность
+      </div>
+      <div class="row g-3">
+        <div class="col-6">
+          <div style="background:var(--surface2);border-radius:10px;padding:.75rem">
+            <div style="font-size:.7rem;color:var(--muted);margin-bottom:.3rem">Новые</div>
+            <div style="font-size:1.3rem;font-weight:700;color:var(--success)">+{{ stats.new_users_today }}</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div style="background:var(--surface2);border-radius:10px;padding:.75rem">
+            <div style="font-size:.7rem;color:var(--muted);margin-bottom:.3rem">Платежи</div>
+            <div style="font-size:1.3rem;font-weight:700;color:var(--accent)">{{ recent_payments | length }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
-{% endif %}
+
+<!-- VPN Stats & Quick Actions -->
+<div class="row g-3 mb-4">
+
+  <!-- Marzban VPN stats -->
+  {% if marzban_stats %}
+  <div class="col-lg-6">
+    <div class="card mb-3 p-3" style="border-color:rgba(99,102,241,.2)">
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div style="font-size:.85rem;font-weight:600;color:var(--text)">
+          <i class="bi bi-hdd-network-fill me-2" style="color:var(--accent)"></i>VPN Panel
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="status-dot {% if marzban_stats %}online{% else %}offline{% endif %}"></span>
+          <span style="font-size:.72rem;color:var(--success);font-weight:600">
+            {% if marzban_stats %}Подключено{% else %}Оффлайн{% endif %}
+          </span>
+        </div>
+      </div>
+      <div class="row g-2">
+        {% set mz_items = [
+          ('bi-wifi', 'rgba(34,197,94,.1)', 'var(--success)', 'Онлайн', marzban_stats.get('users_active', 0)),
+          ('bi-people', 'rgba(99,102,241,.1)', 'var(--accent)', 'Всего юзеров', marzban_stats.get('total_user', 0)),
+          ('bi-arrow-down-circle', 'rgba(59,130,246,.1)', 'var(--info)', 'Входящий', (marzban_stats.get('incoming_bandwidth', 0) / 1073741824) | round(1)|string + ' GB'),
+          ('bi-arrow-up-circle', 'rgba(239,68,68,.1)', 'var(--danger)', 'Исходящий', (marzban_stats.get('outgoing_bandwidth', 0) / 1073741824) | round(1)|string + ' GB'),
+        ] %}
+        {% for icon, bg, color, label, val in mz_items %}
+        <div class="col-6 col-md-3">
+          <div style="background:{{ bg }};border-radius:10px;padding:.7rem .9rem">
+            <div style="font-size:.68rem;color:var(--muted);margin-bottom:.2rem">
+              <i class="bi {{ icon }}" style="color:{{ color }}"></i> {{ label }}
+            </div>
+            <div style="font-size:1.1rem;font-weight:700;color:var(--text)">{{ val }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Quick actions -->
+  <div class="col-lg-{% if marzban_stats %}6{% else %}12{% endif %}">
+    <div class="card p-3">
+      <div style="font-size:.85rem;font-weight:600;color:var(--text);margin-bottom:1rem">
+        <i class="bi bi-lightning-fill me-2" style="color:var(--warning)"></i>Быстрые действия
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="/panel/support" class="quick-action-btn" style="flex:1 1 calc(50% - .5rem);min-width:140px">
+          <i class="bi bi-headset" style="color:var(--info)"></i>
+          Тикеты
+          {% if stats.open_tickets %}<span class="badge badge-custom badge-open ms-auto">{{ stats.open_tickets }}</span>{% endif %}
+        </a>
+        <a href="/panel/broadcasts" class="quick-action-btn" style="flex:1 1 calc(50% - .5rem);min-width:140px">
+          <i class="bi bi-megaphone" style="color:var(--accent)"></i>
+          Рассылка
+        </a>
+        <a href="/panel/promos" class="quick-action-btn" style="flex:1 1 calc(50% - .5rem);min-width:140px">
+          <i class="bi bi-ticket-perforated" style="color:var(--success)"></i>
+          Промокоды
+        </a>
+        <a href="/panel/vpn" class="quick-action-btn" style="flex:1 1 calc(50% - .5rem);min-width:140px">
+          <i class="bi bi-key" style="color:var(--warning)"></i>
+          VPN ключи
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Main content -->
 <div class="row g-3">
@@ -146,7 +257,7 @@
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="4" class="text-center py-4" style="color:var(--muted)">Нет пользователей</td></tr>
+            <tr><td colspan="4" class="text-center py-4" style="color:var(--muted)">Нет ��ользователей</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -154,13 +265,11 @@
     </div>
   </div>
 
-  <!-- Right column -->
-  <div class="col-lg-5 d-flex flex-column gap-3">
-
-    <!-- Recent payments -->
+  <!-- Recent payments -->
+  <div class="col-lg-5">
     <div class="card">
       <div class="card-header d-flex align-items-center justify-content-between">
-        <span><i class="bi bi-credit-card me-2" style="color:#eab308"></i>Последние платежи</span>
+        <span><i class="bi bi-credit-card me-2" style="color:var(--warning)"></i>Последние платежи</span>
         <a href="/panel/payments" class="btn btn-accent btn-sm px-3">Все</a>
       </div>
       <div class="table-responsive">
@@ -170,7 +279,7 @@
             {% for p in recent_payments %}
             <tr>
               <td><code style="color:var(--accent);font-size:.78rem">#{{ p.id }}</code></td>
-              <td style="font-weight:600;color:#fff">{{ p.amount }} <span style="color:var(--muted);font-size:.75rem">{{ p.currency }}</span></td>
+              <td style="font-weight:600;color:var(--text)">{{ p.amount }} <span style="color:var(--muted);font-size:.75rem">{{ p.currency }}</span></td>
               <td>
                 {% set st = p.status.value if p.status.value is defined else p.status %}
                 {% if st == 'succeeded' %}<span class="badge badge-custom badge-active">✓ Успешно</span>
@@ -186,34 +295,6 @@
         </table>
       </div>
     </div>
-
-    <!-- Quick actions -->
-    <div class="card p-3">
-      <div style="font-size:.78rem;font-weight:600;color:#fff;margin-bottom:.75rem">
-        <i class="bi bi-lightning-fill me-2" style="color:#eab308"></i>Быстрые действия
-      </div>
-      <div class="d-flex flex-column gap-2">
-        <a href="/panel/support" class="btn btn-sm w-100 text-start d-flex align-items-center gap-2"
-          style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:#3b82f6;font-size:.78rem">
-          <i class="bi bi-headset"></i>
-          Открытые тикеты
-          {% if stats.open_tickets %}<span class="ms-auto badge" style="background:#ef4444;color:#fff">{{ stats.open_tickets }}</span>{% endif %}
-        </a>
-        <a href="/panel/broadcasts" class="btn btn-sm w-100 text-start d-flex align-items-center gap-2"
-          style="background:rgba(108,99,255,.1);border:1px solid rgba(108,99,255,.2);color:#a78bfa;font-size:.78rem">
-          <i class="bi bi-megaphone"></i> Создать рассылку
-        </a>
-        <a href="/panel/promos" class="btn btn-sm w-100 text-start d-flex align-items-center gap-2"
-          style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);color:#22c55e;font-size:.78rem">
-          <i class="bi bi-ticket-perforated"></i> Промокоды
-        </a>
-        <a href="/panel/vpn" class="btn btn-sm w-100 text-start d-flex align-items-center gap-2"
-          style="background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.2);color:#eab308;font-size:.78rem">
-          <i class="bi bi-key"></i> VPN ключи
-        </a>
-      </div>
-    </div>
-
   </div>
 </div>
 {% endblock %}
@@ -221,34 +302,69 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-  const revCtx = document.getElementById('revenueChart').getContext('2d');
-  const revData = {{ rev_week | tojson }};
-  const revLabels = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    revLabels.push(d.toLocaleDateString('ru-RU', {day:'numeric', month:'short'}));
-  }
-  new Chart(revCtx, {
-    type: 'bar',
-    data: {
-      labels: revLabels,
-      datasets: [{
-        label: 'Выручка ₽',
-        data: revData,
-        backgroundColor: 'rgba(108,99,255,.45)',
-        borderColor: '#6c63ff',
-        borderWidth: 1,
-        borderRadius: 5,
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#8892a4', font: { size: 11 } } },
-        y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#8892a4', font: { size: 11 } }, beginAtZero: true }
-      }
+  const revCtx = document.getElementById('revenueChart');
+  if (revCtx) {
+    const revData = {{ rev_week | tojson }};
+    const revLabels = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      revLabels.push(d.toLocaleDateString('ru-RU', {day:'numeric', month:'short'}));
     }
+    
+    const isLight = document.documentElement.getAttribute('data-bs-theme') === 'light';
+    const gridColor = isLight ? 'rgba(0,0,0,.08)' : 'rgba(255,255,255,.04)';
+    const textColor = isLight ? '#64748b' : '#9ca3af';
+    
+    new Chart(revCtx, {
+      type: 'bar',
+      data: {
+        labels: revLabels,
+        datasets: [{
+          label: 'Выручка ₽',
+          data: revData,
+          backgroundColor: 'rgba(99, 102, 241, 0.5)',
+          borderColor: '#6366f1',
+          borderWidth: 1,
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { 
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: isLight ? '#1e1e38' : '#ffffff',
+            titleColor: isLight ? '#fff' : '#1f2937',
+            bodyColor: isLight ? '#fff' : '#4b5563',
+          }
+        },
+        scales: {
+          x: { 
+            grid: { display: false }, 
+            ticks: { color: textColor, font: { size: 11 } } 
+          },
+          y: { 
+            grid: { color: gridColor }, 
+            ticks: { color: textColor, font: { size: 11 } }, 
+            beginAtZero: true 
+          }
+        }
+      }
+    });
+  }
+  
+  let refreshTimeout;
+  function scheduleRefresh() {
+    refreshTimeout = setTimeout(() => {
+      location.reload();
+    }, 30000);
+  }
+  
+  document.addEventListener('mousemove', () => {
+    clearTimeout(refreshTimeout);
+    scheduleRefresh();
   });
 </script>
 {% endblock %}

@@ -1,7 +1,10 @@
+<<<<<<< HEAD
 """
 Главное меню бота — строится динамически из keyboard_layout в bot_settings.
 """
 
+=======
+>>>>>>> test
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.bot.keyboards.builder import btn
@@ -24,10 +27,13 @@ _DEFAULT_LAYOUT = [
     [{"id": "top_referrers", "label": "🏆 Топ рефереров", "callback": "top_referrers"}],
     [{"id": "support", "label": "💬 Поддержка", "callback": "support"}],
     [{"id": "miniapp", "label": "🌐 Mini App", "callback": "miniapp"}],
+<<<<<<< HEAD
 ]
 
 _ADMIN_ROW = [
     [{"id": "admin_panel", "label": "🛡 Админ панель", "callback": "admin:panel"}],
+=======
+>>>>>>> test
 ]
 
 
