@@ -143,11 +143,16 @@ async def handle_balance_payment(callback: CallbackQuery, bot: Bot) -> None:
             )
             return
 
+    # Отвечаем сразу, чтобы не превысить таймаут Telegram
+    await callback.answer("⏳", show_alert=False)
+
+    # Долгие операции — в фоне
+    async with AsyncSessionFactory() as session:
         updated = await UserService(session).deduct_balance(
             callback.from_user.id, plan.price
         )
         if not updated:
-            await callback.answer(t("payment_error", lang), show_alert=True)
+            await bot.send_message(callback.from_user.id, "❌ Ошибка списания средств")
             return
 
         payment = await PaymentService(session).create_pending(
@@ -163,7 +168,6 @@ async def handle_balance_payment(callback: CallbackQuery, bot: Bot) -> None:
         plan_id_saved = plan.id
         await session.commit()
 
-    await callback.answer("⏳", show_alert=False)
     await _provision_and_notify(callback.from_user.id, payment_id, plan_id_saved, bot)
 
 
