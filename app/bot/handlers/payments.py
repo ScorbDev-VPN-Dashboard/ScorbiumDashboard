@@ -72,18 +72,10 @@ async def _provision_and_notify(
         )
         full_name = user.full_name if user else "—"
 
-<<<<<<< HEAD
-        success_msg = settings.get("payment_success_message") or t(
-            "payment_success", lang
-        )
-
-        if key and key.access_url:
-=======
         if key and key.access_url:
             success_msg = settings.get("payment_success_message") or t(
                 "payment_success", lang
             )
->>>>>>> test
             text = f"{success_msg}\n\n" + t(
                 "subscription_url", lang, url=key.access_url, days=plan_days
             )

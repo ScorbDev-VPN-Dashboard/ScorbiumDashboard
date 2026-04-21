@@ -1,10 +1,7 @@
-<<<<<<< HEAD
 """
 Главное меню бота — строится динамически из keyboard_layout в bot_settings.
 """
 
-=======
->>>>>>> test
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.bot.keyboards.builder import btn
@@ -27,13 +24,6 @@ _DEFAULT_LAYOUT = [
     [{"id": "top_referrers", "label": "🏆 Топ рефереров", "callback": "top_referrers"}],
     [{"id": "support", "label": "💬 Поддержка", "callback": "support"}],
     [{"id": "miniapp", "label": "🌐 Mini App", "callback": "miniapp"}],
-<<<<<<< HEAD
-]
-
-_ADMIN_ROW = [
-    [{"id": "admin_panel", "label": "🛡 Админ панель", "callback": "admin:panel"}],
-=======
->>>>>>> test
 ]
 
 
@@ -43,7 +33,6 @@ def main_menu_kb(
     layout: list = None,
     styles: dict = None,
     emojis: dict = None,
-    is_admin: bool = False,
     **kwargs,
 ) -> InlineKeyboardMarkup:
     if layout is None:
@@ -87,25 +76,6 @@ def main_menu_kb(
             builder.row(row_btns[0])
         else:
             builder.row(*row_btns)
-
-    if is_admin:
-        for row in _ADMIN_ROW:
-            if not row:
-                continue
-            row_btns = []
-            for b in row:
-                bid = b.get("id", "")
-                label = b.get("label", "")
-                callback = b.get("callback", bid)
-                style = styles.get(bid) or None
-                emoji_id = emojis.get(bid) or None
-                row_btns.append(
-                    btn(label, callback_data=callback, style=style, emoji_id=emoji_id)
-                )
-            if len(row_btns) == 1:
-                builder.row(row_btns[0])
-            else:
-                builder.row(*row_btns)
 
     return builder.as_markup()
 

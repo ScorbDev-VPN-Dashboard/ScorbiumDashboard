@@ -667,10 +667,7 @@ async def support_reply_message(message: Message, state: FSMContext) -> None:
             if message.from_user.username
             else f"<code>{message.from_user.id}</code>"
         )
-<<<<<<< HEAD
-=======
         safe_text = escape_html(truncate(text, 300))
->>>>>>> test
         for admin_id in config.telegram.telegram_admin_ids:
             await notify.send_message(
                 admin_id,
@@ -737,11 +734,8 @@ async def support_message(message: Message, state: FSMContext) -> None:
         if message.from_user.username
         else f"<code>{message.from_user.id}</code>"
     )
-<<<<<<< HEAD
-=======
     safe_subject = escape_html(subject)
     safe_text = escape_html(truncate(text, 300))
->>>>>>> test
     for admin_id in config.telegram.telegram_admin_ids:
         await notify.send_message(
             admin_id,

@@ -144,10 +144,7 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
         panel_url = (await BotSettingsService(session).get("panel_url") or "").rstrip(
             "/"
         )
-<<<<<<< HEAD
-=======
         mute_all = await BotSettingsService(session).is_mute_all_enabled()
->>>>>>> test
 
     miniapp_url = ""
     if panel_url:
