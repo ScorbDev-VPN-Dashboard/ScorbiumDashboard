@@ -19,7 +19,7 @@ build/
 *.swp
 *.swo
 *kilo
-*kiro
+*.kiro
 *~
 
 # Logs

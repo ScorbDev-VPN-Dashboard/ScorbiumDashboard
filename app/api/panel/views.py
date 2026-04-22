@@ -1066,6 +1066,18 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
     cb_toggle = (await svc.get("ps_cryptobot_enabled") or "0") == "1"
     sbp_toggle = (await svc.get("ps_sbp_enabled") or "0") == "1"
 
+    # FreeKassa
+    fk_shop = (await svc.get("freekassa_shop_id") or "").strip()
+    fk_api_set = bool((await svc.get("freekassa_api_key") or "").strip())
+    fk_configured = bool(fk_shop and fk_api_set)
+    fk_enabled = fk_configured and (await svc.get("ps_freekassa_enabled") or "0") == "1"
+
+    # AiKassa
+    ak_shop = (await svc.get("aikassa_shop_id") or "").strip()
+    ak_token_set = bool((await svc.get("aikassa_token") or "").strip())
+    ak_configured = bool(ak_shop and ak_token_set)
+    ak_enabled = ak_configured and (await svc.get("ps_aikassa_enabled") or "0") == "1"
+
     from types import SimpleNamespace
 
     ctx["ps"] = SimpleNamespace(
