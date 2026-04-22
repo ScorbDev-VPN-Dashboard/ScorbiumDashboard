@@ -4,6 +4,7 @@ API docs: https://docs.freekassa.com/
 API base: https://api.fk.life/v1/
 Payment form: https://pay.fk.money/
 """
+
 import hashlib
 import hmac
 import time
@@ -16,9 +17,20 @@ class FreeKassaService:
     API_URL = "https://api.fk.life/v1"
     PAY_URL = "https://pay.fk.money/"
 
-    ALLOWED_IPS = {"168.119.157.136", "168.119.60.227", "178.154.197.79", "51.250.54.238"}
+    ALLOWED_IPS = {
+        "168.119.157.136",
+        "168.119.60.227",
+        "178.154.197.79",
+        "51.250.54.238",
+    }
 
-    def __init__(self, shop_id: str, api_key: str, secret_word_1: str = "", secret_word_2: str = "") -> None:
+    def __init__(
+        self,
+        shop_id: str,
+        api_key: str,
+        secret_word_1: str = "",
+        secret_word_2: str = "",
+    ) -> None:
         self._shop_id = shop_id
         self._api_key = api_key
         self._secret_word_1 = secret_word_1
@@ -32,46 +44,46 @@ class FreeKassaService:
         хешируем HMAC-SHA256 с api_key.
         """
         sign_data = {k: v for k, v in data.items() if k != "signature"}
-      
+
         sorted_vals = "|".join(str(sign_data[k]) for k in sorted(sign_data.keys()))
-        
+
         log.debug(f"Signature string: {sorted_vals}")
         log.debug(f"API Key: {self._api_key[:5]}...")
-        
+
         signature = hmac.new(
-            self._api_key.encode('utf-8'),
-            sorted_vals.encode('utf-8'),
-            hashlib.sha256
+            self._api_key.encode("utf-8"), sorted_vals.encode("utf-8"), hashlib.sha256
         ).hexdigest()
-        
+
         log.debug(f"Generated signature: {signature}")
         return signature
 
     def _make_payload(self, extra: dict) -> dict:
         """Базовый payload с shopId, nonce и signature."""
         nonce = int(time.time())
-        
-        payload = {
-            "shopId": int(self._shop_id),
-            "nonce": nonce,
-            **extra
-        }
-        
+
+        payload = {"shopId": int(self._shop_id), "nonce": nonce, **extra}
+
         payload["signature"] = self._sign_api(payload)
-        
+
         ordered_payload = {
             "shopId": payload["shopId"],
             "nonce": payload["nonce"],
-            **{k: v for k, v in payload.items() if k not in ["shopId", "nonce", "signature"]},
-            "signature": payload["signature"]
+            **{
+                k: v
+                for k, v in payload.items()
+                if k not in ["shopId", "nonce", "signature"]
+            },
+            "signature": payload["signature"],
         }
-        
+
         log.debug(f"Final payload: {ordered_payload}")
         return ordered_payload
 
     # ── Подпись платёжной формы (MD5) ────────────────────────────────────────
 
-    def sign_payment_form(self, amount: float, order_id: str, currency: str = "RUB") -> str:
+    def sign_payment_form(
+        self, amount: float, order_id: str, currency: str = "RUB"
+    ) -> str:
         """
         MD5 от "shop_id:amount:secret_word_1:currency:order_id"
         """
@@ -85,7 +97,9 @@ class FreeKassaService:
         raw = f"{merchant_id}:{amount}:{self._secret_word_2}:{order_id}"
         return hashlib.md5(raw.encode()).hexdigest()
 
-    def verify_notification(self, merchant_id: str, amount: str, order_id: str, sign: str) -> bool:
+    def verify_notification(
+        self, merchant_id: str, amount: str, order_id: str, sign: str
+    ) -> bool:
         """Проверяет подпись входящего webhook от FreeKassa."""
         expected = self.sign_notification(merchant_id, amount, order_id)
         return hmac.compare_digest(expected, sign.lower())
@@ -162,38 +176,9 @@ class FreeKassaService:
             extra["failure_url"] = failure_url
         return await self._post("orders/create", extra)
 
-async def get_orders(self, payment_id: str) -> Optional[dict]:
+    async def get_orders(self, payment_id: str) -> Optional[dict]:
         """Получить список заказов по paymentId (номер заказа в нашем магазине)."""
         return await self._post("orders", {"paymentId": payment_id})
-
-    @staticmethod
-
-    def _sign(self, nonce: str) -> str:
-        """HMAC-SHA256 подпись для API запросов."""
-        msg = f"{self._shop_id}|{nonce}"
-        return hmac.new(self._api_key.encode(), msg.encode(), hashlib.sha256).hexdigest()
-
-    async def get_balance(self) -> Optional[dict]:
-        """Получить баланс магазина — используется для проверки подключения."""
-        import time
-        nonce = str(int(time.time() * 1000))
-        signature = self._sign(nonce)
-        payload = {
-            "shopId": int(self._shop_id),
-            "nonce": nonce,
-            "signature": signature,
-        }
-        return await self._request("POST", "balance", json=payload)
-
-    def create_payment_url(self, order_id: str, amount: float, currency: str = "RUB", email: str = "") -> str:
-        """Генерирует URL для оплаты через FreeKassa."""
-        sign_str = f"{self._shop_id}:{amount}:{self._secret_word_1}:{currency}:{order_id}"
-        sign = hashlib.md5(sign_str.encode()).hexdigest()
-        params = (
-            f"m={self._shop_id}&oa={amount}&currency={currency}"
-            f"&o={order_id}&s={sign}&em={email}&lang=ru"
-        )
-        return f"https://pay.freekassa.com/?{params}"
 
     @staticmethod
     def from_settings(settings: dict) -> Optional["FreeKassaService"]:

@@ -1055,7 +1055,7 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
     yk_key_set = bool(await svc.get("yookassa_secret_key_override"))
     cb_token_set = bool((await svc.get("cryptobot_token") or "").strip())
 
-# Also check env-level yookassa
+    # Also check env-level yookassa
     yk_env_ok = bool(
         config.yookassa
         and config.yookassa.yookassa_shop_id
@@ -1087,7 +1087,7 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
         freekassa_configured=fk_configured,
         freekassa_shop_id=fk_shop,
         freekassa_secret1_set=bool(await svc.get("freekassa_secret_word_1")),
-freekassa_secret2_set=bool(await svc.get("freekassa_secret_word_2")),
+        freekassa_secret2_set=bool(await svc.get("freekassa_secret_word_2")),
         aikassa_enabled=ak_enabled,
         aikassa_configured=ak_configured,
         aikassa_shop_id=ak_shop,
@@ -1439,7 +1439,9 @@ async def ps_test_freekassa(request: Request, db: AsyncSession = Depends(get_db)
         )
     except Exception as e:
         log.error(f"FreeKassa test error: {e}")
-        return JSONResponse({"ok": False, "message": f"Ошибка: {str(e)[:100]"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400
+        )
 
 
 @router.post("/telegram/payment-systems/aikassa")

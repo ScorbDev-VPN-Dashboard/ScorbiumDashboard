@@ -511,8 +511,9 @@ async def check_payment(
     if not payment.external_id:
         return JSONResponse({"ok": True, "status": "pending"})
 
-try:
+    try:
         from app.services.yookassa import YookassaService
+
         yk = await YookassaService.create()
         yk_payment = yk.get_payment(str(payment.external_id))
         if yk_payment.status == "succeeded":

@@ -187,17 +187,14 @@ async def show_balance(callback: CallbackQuery) -> None:
         InlineKeyboardButton(text=t("back_main", lang), callback_data="back_main")
     )
 
-from app.bot.utils.media import edit_with_photo
-    await edit_with_photo(callback, text, reply_markup=builder.as_markup(), photo=photo)
-        builder.row(InlineKeyboardButton(text=t("btn_autorenew_on", lang), callback_data="autorenew:on"))
-    builder.row(InlineKeyboardButton(text=t("back_main", lang), callback_data="back_main"))
-
     from app.bot.utils.media import edit_with_photo
+
     await edit_with_photo(callback, text, reply_markup=builder.as_markup(), photo=photo)
     await callback.answer()
 
 
 # ── Автосписание ──────────────────────────────────────────────────────────────
+
 
 @router.callback_query(F.data.startswith("autorenew:"))
 async def toggle_autorenew(callback: CallbackQuery) -> None:
@@ -253,7 +250,7 @@ async def topup_menu(callback: CallbackQuery) -> None:
 async def topup_custom(callback: CallbackQuery, state: FSMContext) -> None:
     async with AsyncSessionFactory() as session:
         lang = await _get_lang_from_session(callback.from_user.id, session)
-await state.set_state(TopupState.waiting_amount)
+    await state.set_state(TopupState.waiting_amount)
     from app.bot.utils.media import edit_with_photo
 
     await edit_with_photo(
@@ -296,7 +293,7 @@ async def _show_topup_payment(
     callback: CallbackQuery = None,
 ) -> None:
     """Показывает способы оплаты для пополнения баланса."""
-async with AsyncSessionFactory() as session:
+    async with AsyncSessionFactory() as session:
         settings = await BotSettingsService(session).get_all()
         from app.services.telegram_stars import TelegramStarsService
 
@@ -352,10 +349,15 @@ async with AsyncSessionFactory() as session:
     _cb_toggle = settings.get("ps_cryptobot_enabled", "0") == "1"
     has_cryptobot = _cb_toggle and bool(settings.get("cryptobot_token", "").strip())
 
-stars_amount = TelegramStarsService.rub_to_stars(float(amount), rate=rate)
+    stars_amount = TelegramStarsService.rub_to_stars(float(amount), rate=rate)
 
     from app.core.config import config as _cfg
-    has_yookassa = bool(_cfg.yookassa and _cfg.yookassa.yookassa_shop_id and _cfg.yookassa.yookassa_secret_key)
+
+    has_yookassa = bool(
+        _cfg.yookassa
+        and _cfg.yookassa.yookassa_shop_id
+        and _cfg.yookassa.yookassa_secret_key
+    )
     has_cryptobot = bool(settings.get("cryptobot_token", "").strip())
 
     builder = InlineKeyboardBuilder()
@@ -409,28 +411,8 @@ stars_amount = TelegramStarsService.rub_to_stars(float(amount), rate=rate)
 
     builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="topup:menu"))
 
-    amount_labels = {
-        "ru": f"💰 Пополнение на <b>{amount} ₽</b>\n\nВыберите способ оплаты:",
-        "en": f"💰 Top up <b>{amount} ₽</b>\n\nChoose payment method:",
-        "fa": f"💰 شارژ <b>{amount} ₽</b>\n\nروش پرداخت را انتخاب کنید:",
-    }
-    text = amount_labels.get(lang, amount_labels["ru"])
-
-from app.bot.utils.media import edit_with_photo, answer_with_photo
-
-    if callback:
-        crypto_labels = {"ru": "₿ Криптовалюта", "en": "₿ Cryptocurrency", "fa": "₿ ارز دیجیتال"}
-        builder.row(InlineKeyboardButton(
-            text=crypto_labels.get(lang, crypto_labels["ru"]),
-            callback_data=f"topup:pay:crypto:{amount}",
-        ))
-
-    builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="topup:menu"))
-
-    amount_labels = {"ru": f"💰 Пополнение на <b>{amount} ₽</b>\n\nВыберите способ оплаты:", "en": f"💰 Top up <b>{amount} ₽</b>\n\nChoose payment method:", "fa": f"💰 شارژ <b>{amount} ₽</b>\n\nروش پرداخت را انتخاب کنید:"}
-    text = amount_labels.get(lang, amount_labels["ru"])
-
     from app.bot.utils.media import edit_with_photo, answer_with_photo
+
     if callback:
         await edit_with_photo(callback, text, reply_markup=builder.as_markup())
     elif message:
