@@ -675,6 +675,16 @@
           <div style="font-size:.7rem;color:#22c55e;margin-top:.25rem"><i class="bi bi-check-circle me-1"></i>Ключ сохранён. Оставьте пустым чтобы не менять.</div>
           {% endif %}
         </div>
+        {% if ps.yookassa_configured %}
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="yk-sbp-toggle"
+            {% if ps.sbp_enabled %}checked{% endif %}
+            onchange="psToggle('ps_sbp_enabled', this.checked, 'yk')">
+          <label class="form-check-label" for="yk-sbp-toggle" style="font-size:.85rem;color:#a0aec0">
+            Добавить СБП (Система быстрых платежей)
+          </label>
+        </div>
+        {% endif %}
         <div class="d-flex gap-2">
           <button type="submit" class="btn btn-accent flex-fill"><i class="bi bi-floppy me-1"></i>Сохранить</button>
           <button type="button" class="btn btn-outline-secondary"
@@ -1063,6 +1073,11 @@ async function psToggle(key, enabled, prefix) {
     if (sumBadge) {
       sumBadge.className = `badge badge-custom ${enabled ? 'badge-active' : 'badge-closed'}`;
       sumBadge.textContent = enabled ? '✓' : '✗';
+    }
+    // Update SBP toggle if it exists
+    const sbpToggle = document.getElementById(prefix + '-sbp-toggle');
+    if (sbpToggle) {
+      sbpToggle.checked = enabled;
     }
   } catch(e) { showToast('Ошибка сети', 'error'); }
 }

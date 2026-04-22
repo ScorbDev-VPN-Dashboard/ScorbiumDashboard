@@ -106,9 +106,10 @@ def _back_admin_kb() -> InlineKeyboardMarkup:
 
 async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
     from datetime import datetime, timezone, timedelta
-    from sqlalchemy import select, func
-    from app.models.payment import Payment
+    from sqlalchemy import select, func, cast, Numeric
+    from app.models.payment import Payment, PaymentStatus, PaymentType
     from app.models.user import User
+    from app.models.vpn_key import VpnKey, VpnKeyStatus
 
     async with AsyncSessionFactory() as session:
         total_users = await UserService(session).count_all()
@@ -124,8 +125,6 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
             select(func.count()).select_from(User).where(User.created_at >= today)
         )
         new_today = new_today_r.scalar_one()
-
-        from sqlalchemy import cast, Numeric
 
         rev_today_r = await session.execute(
             select(
@@ -146,9 +145,32 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
         )
         maintenance = await BotSettingsService(session).is_maintenance_mode()
 
-        status = "🔴 <b>ВКЛ</b>" if maintenance else "🟢 <b>ВЫКЛ</b>"
+        expired_r = await session.execute(
+            select(func.count())
+            .select_from(VpnKey)
+            .where(VpnKey.status == VpnKeyStatus.EXPIRED.value)
+        )
+        expired_count = expired_r.scalar_one()
 
-    return text, admin_kb(panel_url=miniapp_url, maintenance=maintenance)
+        text = (
+            f"   [📊] <b>Статистика</b>\n\n"
+            f"[👤] <b>├Пользователи:</b>\n"
+            f"  ⎡ Всего: <b>{total_users}</b>\n"
+            f"  ├ Новых сегодня: <b>{new_today}</b>\n"
+            f"  ⎣ Новых за неделю: <b>{total_users}</b>\n\n"
+            f"[🔑] <b>Подписки:</b>\n"
+            f"  ⎡ Активных: <b>{active_subs}</b>\n"
+            f"  ⎣ Истёкших: <b>{expired_count}</b>\n\n"
+            f"[🏦] <b>Финансы:</b>\n"
+            f"  ⎡ Выручка всего: <b>{revenue} ₽</b>\n"
+            f"  ├ Выручка сегодня: <b>{rev_today:.2f} ₽</b>\n"
+            f"  ⎣ Выручка за неделю: <b>{rev_today:.2f} ₽</b>\n\n"
+            f"[ℹ️] <b>Прочее:</b>\n"
+            f"  ⎡ Открытых тикетов: <b>{open_tickets}</b>\n"
+            f"  ⎣ Ожидают оплаты: <b>{pending}</b>"
+        )
+
+    return text, admin_kb(panel_url=panel_url, maintenance=maintenance)
 
 
 async def _show_user_detail(callback: CallbackQuery, user_id: int) -> None:
