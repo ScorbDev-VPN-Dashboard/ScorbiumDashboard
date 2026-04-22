@@ -80,11 +80,16 @@ async def _provision_and_notify(
                 "subscription_url", lang, url=key.access_url, days=plan_days
             )
         else:
-            mute_all_msg = (
-                settings.get("mute_all_message")
-                or "⛔️ Ведутся технические работы. Напишите через час."
-            )
-            text = mute_all_msg
+            # Check if mute_all is actually enabled
+            mute_all_enabled = settings.get("mute_all_enabled", "0") == "1"
+            if mute_all_enabled:
+                mute_all_msg = (
+                    settings.get("mute_all_message")
+                    or "⛔️ Ведутся технические работы. Напишите через час."
+                )
+                text = mute_all_msg
+            else:
+                text = "❌ Не удалось создать подписку. Обратитесь в поддержку."
 
     # Уведомляем пользователя
     try:
@@ -1086,9 +1091,13 @@ async def handle_payment_fallback(callback: CallbackQuery) -> None:
 
 # ── Пополнение баланса ────────────────────────────────────────────────────────
 
-async def _topup_confirm_balance(user_id: int, amount_str: str, payment_id: int, bot: Bot) -> None:
+
+async def _topup_confirm_balance(
+    user_id: int, amount_str: str, payment_id: int, bot: Bot
+) -> None:
     """Зачисляем сумму на баланс, подтверждаем платёж в БД и уведомляем пользователя."""
     from decimal import Decimal
+
     amount = Decimal(amount_str)
 
     async with AsyncSessionFactory() as session:
@@ -1096,6 +1105,7 @@ async def _topup_confirm_balance(user_id: int, amount_str: str, payment_id: int,
         payment = await PaymentService(session).get_by_id(payment_id)
         if payment:
             from app.models.payment import PaymentStatus
+
             payment.status = PaymentStatus.SUCCEEDED.value
 
         # Зачисляем на баланс
@@ -1118,12 +1128,14 @@ async def _topup_confirm_balance(user_id: int, amount_str: str, payment_id: int,
 @router.callback_query(F.data.startswith("topup:pay:yookassa:"))
 async def topup_yookassa(callback: CallbackQuery, bot: Bot) -> None:
     from decimal import Decimal
+
     amount = Decimal(callback.data.split(":")[3])
 
     async with AsyncSessionFactory() as session:
         lang = await _get_user_lang(callback.from_user.id, session)
         try:
             from app.services.yookassa import YookassaService
+
             yk = await YookassaService.create()
             me = await bot.get_me()
             return_url = f"https://t.me/{me.username}"
@@ -1141,7 +1153,12 @@ async def topup_yookassa(callback: CallbackQuery, bot: Bot) -> None:
                 amount=amount,
                 description=f"Пополнение баланса {amount} ₽",
                 return_url=return_url,
-                metadata={"topup": "1", "user_id": str(callback.from_user.id), "amount": str(amount), "payment_id": str(payment_id)},
+                metadata={
+                    "topup": "1",
+                    "user_id": str(callback.from_user.id),
+                    "amount": str(amount),
+                    "payment_id": str(payment_id),
+                },
             )
             payment.external_id = yk_payment.id
             await session.commit()
@@ -1154,17 +1171,20 @@ async def topup_yookassa(callback: CallbackQuery, bot: Bot) -> None:
 
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text=t("topup_go", lang), url=pay_url))
-    builder.row(InlineKeyboardButton(
-        text=t("topup_check", lang),
-        callback_data=f"topup:check:yookassa:{ext_id}:{amount}:{payment_id}",
-    ))
+    builder.row(
+        InlineKeyboardButton(
+            text=t("topup_check", lang),
+            callback_data=f"topup:check:yookassa:{ext_id}:{amount}:{payment_id}",
+        )
+    )
     builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="topup:menu"))
 
     from app.bot.utils.media import edit_with_photo
+
     await edit_with_photo(
         callback,
-        f"💳 <b>{'Пополнение' if lang=='ru' else 'Top up'}</b> {amount} ₽\n\n"
-        f"{'После оплаты нажмите «Проверить».' if lang=='ru' else 'After payment press Check.'}",
+        f"💳 <b>{'Пополнение' if lang == 'ru' else 'Top up'}</b> {amount} ₽\n\n"
+        f"{'После оплаты нажмите «Проверить».' if lang == 'ru' else 'After payment press Check.'}",
         reply_markup=builder.as_markup(),
     )
     await callback.answer()
@@ -1173,12 +1193,14 @@ async def topup_yookassa(callback: CallbackQuery, bot: Bot) -> None:
 @router.callback_query(F.data.startswith("topup:pay:sbp:"))
 async def topup_sbp(callback: CallbackQuery, bot: Bot) -> None:
     from decimal import Decimal
+
     amount = Decimal(callback.data.split(":")[3])
 
     async with AsyncSessionFactory() as session:
         lang = await _get_user_lang(callback.from_user.id, session)
         try:
             from app.services.yookassa import YookassaService
+
             yk = await YookassaService.create()
             me = await bot.get_me()
             return_url = f"https://t.me/{me.username}"
@@ -1195,7 +1217,12 @@ async def topup_sbp(callback: CallbackQuery, bot: Bot) -> None:
                 amount=amount,
                 description=f"Пополнение баланса {amount} ₽",
                 return_url=return_url,
-                metadata={"topup": "1", "user_id": str(callback.from_user.id), "amount": str(amount), "payment_id": str(payment_id)},
+                metadata={
+                    "topup": "1",
+                    "user_id": str(callback.from_user.id),
+                    "amount": str(amount),
+                    "payment_id": str(payment_id),
+                },
             )
             payment.external_id = yk_payment.id
             await session.commit()
@@ -1208,17 +1235,20 @@ async def topup_sbp(callback: CallbackQuery, bot: Bot) -> None:
 
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text=t("topup_go", lang), url=pay_url))
-    builder.row(InlineKeyboardButton(
-        text=t("topup_check", lang),
-        callback_data=f"topup:check:yookassa:{ext_id}:{amount}:{payment_id}",
-    ))
+    builder.row(
+        InlineKeyboardButton(
+            text=t("topup_check", lang),
+            callback_data=f"topup:check:yookassa:{ext_id}:{amount}:{payment_id}",
+        )
+    )
     builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="topup:menu"))
 
     from app.bot.utils.media import edit_with_photo
+
     await edit_with_photo(
         callback,
-        f"🏦 <b>{'Пополнение через СБП' if lang=='ru' else 'SBP Top up'}</b> {amount} ₽\n\n"
-        f"{'После оплаты нажмите «Проверить».' if lang=='ru' else 'After payment press Check.'}",
+        f"🏦 <b>{'Пополнение через СБП' if lang == 'ru' else 'SBP Top up'}</b> {amount} ₽\n\n"
+        f"{'После оплаты нажмите «Проверить».' if lang == 'ru' else 'After payment press Check.'}",
         reply_markup=builder.as_markup(),
     )
     await callback.answer()
@@ -1236,35 +1266,43 @@ async def topup_check_yookassa(callback: CallbackQuery, bot: Bot) -> None:
         # Проверяем не был ли уже подтверждён
         if payment_id:
             from app.models.payment import PaymentStatus
+
             existing = await PaymentService(session).get_by_id(payment_id)
             if existing and existing.status == PaymentStatus.SUCCEEDED.value:
                 await callback.answer(
-                    f"✅ {'Уже зачислено!' if lang=='ru' else 'Already credited!'}",
+                    f"✅ {'Уже зачислено!' if lang == 'ru' else 'Already credited!'}",
                     show_alert=True,
                 )
                 return
 
     try:
         from app.services.yookassa import YookassaService
+
         yk = await YookassaService.create()
         yk_payment = yk.get_payment(ext_id)
         if yk_payment.status == "succeeded":
-            await _topup_confirm_balance(callback.from_user.id, amount_str, payment_id, bot)
+            await _topup_confirm_balance(
+                callback.from_user.id, amount_str, payment_id, bot
+            )
             await callback.answer(
-                f"✅ {'Баланс пополнен!' if lang=='ru' else 'Balance topped up!'}",
+                f"✅ {'Баланс пополнен!' if lang == 'ru' else 'Balance topped up!'}",
                 show_alert=True,
             )
             await callback.answer(
-                f"✅ {'Баланс пополнен!' if lang=='ru' else 'Balance topped up!'}",
+                f"✅ {'Баланс пополнен!' if lang == 'ru' else 'Balance topped up!'}",
                 show_alert=True,
             )
             # Редиректим на баланс
             await callback.message.delete()
             from app.bot.utils.menu import get_main_menu_kb as _gmk
+
             async with AsyncSessionFactory() as _s:
                 _kb = await _gmk(_s, lang=lang, user_id=callback.from_user.id)
             from app.bot.utils.media import answer_with_photo
-            await answer_with_photo(callback.message, f"✅ Баланс пополнен!", reply_markup=_kb)
+
+            await answer_with_photo(
+                callback.message, f"✅ Баланс пополнен!", reply_markup=_kb
+            )
         elif yk_payment.status == "canceled":
             await callback.answer(t("payment_failed", lang), show_alert=True)
         else:
@@ -1277,6 +1315,7 @@ async def topup_check_yookassa(callback: CallbackQuery, bot: Bot) -> None:
 @router.callback_query(F.data.startswith("topup:pay:crypto:"))
 async def topup_crypto(callback: CallbackQuery, bot: Bot) -> None:
     from decimal import Decimal
+
     amount = Decimal(callback.data.split(":")[3])
 
     async with AsyncSessionFactory() as session:
@@ -1317,18 +1356,21 @@ async def topup_crypto(callback: CallbackQuery, bot: Bot) -> None:
 
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text=t("topup_go", lang), url=pay_url))
-    builder.row(InlineKeyboardButton(
-        text=t("topup_check", lang),
-        callback_data=f"topup:check:crypto:{inv_id}:{amount}:{payment_id}",
-    ))
+    builder.row(
+        InlineKeyboardButton(
+            text=t("topup_check", lang),
+            callback_data=f"topup:check:crypto:{inv_id}:{amount}:{payment_id}",
+        )
+    )
     builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="topup:menu"))
 
     from app.bot.utils.media import edit_with_photo
+
     await edit_with_photo(
         callback,
-        f"₿ <b>{'Пополнение криптой' if lang=='ru' else 'Crypto top up'}</b>\n\n"
+        f"₿ <b>{'Пополнение криптой' if lang == 'ru' else 'Crypto top up'}</b>\n\n"
         f"{amount} ₽ (~{usdt_amount} USDT)\n\n"
-        f"{'После оплаты нажмите «Проверить».' if lang=='ru' else 'After payment press Check.'}",
+        f"{'После оплаты нажмите «Проверить».' if lang == 'ru' else 'After payment press Check.'}",
         reply_markup=builder.as_markup(),
     )
     await callback.answer()
@@ -1345,10 +1387,11 @@ async def topup_check_crypto(callback: CallbackQuery, bot: Bot) -> None:
         lang = await _get_user_lang(callback.from_user.id, session)
         if payment_id:
             from app.models.payment import PaymentStatus
+
             existing = await PaymentService(session).get_by_id(payment_id)
             if existing and existing.status == PaymentStatus.SUCCEEDED.value:
                 await callback.answer(
-                    f"✅ {'Уже зачислено!' if lang=='ru' else 'Already credited!'}",
+                    f"✅ {'Уже зачислено!' if lang == 'ru' else 'Already credited!'}",
                     show_alert=True,
                 )
                 return
@@ -1361,13 +1404,15 @@ async def topup_check_crypto(callback: CallbackQuery, bot: Bot) -> None:
     try:
         invoice = await crypto.get_invoice(int(inv_id))
         if invoice and invoice.get("status") == "paid":
-            await _topup_confirm_balance(callback.from_user.id, amount_str, payment_id, bot)
+            await _topup_confirm_balance(
+                callback.from_user.id, amount_str, payment_id, bot
+            )
             await callback.answer(
-                f"✅ {'Баланс пополнен!' if lang=='ru' else 'Balance topped up!'}",
+                f"✅ {'Баланс пополнен!' if lang == 'ru' else 'Balance topped up!'}",
                 show_alert=True,
             )
             await callback.answer(
-                f"✅ {'Баланс пополнен!' if lang=='ru' else 'Balance topped up!'}",
+                f"✅ {'Баланс пополнен!' if lang == 'ru' else 'Balance topped up!'}",
                 show_alert=True,
             )
         else:
