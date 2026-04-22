@@ -80,9 +80,9 @@ DEFAULTS = {
     "btn_style_top_referrers": "",
     "btn_style_status": "",
     "btn_style_language": "",
-    # ── Emergency Mute All ────────────────────────────────────────────────────
-    "mute_all_enabled": "0",  # 1 = mute all active, stop key provisioning
-    "mute_all_message": "⛔️ Ведутся технические работы. Напишите через час.",
+    # ── Maintenance Mode ───────────────────────────────────────────────────────
+    "maintenance_mode": "0",  # 1 = maintenance on, stop key provisioning
+    "maintenance_message": "⛔️ Ведутся технические работы. Напишите через час.",
     # ── Traffic Abuse Analysis ─────────────────────────────────────────
     "traffic_abuse_threshold_gb": "500",  # GB per day threshold for abuse alert
     "traffic_abuse_speed_limit_mbps": "10",  # Speed limit in Mbps when triggered
@@ -138,12 +138,12 @@ class BotSettingsService:
         for key, value in data.items():
             await self.set(key, value)
 
-    async def is_mute_all_enabled(self) -> bool:
-        value = await self.get("mute_all_enabled")
+    async def is_maintenance_mode(self) -> bool:
+        value = await self.get("maintenance_mode")
         return value == "1"
 
-    async def set_mute_all(self, enabled: bool) -> None:
-        await self.set("mute_all_enabled", "1" if enabled else "0")
+    async def set_maintenance_mode(self, enabled: bool) -> None:
+        await self.set("maintenance_mode", "1" if enabled else "0")
 
     async def get_traffic_abuse_threshold(self) -> int:
         value = await self.get("traffic_abuse_threshold_gb")

@@ -80,16 +80,16 @@ async def _provision_and_notify(
                 "subscription_url", lang, url=key.access_url, days=plan_days
             )
         else:
-            # Check if mute_all is actually enabled
-            mute_all_enabled = settings.get("mute_all_enabled", "0") == "1"
-            if mute_all_enabled:
-                mute_all_msg = (
-                    settings.get("mute_all_message")
+            # Check if maintenance mode is actually enabled
+            maintenance_enabled = settings.get("maintenance_mode", "0") == "1"
+            if maintenance_enabled:
+                maintenance_msg = (
+                    settings.get("maintenance_message")
                     or "⛔️ Ведутся технические работы. Напишите через час."
                 )
-                text = mute_all_msg
+                text = maintenance_msg
             else:
-                text = "❌ Не удалось создать подписку. Обратитесь в поддержку."
+                text = "✅ Оплата прошла успешно! Ваш VPN-ключ готовится. Проверьте раздел «Мои ключи» через пару минут."
 
     # Уведомляем пользователя
     try:

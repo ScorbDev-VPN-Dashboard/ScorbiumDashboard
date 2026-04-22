@@ -71,8 +71,8 @@ class VpnKeyService:
         from app.services.bot_settings import BotSettingsService
 
         async with AsyncSessionFactory() as check_session:
-            if await BotSettingsService(check_session).is_mute_all_enabled():
-                log.info(f"Provision blocked: mute_all enabled for user {user_id}")
+            if await BotSettingsService(check_session).is_maintenance_mode():
+                log.info(f"Provision blocked: maintenance mode for user {user_id}")
                 return None
 
         expires_at = datetime.now(timezone.utc) + timedelta(days=plan.duration_days)

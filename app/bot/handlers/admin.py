@@ -58,7 +58,7 @@ def _is_admin(user_id: int) -> bool:
     return user_id in config.telegram.telegram_admin_ids
 
 
-def admin_kb(panel_url: str = "", mute_all: bool = False) -> InlineKeyboardMarkup:
+def admin_kb(panel_url: str = "", maintenance: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(text="👥 Пользователи", callback_data="adm:users"),
@@ -80,10 +80,10 @@ def admin_kb(panel_url: str = "", mute_all: bool = False) -> InlineKeyboardMarku
         InlineKeyboardButton(text="🌐 Группы VPN", callback_data="adm:groups"),
         InlineKeyboardButton(text="🔍 Поиск юзера", callback_data="adm:search"),
     )
-    mute_icon = "🔴" if mute_all else "🟢"
+    maint_icon = "🔴" if maintenance else "🟢"
     builder.row(
         InlineKeyboardButton(
-            text=f"{mute_icon} ⛔️ MUTE ALL", callback_data="adm:mute_all"
+            text=f"{maint_icon} 🔧 ТЕХ.РЕЖИМ", callback_data="adm:maintenance"
         ),
         InlineKeyboardButton(text="📊 Трафик", callback_data="adm:traffic"),
     )
@@ -144,29 +144,11 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
         panel_url = (await BotSettingsService(session).get("panel_url") or "").rstrip(
             "/"
         )
-        mute_all = await BotSettingsService(session).is_mute_all_enabled()
+        maintenance = await BotSettingsService(session).is_maintenance_mode()
 
-    miniapp_url = ""
-    if panel_url:
-        import secrets as _sec, time as _t
-        from app.api.panel.views import _miniapp_tokens
+        status = "🔴 <b>ВКЛ</b>" if maintenance else "🟢 <b>ВЫКЛ</b>"
 
-        token = _sec.token_urlsafe(32)
-        _miniapp_tokens[token] = _t.time() + 300
-        miniapp_url = f"{panel_url}/panel/miniapp-login?token={token}"
-
-    mute_status = "🔴 <b>ВЫКЛ</b>" if mute_all else "🟢 <b>ВКЛ</b>"
-    text = (
-        f"👑 <b>Админ-панель</b>\n\n"
-        f"⛔️ Режим MUTE: {mute_status}\n\n"
-        f"👥 Пользователей: <b>{total_users}</b> (+{new_today} сегодня)\n"
-        f"✅ Активных подписок: <b>{active_subs}</b>\n"
-        f"💬 Открытых тикетов: <b>{open_tickets}</b>\n"
-        f"⏳ Ожидают оплаты: <b>{pending}</b>\n"
-        f"💰 Выручка всего: <b>{revenue} ₽</b>\n"
-        f"📈 Выручка сегодня: <b>{rev_today:.2f} ₽</b>"
-    )
-    return text, admin_kb(panel_url=miniapp_url, mute_all=mute_all)
+    return text, admin_kb(panel_url=miniapp_url, maintenance=maintenance)
 
 
 async def _show_user_detail(callback: CallbackQuery, user_id: int) -> None:
@@ -470,21 +452,21 @@ async def admin_stats(callback: CallbackQuery) -> None:
 # ── Mute All ──────────────────────────────────────────────────────────────────
 
 
-@router.callback_query(F.data == "adm:mute_all")
-async def admin_mute_all(callback: CallbackQuery) -> None:
+@router.callback_query(F.data == "adm:maintenance")
+async def admin_maintenance(callback: CallbackQuery) -> None:
     if not _is_admin(callback.from_user.id):
         await callback.answer("⛔ Нет доступа", show_alert=True)
         return
 
     async with AsyncSessionFactory() as session:
         settings = BotSettingsService(session)
-        current = await settings.is_mute_all_enabled()
+        current = await settings.is_maintenance_mode()
         new_state = not current
-        await settings.set_mute_all(new_state)
+        await settings.set_maintenance_mode(new_state)
         await session.commit()
 
-        status = "🔴 ВЫКЛЮЧЕН" if new_state else "🟢 ВКЛЮЧЕН"
-        await callback.answer(f"⛔️ MUTE ALL: {status}", show_alert=True)
+        status = "🔴 ВКЛЮЧЕН" if new_state else "🟢 ВЫКЛЮЧЕН"
+        await callback.answer(f"🔧 ТЕХ.РЕЖИМ: {status}", show_alert=True)
 
     text, kb = await _admin_main_text()
     try:
