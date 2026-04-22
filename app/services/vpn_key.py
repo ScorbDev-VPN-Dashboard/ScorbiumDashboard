@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import config
+from app.core.database import AsyncSessionFactory
 from app.models.plan import Plan
 from app.models.vpn_key import VpnKey, VpnKeyStatus
 from app.services.pasarguard.pasarguard import get_vpn_panel
