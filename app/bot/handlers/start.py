@@ -7,6 +7,15 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+
+async def _safe_answer(callback: CallbackQuery) -> None:
+    """Safely answer callback query, ignoring timeout errors."""
+    try:
+        await _safe_answer(callback)
+    except Exception:
+        pass
+
+
 from app.bot.keyboards.main import back_kb
 from app.bot.utils.menu import get_main_menu_kb as _get_menu_kb
 from app.bot.handlers.admin import _is_admin
@@ -130,7 +139,7 @@ async def back_to_main(callback: CallbackQuery, state: FSMContext) -> None:
     await edit_with_photo(
         callback, t("main_menu", lang), reply_markup=kb, photo=photo or None
     )
-    await callback.answer()
+    await _safe_answer(callback)
 
 
 @router.callback_query(F.data == "balance")
@@ -201,7 +210,7 @@ async def show_balance(callback: CallbackQuery) -> None:
     from app.bot.utils.media import edit_with_photo
 
     await edit_with_photo(callback, text, reply_markup=builder.as_markup(), photo=photo)
-    await callback.answer()
+    await _safe_answer(callback)
 
 
 # ── Автосписание ──────────────────────────────────────────────────────────────
@@ -254,7 +263,7 @@ async def topup_menu(callback: CallbackQuery) -> None:
     await edit_with_photo(
         callback, t("topup_title", lang), reply_markup=builder.as_markup()
     )
-    await callback.answer()
+    await _safe_answer(callback)
 
 
 @router.callback_query(F.data == "topup:custom")
@@ -267,7 +276,7 @@ async def topup_custom(callback: CallbackQuery, state: FSMContext) -> None:
     await edit_with_photo(
         callback, t("topup_enter_amount", lang), reply_markup=back_kb(lang)
     )
-    await callback.answer()
+    await _safe_answer(callback)
 
 
 @router.message(TopupState.waiting_amount)
@@ -292,7 +301,10 @@ async def topup_select_amount(callback: CallbackQuery) -> None:
     amount = Decimal(callback.data.split(":")[2])
     async with AsyncSessionFactory() as session:
         lang = await _get_lang_from_session(callback.from_user.id, session)
-    await callback.answer()
+    try:
+        await _safe_answer(callback)
+    except Exception:
+        pass
     await _show_topup_payment(callback.from_user.id, amount, lang, callback=callback)
 
 
@@ -422,6 +434,13 @@ async def _show_topup_payment(
 
     builder.row(InlineKeyboardButton(text=t("back", lang), callback_data="topup:menu"))
 
+    amount_labels = {
+        "ru": f"💰 Пополнение на <b>{amount} ₽</b>\n\nВыберите способ оплаты:",
+        "en": f"💰 Top up <b>{amount} ₽</b>\n\nChoose payment method:",
+        "fa": f"💰 شارژ <b>{amount} ₽</b>\n\nروش پرداخت را انتخاب کنید:",
+    }
+    text = amount_labels.get(lang, amount_labels["ru"])
+
     from app.bot.utils.media import edit_with_photo, answer_with_photo
 
     if callback:
@@ -438,7 +457,7 @@ async def ask_promo(callback: CallbackQuery, state: FSMContext) -> None:
     from app.bot.utils.media import edit_with_photo
 
     await edit_with_photo(callback, t("enter_promo", lang), reply_markup=back_kb(lang))
-    await callback.answer()
+    await _safe_answer(callback)
 
 
 @router.message(PromoState.waiting_code)
@@ -526,7 +545,7 @@ async def support_start(callback: CallbackQuery, state: FSMContext) -> None:
     await edit_with_photo(
         callback, text, reply_markup=builder.as_markup(), photo=photo or None
     )
-    await callback.answer()
+    await _safe_answer(callback)
 
 
 @router.callback_query(F.data == "support:new")
@@ -541,7 +560,7 @@ async def support_new(callback: CallbackQuery, state: FSMContext) -> None:
         t("ticket_subject", lang),
         reply_markup=back_kb(lang),
     )
-    await callback.answer()
+    await _safe_answer(callback)
 
 
 @router.callback_query(F.data.startswith("support:ticket:"))
@@ -607,7 +626,7 @@ async def support_open_ticket(callback: CallbackQuery, state: FSMContext) -> Non
     await callback.message.edit_text(
         text, reply_markup=builder.as_markup(), parse_mode="HTML"
     )
-    await callback.answer()
+    await _safe_answer(callback)
 
 
 @router.callback_query(F.data.startswith("support:reply:"))
@@ -629,7 +648,7 @@ async def support_reply_start(callback: CallbackQuery, state: FSMContext) -> Non
         reply_prompt.get(lang, reply_prompt["ru"]),
         reply_markup=back_kb(lang),
     )
-    await callback.answer()
+    await _safe_answer(callback)
 
 
 @router.callback_query(F.data.startswith("support:close:"))
@@ -659,7 +678,7 @@ async def support_close_ticket(callback: CallbackQuery) -> None:
         t("ticket_closed", lang, id=ticket_id),
         reply_markup=kb,
     )
-    await callback.answer()
+    await _safe_answer(callback)
 
 
 @router.message(SupportState.replying_ticket)
