@@ -1082,12 +1082,24 @@ function handlePsResponse(event, key) {
   if (ok && !key.endsWith('-test')) {
     // Обновляем статус-бейдж после сохранения
     const statusMap = {yk:'yk-status', cb:'cb-status', fk:'fk-status', ak:'ak-status'};
+    const toggleMap = {yk:'yk-toggle', cb:'cb-toggle', fk:'fk-toggle', ak:'ak-toggle'};
     const statusId = statusMap[prefix];
+    const toggleId = toggleMap[prefix];
     if (statusId) {
       const badge = document.getElementById(statusId);
       if (badge && data.configured !== undefined) {
         badge.className = `badge badge-custom ${data.configured ? 'badge-active' : 'badge-closed'}`;
         badge.textContent = data.configured ? 'Настроена' : 'Не настроена';
+      }
+    }
+    // Показываем переключатель после успешного сохранения
+    if (data.enabled !== undefined && toggleId) {
+      const toggleWrap = document.querySelector(`#${prefix}-status`).closest('.d-flex');
+      if (toggleWrap && !document.getElementById(toggleId)) {
+        const div = document.createElement('div');
+        div.className = 'form-check form-switch mb-0';
+        div.innerHTML = `<input class="form-check-input" type="checkbox" id="${toggleId}" ${data.enabled ? 'checked' : ''} onchange="psToggle('ps_${prefix}_enabled', this.checked, '${prefix}')">`;
+        toggleWrap.appendChild(div);
       }
     }
   }
