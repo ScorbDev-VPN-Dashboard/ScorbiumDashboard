@@ -9,6 +9,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.bot.keyboards.main import back_kb
 from app.bot.utils.menu import get_main_menu_kb as _get_menu_kb
+from app.bot.handlers.admin import _is_admin
 from app.core.database import AsyncSessionFactory
 from app.schemas.user import UserCreate
 from app.services.user import UserService
@@ -88,7 +89,12 @@ async def cmd_start(message: Message) -> None:
         welcome_tpl = settings.get("welcome_message")
         user_lang = user.language if user and user.language else None
         lang = get_lang(settings, user_lang)
-        kb = await _get_menu_kb(session, lang=lang, user_id=message.from_user.id)
+        kb = await _get_menu_kb(
+            session,
+            lang=lang,
+            user_id=message.from_user.id,
+            is_admin=_is_admin(message.from_user.id),
+        )
         photo = settings.get("photo_welcome")
 
     if welcome_tpl:
@@ -112,7 +118,12 @@ async def back_to_main(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     async with AsyncSessionFactory() as session:
         lang = await _get_lang_from_session(callback.from_user.id, session)
-        kb = await _get_menu_kb(session, lang=lang, user_id=callback.from_user.id)
+        kb = await _get_menu_kb(
+            session,
+            lang=lang,
+            user_id=callback.from_user.id,
+            is_admin=_is_admin(callback.from_user.id),
+        )
         photo = await BotSettingsService(session).get("photo_welcome")
     from app.bot.utils.media import edit_with_photo
 
@@ -450,7 +461,12 @@ async def process_promo(message: Message, state: FSMContext) -> None:
             await session.commit()
         else:
             result_text = t("promo_invalid", lang)
-        kb = await _get_menu_kb(session, lang=lang, user_id=message.from_user.id)
+        kb = await _get_menu_kb(
+            session,
+            lang=lang,
+            user_id=message.from_user.id,
+            is_admin=_is_admin(message.from_user.id),
+        )
 
     await state.clear()
     await message.answer(result_text, reply_markup=kb, parse_mode="HTML")
@@ -629,7 +645,12 @@ async def support_close_ticket(callback: CallbackQuery) -> None:
 
         await SupportService(session).set_status(ticket_id, TicketStatus.CLOSED)
         await session.commit()
-        kb = await _get_menu_kb(session, lang=lang, user_id=callback.from_user.id)
+        kb = await _get_menu_kb(
+            session,
+            lang=lang,
+            user_id=callback.from_user.id,
+            is_admin=_is_admin(callback.from_user.id),
+        )
 
     from app.bot.utils.media import edit_with_photo
 
@@ -656,7 +677,12 @@ async def support_reply_message(message: Message, state: FSMContext) -> None:
             is_admin=False,
         )
         await session.commit()
-        kb = await _get_menu_kb(session, lang=lang, user_id=message.from_user.id)
+        kb = await _get_menu_kb(
+            session,
+            lang=lang,
+            user_id=message.from_user.id,
+            is_admin=_is_admin(message.from_user.id),
+        )
 
     await state.clear()
 
@@ -720,7 +746,12 @@ async def support_message(message: Message, state: FSMContext) -> None:
         )
         await session.commit()
         ticket_id = ticket.id
-        kb = await _get_menu_kb(session, lang=lang, user_id=message.from_user.id)
+        kb = await _get_menu_kb(
+            session,
+            lang=lang,
+            user_id=message.from_user.id,
+            is_admin=_is_admin(message.from_user.id),
+        )
 
     await state.clear()
     await message.answer(

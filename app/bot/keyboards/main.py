@@ -1,3 +1,7 @@
+"""
+Главное меню бота — строится динамически из keyboard_layout в bot_settings.
+"""
+
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.bot.keyboards.builder import btn

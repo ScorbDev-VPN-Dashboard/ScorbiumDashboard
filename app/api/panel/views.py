@@ -1697,7 +1697,6 @@ async def upload_photo(
                 status_code=400,
             )
 
-        # Берём наибольший размер фото
         photos = result["result"]["photo"]
         file_id = photos[-1]["file_id"]
 

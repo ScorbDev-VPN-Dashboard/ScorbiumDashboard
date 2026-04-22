@@ -49,13 +49,6 @@ DEFAULTS = {
     "ps_freekassa_enabled": "0",
     "ps_aikassa_enabled": "0",
     "ps_sbp_enabled": "0",
-    # ── Платёжные системы — включение/отключение ──────────────────────────────
-    "ps_yookassa_enabled": "0",
-    "ps_cryptobot_enabled": "0",
-    "ps_stars_enabled": "1",
-    "ps_freekassa_enabled": "0",
-    "ps_aikassa_enabled": "0",
-    "ps_sbp_enabled": "0",
     # ── FreeKassa ─────────────────────────────────────────────────────────────
     "freekassa_shop_id": "",
     "freekassa_api_key": "",
@@ -86,6 +79,12 @@ DEFAULTS = {
     "btn_style_top_referrers": "",
     "btn_style_status": "",
     "btn_style_language": "",
+    # ── Emergency Mute All ────────────────────────────────────────────────────
+    "mute_all_enabled": "0",  # 1 = mute all active, stop key provisioning
+    "mute_all_message": "⛔️ Ведутся технические работы. Напишите через час.",
+    # ── Traffic Abuse Analysis ─────────────────────────────────────────
+    "traffic_abuse_threshold_gb": "500",  # GB per day threshold for abuse alert
+    "traffic_abuse_speed_limit_mbps": "10",  # Speed limit in Mbps when triggered
     # ── Custom emoji ID для кнопок (Premium) ─────────────────────────────────
     "btn_emoji_buy": "",
     "btn_emoji_my_keys": "",
@@ -137,3 +136,92 @@ class BotSettingsService:
     async def set_many(self, data: dict) -> None:
         for key, value in data.items():
             await self.set(key, value)
+
+    async def is_mute_all_enabled(self) -> bool:
+        value = await self.get("mute_all_enabled")
+        return value == "1"
+
+    async def set_mute_all(self, enabled: bool) -> None:
+        await self.set("mute_all_enabled", "1" if enabled else "0")
+
+    async def get_traffic_abuse_threshold(self) -> int:
+        value = await self.get("traffic_abuse_threshold_gb")
+        return int(value) if value else 500
+
+    async def get_traffic_abuse_speed_limit(self) -> int:
+        value = await self.get("traffic_abuse_speed_limit_mbps")
+        return int(value) if value else 10
+
+
+async def create_traffic_analysis_service() -> "TrafficAnalysisService":
+    from app.services.pasarguard.pasarguard import get_vpn_panel
+
+    class TrafficAnalysisService:
+        def __init__(self):
+            self._panel = get_vpn_panel()
+
+        async def get_all_users_with_traffic(self) -> dict:
+            """Get all users with their traffic statistics."""
+            all_users = []
+            offset = 0
+            limit = 200
+
+            while True:
+                data = await self._panel.get_users(offset=offset, limit=limit)
+                users = data.get("users", [])
+                if not users:
+                    break
+
+                for u in users:
+                    username = u.get("username", "")
+                    download = u.get("download", 0)
+                    upload = u.get("upload", 0)
+                    upload_total = upload + download
+                    upload_gb = upload_total / (1024**3)
+                    all_users.append(
+                        {
+                            "username": username,
+                            "download": download,
+                            "upload": upload,
+                            "total_gb": upload_gb,
+                            "email": u.get("email", ""),
+                            "status": u.get("status", ""),
+                        }
+                    )
+
+                offset += limit
+                if len(users) < limit:
+                    break
+
+            return {"users": all_users}
+
+        async def get_user_traffic(self, username: str) -> Optional[dict]:
+            """Get traffic for a specific user."""
+            try:
+                user = await self._panel.get_user(username)
+                if not user:
+                    return None
+                download = user.get("download", 0)
+                upload = user.get("upload", 0)
+                return {
+                    "username": username,
+                    "download": download,
+                    "upload": upload,
+                    "total_gb": (upload + download) / (1024**3),
+                    "status": user.get("status", ""),
+                }
+            except Exception:
+                return None
+
+        async def apply_speed_limit(self, username: str, speed_mbps: int) -> bool:
+            """Apply speed limit to a user (in Mbps)."""
+            try:
+                await self._panel.modify_user(
+                    username,
+                    **{"speed_limit": speed_mbps * 1024 * 1024 // 8},
+                )
+                return True
+            except Exception:
+                return False
+
+    return TrafficAnalysisService()

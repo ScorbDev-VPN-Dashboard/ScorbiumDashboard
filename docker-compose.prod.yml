@@ -25,6 +25,7 @@ services:
     environment:
       SERVER_HOST: "0.0.0.0"
       SERVER_PORT: "8000"
+      DB_HOST: "db"
     depends_on:
       db:
         condition: service_healthy

@@ -4,6 +4,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.bot.utils.menu import get_main_menu_kb as _get_menu_kb
+from app.bot.handlers.admin import _is_admin
 from app.core.database import AsyncSessionFactory
 from app.services.vpn_key import VpnKeyService
 from app.services.bot_settings import BotSettingsService
@@ -82,7 +83,12 @@ async def show_my_keys(callback: CallbackQuery) -> None:
     async with AsyncSessionFactory() as session:
         lang = await _get_lang(callback.from_user.id, session)
         all_keys = await VpnKeyService(session).get_all_for_user(callback.from_user.id)
-        kb_menu = await _get_menu_kb(session, lang=lang, user_id=callback.from_user.id)
+        kb_menu = await _get_menu_kb(
+            session,
+            lang=lang,
+            user_id=callback.from_user.id,
+            is_admin=_is_admin(callback.from_user.id),
+        )
         photo = await BotSettingsService(session).get("photo_my_keys")
 
         active_rows, archive_rows = [], []

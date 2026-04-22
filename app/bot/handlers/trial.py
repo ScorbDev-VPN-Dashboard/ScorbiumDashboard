@@ -1,4 +1,5 @@
 """Handler для пробного периода VPN."""
+
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 
@@ -8,6 +9,7 @@ from app.services.bot_settings import BotSettingsService
 from app.services.vpn_key import VpnKeyService
 from app.services.i18n import t, get_lang
 from app.bot.utils.menu import get_main_menu_kb as _get_menu_kb
+from app.bot.handlers.admin import _is_admin
 from app.utils.log import log
 
 router = Router()
@@ -31,7 +33,11 @@ async def handle_trial(callback: CallbackQuery) -> None:
         # Проверяем включён ли пробный период
         if settings.get("trial_enabled", "0") != "1":
             await callback.answer(
-                {"ru": "❌ Пробный период недоступен.", "en": "❌ Trial not available.", "fa": "❌ دوره آزمایشی در دسترس نیست."}.get(lang, "❌"),
+                {
+                    "ru": "❌ Пробный период недоступен.",
+                    "en": "❌ Trial not available.",
+                    "fa": "❌ دوره آزمایشی در دسترس نیست.",
+                }.get(lang, "❌"),
                 show_alert=True,
             )
             return
@@ -67,7 +73,11 @@ async def handle_trial(callback: CallbackQuery) -> None:
             plan_id=None,  # пробный — без плана
             price=0,
             expires_at=expires_at,
-            name={"ru": f"Пробный период ({trial_days} дн.)", "en": f"Trial ({trial_days} days)", "fa": f"آزمایشی ({trial_days} روز)"}.get(lang, f"Trial ({trial_days} days)"),
+            name={
+                "ru": f"Пробный период ({trial_days} дн.)",
+                "en": f"Trial ({trial_days} days)",
+                "fa": f"آزمایشی ({trial_days} روز)",
+            }.get(lang, f"Trial ({trial_days} days)"),
             status=VpnKeyStatus.ACTIVE.value,
             access_url="pending",
         )
@@ -80,7 +90,9 @@ async def handle_trial(callback: CallbackQuery) -> None:
             group_ids: list[int] = []
             raw_groups = settings.get("vpn_group_ids", "")
             if raw_groups:
-                group_ids = [int(x) for x in _json.loads(raw_groups) if str(x).strip().isdigit()]
+                group_ids = [
+                    int(x) for x in _json.loads(raw_groups) if str(x).strip().isdigit()
+                ]
 
             marzban = PasarguardService()
             marz_user = await marzban.create_user(
@@ -93,7 +105,11 @@ async def handle_trial(callback: CallbackQuery) -> None:
             _pg = config.pasarguard
             panel_base = str(_pg.pasarguard_admin_panel).rstrip("/") if _pg else ""
             if sub_token:
-                access_url = sub_token if sub_token.startswith("http") else f"{panel_base}{sub_token.rstrip('/')}"
+                access_url = (
+                    sub_token
+                    if sub_token.startswith("http")
+                    else f"{panel_base}{sub_token.rstrip('/')}"
+                )
             else:
                 access_url = f"{panel_base}/sub/{username}"
 
@@ -137,8 +153,15 @@ async def handle_trial(callback: CallbackQuery) -> None:
     }
 
     async with AsyncSessionFactory() as session:
-        kb = await _get_menu_kb(session, lang=lang, user_id=callback.from_user.id)
+        kb = await _get_menu_kb(
+            session,
+            lang=lang,
+            user_id=callback.from_user.id,
+            is_admin=_is_admin(callback.from_user.id),
+        )
         photo_trial = (await BotSettingsService(session).get("photo_trial")) or None
 
-    await edit_with_photo(callback, msgs.get(lang, msgs["ru"]), reply_markup=kb, photo=photo_trial)
+    await edit_with_photo(
+        callback, msgs.get(lang, msgs["ru"]), reply_markup=kb, photo=photo_trial
+    )
     await callback.answer()

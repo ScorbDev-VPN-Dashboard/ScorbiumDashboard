@@ -18,6 +18,7 @@ class _Config:
         "arbitrary_types_allowed": True,
         "validate_assignment": True,
     }
+    
     @property
     def web(self) -> Any:
         if self.web_config is None:

@@ -18,6 +18,8 @@ build/
 .idea/
 *.swp
 *.swo
+*kilo
+*kiro
 *~
 
 # Logs
@@ -27,6 +29,7 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+.ruff_cache
 
 # Project specific
 *.db
