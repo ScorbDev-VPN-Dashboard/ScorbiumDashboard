@@ -479,10 +479,11 @@ async def admin_mute_all(callback: CallbackQuery) -> None:
     async with AsyncSessionFactory() as session:
         settings = BotSettingsService(session)
         current = await settings.is_mute_all_enabled()
-        await settings.set_mute_all(not current)
+        new_state = not current
+        await settings.set_mute_all(new_state)
         await session.commit()
 
-        status = "🔴 ВЫКЛЮЧЕН" if current else "🟢 ВКЛЮЧЕН"
+        status = "🔴 ВЫКЛЮЧЕН" if new_state else "🟢 ВКЛЮЧЕН"
         await callback.answer(f"⛔️ MUTE ALL: {status}", show_alert=True)
 
     text, kb = await _admin_main_text()
