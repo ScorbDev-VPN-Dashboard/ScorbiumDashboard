@@ -145,9 +145,9 @@ def _build_miniapp_url(settings: dict) -> str:
         return db_url.rstrip("/") + "/app/"
 
     # Then check environment variable
-    from app.core.configs.pasarguard_config import PasarguardConfig
+    from app.core.configs.pasarguard_config import _PasarGuardConfig
 
-    env_url = PasarguardConfig().pasarguard_admin_panel
+    env_url = _PasarGuardConfig().pasarguard_admin_panel
     if env_url:
         return str(env_url).rstrip("/") + "/app/"
 
