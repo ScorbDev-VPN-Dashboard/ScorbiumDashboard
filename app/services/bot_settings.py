@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bot_settings import BotSettings
+from app.utils.log import log
 
 DEFAULTS = {
     "welcome_message": "👋 Привет, {name}!\n\nЭто VPN-бот. Выбери действие:",
@@ -166,32 +167,34 @@ async def create_traffic_analysis_service() -> "TrafficAnalysisService":
             offset = 0
             limit = 200
 
-            while True:
-                data = await self._panel.get_users(offset=offset, limit=limit)
-                users = data.get("users", [])
-                if not users:
-                    break
+            try:
+                while True:
+                    data = await self._panel.get_users(offset=offset, limit=limit)
+                    users = data.get("users", [])
+                    if not users:
+                        break
 
-                for u in users:
-                    username = u.get("username", "")
-                    download = u.get("download", 0)
-                    upload = u.get("upload", 0)
-                    upload_total = upload + download
-                    upload_gb = upload_total / (1024**3)
-                    all_users.append(
-                        {
-                            "username": username,
-                            "download": download,
-                            "upload": upload,
-                            "total_gb": upload_gb,
-                            "email": u.get("email", ""),
-                            "status": u.get("status", ""),
-                        }
-                    )
+                    for u in users:
+                        username = u.get("username", "")
+                        download = u.get("download", 0)
+                        upload = u.get("upload", 0)
+                        upload_total = upload + download
+                        upload_gb = upload_total / (1024**3)
+                        all_users.append(
+                            {
+                                "username": username,
+                                "download": download,
+                                "upload": upload,
+                                "total_gb": upload_gb,
+                                "email": u.get("email", ""),
+                                "status": u.get("status", ""),
+                            }
+                        )
 
-                offset += limit
-                if len(users) < limit:
-                    break
+                    offset += limit
+            except Exception as e:
+                log.warning(f"Failed to get users with traffic: {e}")
+                return {"users": all_users, "error": str(e)}
 
             return {"users": all_users}
 
@@ -210,7 +213,8 @@ async def create_traffic_analysis_service() -> "TrafficAnalysisService":
                     "total_gb": (upload + download) / (1024**3),
                     "status": user.get("status", ""),
                 }
-            except Exception:
+            except Exception as e:
+                log.warning(f"Failed to get traffic for user {username}: {e}")
                 return None
 
         async def apply_speed_limit(self, username: str, speed_mbps: int) -> bool:

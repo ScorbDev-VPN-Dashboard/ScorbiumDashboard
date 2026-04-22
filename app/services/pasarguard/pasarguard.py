@@ -49,8 +49,11 @@ class MarzbanClient:
                     data={"username": self._login, "password": self._password},
                 )
                 if resp.status_code != 200:
+                    log.warning(
+                        f"Marzban auth failed: {resp.status_code} {resp.text[:200]}"
+                    )
                     raise PasarguardAuthError(
-                        f"Marzban auth failed: {resp.status_code} {resp.text}"
+                        f"Marzban auth failed: {resp.status_code} {resp.text[:200]}"
                     )
                 data = resp.json()
                 self._token = data["access_token"]
@@ -77,17 +80,20 @@ class MarzbanClient:
                     url, headers=await self._headers(), params=params
                 )
                 if resp.status_code == 401:
-                    # Token expired — refresh and retry once
                     resp = await client.get(
                         url, headers=await self._headers_force_refresh(), params=params
                     )
                 resp.raise_for_status()
                 return resp.json()
         except HTTPStatusError as e:
-            log.error(f"Marzban GET {path} → {e.response.status_code}")
+            log.warning(f"Marzban GET {path} → {e.response.status_code}")
             raise PasarguardRequestError(f"HTTP {e.response.status_code}")
         except RequestError as e:
+            log.warning(f"Marzban GET {path} connection error: {e}")
             raise PasarguardRequestError(f"Connection error: {e}")
+        except Exception as e:
+            log.warning(f"Marzban GET {path} unexpected error: {e}")
+            raise PasarguardRequestError(f"Unexpected error: {e}")
 
     async def post(self, path: str, payload: dict = None) -> dict:
         url = f"{self._base}{path}"
@@ -105,14 +111,18 @@ class MarzbanClient:
                 resp.raise_for_status()
                 return resp.json() if resp.content else {}
         except HTTPStatusError as e:
-            log.error(
-                f"Marzban POST {path} → {e.response.status_code}: {e.response.text}"
+            log.warning(
+                f"Marzban POST {path} → {e.response.status_code}: {e.response.text[:200]}"
             )
             raise PasarguardRequestError(
-                f"HTTP {e.response.status_code}: {e.response.text}"
+                f"HTTP {e.response.status_code}: {e.response.text[:200]}"
             )
         except RequestError as e:
+            log.warning(f"Marzban POST {path} connection error: {e}")
             raise PasarguardRequestError(f"Connection error: {e}")
+        except Exception as e:
+            log.warning(f"Marzban POST {path} unexpected error: {e}")
+            raise PasarguardRequestError(f"Unexpected error: {e}")
 
     async def put(self, path: str, payload: dict = None) -> dict:
         url = f"{self._base}{path}"
