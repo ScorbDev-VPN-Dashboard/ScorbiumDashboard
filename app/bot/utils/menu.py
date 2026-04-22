@@ -129,11 +129,26 @@ async def get_main_menu_kb(
 
     return main_menu_kb(
         support_url=s.get("support_url", ""),
-        miniapp_url=f"{s.get('panel_url', '').rstrip('/')}/app/"
-        if s.get("panel_url")
-        else "",
+        miniapp_url=_build_miniapp_url(s),
         layout=layout,
         styles=styles,
         emojis=emojis,
         is_admin=is_admin,
     )
+
+
+def _build_miniapp_url(settings: dict) -> str:
+    """Build miniapp URL from settings or env."""
+    # First check database settings
+    db_url = settings.get("panel_url", "").strip()
+    if db_url:
+        return db_url.rstrip("/") + "/app/"
+
+    # Then check environment variable
+    from app.core.configs.pasarguard_config import PasarguardConfig
+
+    env_url = PasarguardConfig().pasarguard_admin_panel
+    if env_url:
+        return str(env_url).rstrip("/") + "/app/"
+
+    return ""
