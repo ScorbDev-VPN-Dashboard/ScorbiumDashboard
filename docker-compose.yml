@@ -27,6 +27,8 @@ services:
     environment:
       SERVER_HOST: "0.0.0.0"
       SERVER_PORT: "8000"
+    volumes:
+      - app_logs:/app/logs
     depends_on:
       db:
         condition: service_healthy
@@ -52,3 +54,4 @@ networks:
 
 volumes:
   db_data:
+  app_logs:
