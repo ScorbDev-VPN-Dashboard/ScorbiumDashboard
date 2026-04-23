@@ -6,7 +6,17 @@
 <div class="card">
   <div class="card-header d-flex align-items-center justify-content-between px-3 py-2 flex-wrap gap-2">
     <span>Все пользователи</span>
-    <input type="search" placeholder="Поиск по имени / username..."
+    <div class="d-flex gap-2 align-items-center">
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          <i class="bi bi-download me-1"></i>Экспорт
+        </button>
+        <ul class="dropdown-menu dropdown-menu-dark" style="background:var(--card-bg);border-color:var(--border)">
+          <li><a class="dropdown-item" href="/panel/export/users?format=csv" style="color:var(--text)">CSV</a></li>
+          <li><a class="dropdown-item" href="/panel/export/users?format=xlsx" style="color:var(--text)">Excel</a></li>
+        </ul>
+      </div>
+      <input type="search" placeholder="Поиск по имени / username..."
       class="form-control form-control-sm" style="width:240px"
       hx-get="/panel/users/search" hx-trigger="keyup changed delay:400ms"
       hx-target="#users-tbody" hx-include="this" name="q" />

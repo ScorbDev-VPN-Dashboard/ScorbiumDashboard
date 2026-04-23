@@ -50,6 +50,10 @@ WEB_USER=${WEB_USER:-admin}
 
 read -rsp "Пароль панели (мин. 6 символов): " WEB_PASS
 echo ""
+# Generate a dedicated JWT secret (32 bytes, hex-encoded)
+JWT_SECRET_KEY=$(openssl rand -hex 32 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(32))")
+info "Сгенерирован JWT_SECRET_KEY"
+echo ""
 [[ ${#WEB_PASS} -lt 6 ]] && error "Пароль слишком короткий"
 
 echo ""
@@ -141,6 +145,7 @@ PASARGUARD_ADMIN_LOGIN=${PASAR_LOGIN}
 PASARGUARD_ADMIN_PASSWORD=${PASAR_PASS}
 PASARGUARD_API_KEY=
 VPN_PANEL_TYPE=marzban
+JWT_SECRET_KEY=${JWT_SECRET_KEY}
 HTTPS_PORT=${HTTPS_PORT}
 DOMAIN=${DOMAIN}
 DB_ENGINE=postgresql
@@ -224,6 +229,8 @@ http {
         add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
         add_header X-Frame-Options SAMEORIGIN always;
         add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' wss: https:;" always;
 
         proxy_connect_timeout 10s;
         proxy_read_timeout    60s;
@@ -272,6 +279,19 @@ http {
             proxy_pass http://vpn_app;
             proxy_set_header Host              \$host;
             proxy_set_header X-Forwarded-Proto \$scheme;
+        }
+        # WebSocket notifications endpoint
+        location /ws/notifications {
+            proxy_pass http://vpn_app;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade \$http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host              \$host;
+            proxy_set_header X-Real-IP         \$remote_addr;
+            proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+            proxy_read_timeout 86400s;
+            proxy_send_timeout 86400s;
         }
         location = / { return 301 /panel/; }
         location / {
@@ -334,6 +354,8 @@ NGINXEOF
   --post-hook "cp /etc/letsencrypt/live/${DOMAIN}/fullchain.pem ${PROJECT_DIR}/nginx/ssl/live/${DOMAIN}/ && cp /etc/letsencrypt/live/${DOMAIN}/privkey.pem ${PROJECT_DIR}/nginx/ssl/live/${DOMAIN}/ && docker compose -f ${PROJECT_DIR}/docker-compose.prod.yml start nginx"
 CRONEOF
         chmod 644 "$CRON_FILE"
+    # Ensure cron file ends with newline (required by cron)
+    echo "" >> "$CRON_FILE"
         success "Автообновление сертификата настроено (каждый день в 3:00)"
     fi
 

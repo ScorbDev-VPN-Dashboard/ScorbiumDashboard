@@ -17,6 +17,11 @@ async def expire_outdated_keys() -> None:
             await session.commit()
             if count:
                 log.info(f"[vpn_tasks] Expired {count} outdated VPN keys")
+                from app.services.notification import notification_manager
+                await notification_manager.broadcast({
+                    "type": "expired_sub",
+                    "data": {"count": count},
+                })
     except Exception as e:
         log.error(f"[vpn_tasks] expire_outdated_keys error: {e}")
 

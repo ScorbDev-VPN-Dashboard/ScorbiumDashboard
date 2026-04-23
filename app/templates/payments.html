@@ -7,6 +7,15 @@
   <div class="card-header d-flex align-items-center justify-content-between px-3 py-2">
     <span><i class="bi bi-credit-card me-2 text-muted"></i>История платежей</span>
     <div class="d-flex gap-2">
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          <i class="bi bi-download me-1"></i>Экспорт
+        </button>
+        <ul class="dropdown-menu dropdown-menu-dark" style="background:var(--card-bg);border-color:var(--border)">
+          <li><a class="dropdown-item" href="/panel/export/payments?format=csv" style="color:var(--text)">CSV</a></li>
+          <li><a class="dropdown-item" href="/panel/export/payments?format=xlsx" style="color:var(--text)">Excel</a></li>
+        </ul>
+      </div>
       <select class="form-select form-select-sm" style="width:140px"
         hx-get="/panel/payments" hx-target="#payments-tbody" hx-include="this" name="status">
         <option value="">Все статусы</option>

@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -229,6 +229,30 @@ def create_app() -> FastAPI:
     static_path = Path(__file__).resolve().parent.parent / "static"
     static_path.mkdir(exist_ok=True)
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+
+    @app.websocket("/ws/notifications", name="ws_notifications")
+    async def ws_notifications(websocket: WebSocket):
+        """Real-time notification stream for admin panel."""
+        from app.services.notification import notification_manager
+        from app.utils.security import decode_access_token_full
+
+        token = websocket.query_params.get("token", "")
+        info = decode_access_token_full(token) if token else None
+        if not info:
+            await websocket.close(code=4001)
+            return
+
+        await notification_manager.connect(websocket)
+        try:
+            while True:
+                # Keep-alive ping-pong
+                data = await websocket.receive_text()
+                if data == "ping":
+                    await websocket.send_text("pong")
+        except Exception:
+            pass
+        finally:
+            await notification_manager.disconnect(websocket)
 
     @app.post(config.telegram.telegram_webhook_path, include_in_schema=False)
     async def telegram_webhook(request: Request):

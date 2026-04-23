@@ -20,6 +20,14 @@ HTTPS_PORT=${HTTPS_PORT:-443}
 
 [[ -z "$DOMAIN" || "$DOMAIN" == "localhost" ]] && error "DOMAIN не задан в .env (нужен продакшен-домен)"
 
+# Ensure JWT_SECRET_KEY exists
+if ! grep -q "^JWT_SECRET_KEY=" .env || [[ -z "$(grep "^JWT_SECRET_KEY=" .env | cut -d= -f2- | xargs)" ]]; then
+    warn "JWT_SECRET_KEY не найден в .env — генерирую новый..."
+    NEW_JWT=$(openssl rand -hex 32 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(32))")
+    echo "JWT_SECRET_KEY=${NEW_JWT}" >> .env
+    success "JWT_SECRET_KEY добавлен в .env"
+fi
+
 info "Домен: ${DOMAIN}, HTTPS порт: ${HTTPS_PORT}"
 
 # ── [1/4] git pull ────────────────────────────────────────────────────────────
@@ -132,6 +140,8 @@ http {
         add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
         add_header X-Frame-Options SAMEORIGIN always;
         add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' wss: https:;" always;
 
         proxy_connect_timeout 10s;
         proxy_read_timeout    60s;
@@ -181,6 +191,19 @@ http {
             proxy_set_header Host              \$host;
             proxy_set_header X-Forwarded-Proto \$scheme;
         }
+        # WebSocket notifications endpoint
+        location /ws/notifications {
+            proxy_pass http://vpn_app;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade \$http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host              \$host;
+            proxy_set_header X-Real-IP         \$remote_addr;
+            proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+            proxy_read_timeout 86400s;
+            proxy_send_timeout 86400s;
+        }
         location = / { return 301 /panel/; }
         location / {
             proxy_pass http://vpn_app;
@@ -198,8 +221,11 @@ success "nginx.conf готов"
 info "[3/4] Пересобираю app..."
 docker compose -f docker-compose.prod.yml build app
 
+info "Очищаю старые образы..."
+docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
+
 info "Перезапускаю контейнеры..."
-docker compose -f docker-compose.prod.yml up -d db app
+docker compose -f docker-compose.prod.yml up -d app
 
 info "Жду готовности app (макс 90 сек)..."
 for i in $(seq 1 18); do
@@ -222,7 +248,9 @@ success "Миграции применены"
 
 # ── Перезапускаем nginx с новым конфигом ─────────────────────────────────────
 docker compose -f docker-compose.prod.yml up -d nginx
-docker compose -f docker-compose.prod.yml restart nginx
+sleep 2
+# Try reload first, fallback to restart
+docker compose -f docker-compose.prod.yml exec nginx nginx -s reload 2>/dev/null || docker compose -f docker-compose.prod.yml restart nginx
 sleep 3
 NGINX_STATUS=$(docker inspect --format='{{.State.Status}}' vpn_nginx 2>/dev/null || echo "unknown")
 if [[ "$NGINX_STATUS" == "running" ]]; then

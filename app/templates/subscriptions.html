@@ -30,7 +30,17 @@
 <div class="card">
   <div class="card-header d-flex align-items-center justify-content-between px-3 py-2">
     <span>Все подписки</span>
-    <span class="badge badge-custom badge-active">{{ subscriptions|length }}</span>
+    <div class="d-flex gap-2 align-items-center">
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          <i class="bi bi-download me-1"></i>Экспорт
+        </button>
+        <ul class="dropdown-menu dropdown-menu-dark" style="background:var(--card-bg);border-color:var(--border)">
+          <li><a class="dropdown-item" href="/panel/export/subscriptions?format=csv" style="color:var(--text)">CSV</a></li>
+          <li><a class="dropdown-item" href="/panel/export/subscriptions?format=xlsx" style="color:var(--text)">Excel</a></li>
+        </ul>
+      </div>
+      <span class="badge badge-custom badge-active">{{ subscriptions|length }}</span>
   </div>
   <div class="table-responsive">
     <table class="table mb-0">

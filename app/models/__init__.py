@@ -1,4 +1,5 @@
 from app.models.base import Base
+from app.models.admin import Admin, AdminRole
 from app.models.plan import Plan
 from app.models.user import User
 from app.models.vpn_key import VpnKey, VpnKeyStatus
@@ -16,6 +17,8 @@ from app.models.bot_settings import BotSettings
 
 __all__ = [
     "Base",
+    "Admin",
+    "AdminRole",
     "Plan",
     "User",
     "VpnKey",

@@ -320,6 +320,33 @@ class PasarguardService(VpnPanelInterface):
     async def get_node_stats(self) -> dict:
         return await self._client.get("/api/nodes/realtime_stats")
 
+    async def get_node_by_id(self, node_id: int) -> dict:
+        return await self._client.get(f"/api/node/{node_id}")
+
+    async def add_node(
+        self,
+        name: str,
+        address: str,
+        port: int = 62050,
+        api_port: int = 62051,
+        usage_coefficient: float = 1.0,
+    ) -> dict:
+        payload = {
+            "name": name,
+            "address": address,
+            "port": port,
+            "api_port": api_port,
+            "usage_coefficient": usage_coefficient,
+            "status": "connecting",
+        }
+        return await self._client.post("/api/node", payload)
+
+    async def remove_node(self, node_id: int) -> None:
+        await self._client.delete(f"/api/node/{node_id}")
+
+    async def reconnect_node(self, node_id: int) -> dict:
+        return await self._client.post(f"/api/node/{node_id}/reconnect")
+
     async def get_groups(self) -> list[dict]:
         """Список групп (inbound groups) из Marzban."""
         try:

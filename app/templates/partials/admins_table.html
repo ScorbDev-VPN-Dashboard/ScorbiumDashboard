@@ -1,0 +1,102 @@
+<div class="table-responsive">
+  <table class="table mb-0">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Имя пользователя</th>
+        <th>Роль</th>
+        <th>Статус</th>
+        <th>Создан</th>
+        <th style="width:120px"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in admins %}
+      <tr>
+        <td><code style="color:var(--accent)">#{{ a.id }}</code></td>
+        <td class="fw-medium" style="color:var(--text)">{{ a.username }}</td>
+        <td>
+          {% if a.role == 'superadmin' %}
+            <span class="badge badge-custom" style="background:rgba(239,68,68,.15);color:var(--danger)">Суперадмин</span>
+          {% elif a.role == 'manager' %}
+            <span class="badge badge-custom" style="background:rgba(234,179,8,.15);color:var(--warning)">Менеджер</span>
+          {% else %}
+            <span class="badge badge-custom" style="background:rgba(59,130,246,.15);color:var(--info)">Оператор</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if a.is_active %}
+            <span class="badge badge-custom badge-active">Активен</span>
+          {% else %}
+            <span class="badge badge-custom badge-expired">Отключён</span>
+          {% endif %}
+        </td>
+        <td style="color:var(--muted);font-size:.78rem">{{ a.created_at.strftime('%d.%m.%Y') if a.created_at else '—' }}</td>
+        <td>
+          <div class="d-flex gap-1">
+            <button class="btn btn-sm btn-outline py-1 px-2" data-bs-toggle="modal" data-bs-target="#editAdminModal{{ a.id }}">
+              <i class="bi bi-pencil" style="font-size:.75rem"></i>
+            </button>
+            <button class="btn btn-sm btn-outline py-1 px-2" style="color:var(--danger);border-color:rgba(239,68,68,.3)"
+              hx-delete="/panel/admins/{{ a.id }}" hx-target="#admins-table" hx-swap="innerHTML"
+              hx-confirm="Удалить администратора {{ a.username }}?">
+              <i class="bi bi-trash" style="font-size:.75rem"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+
+      <!-- Edit Modal -->
+      <div class="modal fade" id="editAdminModal{{ a.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content" style="background:var(--bg-card);border:1px solid var(--border)">
+            <div class="modal-header" style="border-bottom:1px solid var(--border)">
+              <h5 class="modal-title" style="color:var(--text)">Редактировать {{ a.username }}</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form hx-post="/panel/admins/{{ a.id }}/edit" hx-target="#admins-table" hx-swap="innerHTML" data-bs-dismiss="modal">
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label class="form-label">Имя пользователя</label>
+                  <input type="text" name="username" class="form-control" value="{{ a.username }}">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Новый пароль (оставьте пустым чтобы не менять)</label>
+                  <input type="password" name="password" class="form-control">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Роль</label>
+                  <select name="role" class="form-select">
+                    <option value="operator" {% if a.role == 'operator' %}selected{% endif %}>Оператор</option>
+                    <option value="manager" {% if a.role == 'manager' %}selected{% endif %}>Менеджер</option>
+                    <option value="superadmin" {% if a.role == 'superadmin' %}selected{% endif %}>Суперадмин</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Статус</label>
+                  <select name="is_active" class="form-select">
+                    <option value="1" {% if a.is_active %}selected{% endif %}>Активен</option>
+                    <option value="0" {% if not a.is_active %}selected{% endif %}>Отключён</option>
+                  </select>
+                </div>
+              </div>
+              <div class="modal-footer" style="border-top:1px solid var(--border)">
+                <button type="button" class="btn btn-sm btn-outline" data-bs-dismiss="modal">Отмена</button>
+                <button type="submit" class="btn btn-sm btn-accent">Сохранить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <tr>
+        <td colspan="6" class="text-center py-4" style="color:var(--muted)">
+          <i class="bi bi-shield-lock" style="font-size:1.5rem;display:block;margin-bottom:.5rem;opacity:.5"></i>
+          Нет администраторов в базе
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+

@@ -30,7 +30,12 @@ from app.services.telegram_notify import TelegramNotifyService
 from app.services.user import UserService
 from app.services.vpn_key import VpnKeyService
 from app.utils.log import log
-from app.utils.security import create_access_token
+from app.utils.security import create_access_token, decode_access_token_full
+from app.core.permissions import has_permission
+from app.services.admin import AdminService
+from app.models.admin import AdminRole
+from app.services.export import ExportService
+from app.services.notification import notification_manager
 
 router = APIRouter()
 
@@ -47,17 +52,22 @@ def _toast(resp: Response, message: str, kind: str = "success") -> None:
     )
 
 
-def _check_session(request: Request) -> bool:
+def _get_admin_info(request: Request) -> dict | None:
+    """Extract admin info (sub + role) from session cookie. Returns None if invalid."""
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
-        return False
-    from app.utils.security import decode_access_token
-
-    return decode_access_token(token) is not None
+        return None
+    return decode_access_token_full(token)
 
 
-def _require_auth(request: Request) -> None:
-    if not _check_session(request):
+def _check_session(request: Request) -> bool:
+    return _get_admin_info(request) is not None
+
+
+def _require_auth(request: Request) -> dict:
+    """Enforce authentication. Returns {"sub": str, "role": str}."""
+    info = _get_admin_info(request)
+    if info is None:
         is_htmx = request.headers.get("HX-Request") == "true"
         is_api = "/api/" in str(request.url.path)
         is_json = "application/json" in request.headers.get("accept", "")
@@ -73,6 +83,26 @@ def _require_auth(request: Request) -> None:
                 headers={"HX-Redirect": "/panel/login"},
             )
         raise _redirect("/panel/login")
+    return info
+
+
+def _require_permission(request: Request, permission: str) -> dict:
+    """Enforce authentication and check permission. Returns admin info dict."""
+    info = _require_auth(request)
+    if not has_permission(info["role"], permission):
+        is_htmx = request.headers.get("HX-Request") == "true"
+        from fastapi import HTTPException
+
+        if is_htmx:
+            raise HTTPException(
+                status_code=200,
+                headers={
+                    "HX-Trigger": json.dumps(
+                        {"showToast": {"msg": "Недостаточно прав", "type": "error"}}
+                    )
+                },
+            )
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
 
 def _redirect(url: str):
@@ -81,9 +111,12 @@ def _redirect(url: str):
     raise HTTPException(status_code=302, headers={"Location": url})
 
 
-async def _base_ctx(request: Request, db: AsyncSession, active: str) -> dict:
+async def _base_ctx(
+    request: Request, db: AsyncSession, active: str, admin_info: dict | None = None
+) -> dict:
     open_tickets = await SupportService(db).count_open()
     pending_payments = await PaymentService(db).count_by_status(PaymentStatus.PENDING)
+    role = admin_info["role"] if admin_info else "superadmin"
     return {
         "request": request,
         "active": active,
@@ -93,6 +126,9 @@ async def _base_ctx(request: Request, db: AsyncSession, active: str) -> dict:
         "app_name": config.web.app_name,
         "app_version": config.web.app_version,
         "vpn_panel_type": "marzban",
+        "admin_role": role,
+        "admin_username": admin_info["sub"] if admin_info else "",
+        "has_perm": has_permission,
     }
 
 
@@ -116,7 +152,6 @@ async def get_miniapp_token(request: Request):
 @router.get("/miniapp-login")
 async def miniapp_login(request: Request, token: str = ""):
     now = _time.time()
-    # Cleanup expired
     expired = [k for k, v in _miniapp_tokens.items() if v < now]
     for k in expired:
         del _miniapp_tokens[k]
@@ -156,25 +191,36 @@ async def login_page(request: Request):
 
 @router.post("/login")
 async def login_submit(
-    request: Request, username: str = Form(...), password: str = Form(...)
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    db: AsyncSession = Depends(get_db),
 ):
+    _error_ctx = {
+        "request": request,
+        "error": "Неверный логин или пароль",
+        "app_name": config.web.app_name,
+        "app_version": config.web.app_version,
+    }
+
+    # Try DB-based admin auth first
+    admin = await AdminService(db).authenticate(username, password)
+    if admin:
+        token = create_access_token(subject=admin.username, role=admin.role)
+        resp = RedirectResponse(url="/panel/", status_code=302)
+        resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
+        return resp
+
     if (
-        username != config.web.web_superadmin_username
-        or password != config.web.web_superadmin_password.get_secret_value()
+        username == config.web.web_superadmin_username
+        and password == config.web.web_superadmin_password.get_secret_value()
     ):
-        return templates.TemplateResponse(
-            "login.html",
-            {
-                "request": request,
-                "error": "Неверный логин или пароль",
-                "app_name": config.web.app_name,
-                "app_version": config.web.app_version,
-            },
-        )
-    token = create_access_token(subject=username)
-    resp = RedirectResponse(url="/panel/", status_code=302)
-    resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
-    return resp
+        token = create_access_token(subject=username, role="superadmin")
+        resp = RedirectResponse(url="/panel/", status_code=302)
+        resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
+        return resp
+
+    return templates.TemplateResponse("login.html", _error_ctx)
 
 
 @router.get("/logout")
@@ -189,8 +235,8 @@ async def logout():
 
 @router.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
-    ctx = await _base_ctx(request, db, "dashboard")
+    admin_info = _require_permission(request, "dashboard")
+    ctx = await _base_ctx(request, db, "dashboard", admin_info)
 
     from datetime import datetime, timedelta, timezone
 
@@ -278,7 +324,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.get("/users", response_class=HTMLResponse)
 async def users_page(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
+    _require_permission(request, "users.read")
     ctx = await _base_ctx(request, db, "users")
     raw = await UserService(db).get_all(limit=200)
     ctx["users"] = [_to_detail(u) for u in raw]
@@ -290,7 +336,7 @@ async def users_page(request: Request, db: AsyncSession = Depends(get_db)):
 async def users_search(
     request: Request, q: str = "", db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
+    _require_permission(request, "users.read")
     raw = await UserService(db).get_all(limit=200)
     q = q.lower()
     filtered = [
@@ -308,8 +354,8 @@ async def users_search(
 async def user_detail_page(
     user_id: int, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
-    ctx = await _base_ctx(request, db, "users")
+    admin_info = _require_permission(request, "users.read")
+    ctx = await _base_ctx(request, db, "users", admin_info)
     from sqlalchemy import select
 
     from app.models.payment import Payment
@@ -342,7 +388,7 @@ async def deduct_balance(
     amount: Decimal = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "users.write")
     user = await UserService(db).deduct_balance(user_id, amount)
     if not user:
         resp = Response(status_code=400)
@@ -360,7 +406,7 @@ async def deduct_balance(
 async def ban_user_view(
     user_id: int, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
+    _require_permission(request, "users.write")
     if user_id in config.telegram.telegram_admin_ids:
         resp = Response(status_code=400)
         _toast(resp, "Нельзя забанить администратора", "error")
@@ -385,7 +431,7 @@ async def ban_user_view(
 async def unban_user_view(
     user_id: int, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
+    _require_permission(request, "users.write")
     user = await UserService(db).unban(user_id)
     if not user:
         return HTMLResponse("", status_code=404)
@@ -409,7 +455,7 @@ async def gift_subscription(
     plan_id: int = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "users.write")
     plan = await PlanService(db).get_by_id(plan_id)
     if not plan:
         return HTMLResponse("", status_code=404)
@@ -439,7 +485,7 @@ async def add_balance(
     amount: Decimal = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "users.write")
     await UserService(db).add_balance(user_id, amount)
     notify = TelegramNotifyService()
     await notify.send_message(user_id, f"💰 На ваш баланс зачислено <b>{amount} ₽</b>")
@@ -492,7 +538,7 @@ def _render_messages(ticket) -> str:
 
 @router.get("/plans", response_class=HTMLResponse)
 async def plans_page(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
+    _require_permission(request, "plans")
     ctx = await _base_ctx(request, db, "plans")
     ctx["plans"] = await PlanService(db).get_all()
     return templates.TemplateResponse("plans.html", ctx)
@@ -507,7 +553,7 @@ async def create_plan_view(
     description: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "plans")
     import re
 
     slug = re.sub(r"[^a-z0-9]+", "_", name.lower().strip()).strip("_") or "plan"
@@ -543,7 +589,7 @@ async def edit_plan_view(
     description: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "plans")
     plan = await PlanService(db).update(
         plan_id,
         name=name,
@@ -564,7 +610,7 @@ async def edit_plan_view(
 async def toggle_plan_view(
     plan_id: int, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
+    _require_permission(request, "plans")
     plan = await PlanService(db).toggle_active(plan_id)
     if not plan:
         return HTMLResponse("", status_code=404)
@@ -599,7 +645,7 @@ async def toggle_plan_view(
 async def delete_plan_view(
     plan_id: int, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
+    _require_permission(request, "plans")
     await PlanService(db).delete(plan_id)
     resp = HTMLResponse("")
     _toast(resp, "Тариф удалён")
@@ -616,7 +662,7 @@ async def payments_page(
     payment_type: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "payments")
     ctx = await _base_ctx(request, db, "payments")
     from app.models.payment import PaymentType
 
@@ -635,7 +681,7 @@ async def payments_page(
 async def refund_payment_view(
     payment_id: int, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
+    _require_permission(request, "payments")
     payment = await PaymentService(db).refund(payment_id)
     if not payment:
         return HTMLResponse("", status_code=404)
@@ -655,7 +701,7 @@ async def refund_payment_view(
 
 @router.get("/subscriptions", response_class=HTMLResponse)
 async def subscriptions_page(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
+    _require_permission(request, "subscriptions.read")
     ctx = await _base_ctx(request, db, "subscriptions")
     ctx["subscriptions"] = await VpnKeyService(db).get_all(limit=200)
     ctx["plans"] = await PlanService(db).get_all(only_active=True)
@@ -669,7 +715,7 @@ async def create_subscription(
     plan_id: int = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "subscriptions")
     plan = await PlanService(db).get_by_id(plan_id)
     if not plan:
         resp = Response(status_code=404)
@@ -699,7 +745,7 @@ async def extend_subscription(
     days: int = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "subscriptions")
     key = await VpnKeyService(db).extend(key_id, days)
     if not key:
         resp = Response(status_code=404)
@@ -720,7 +766,7 @@ async def extend_subscription(
 async def cancel_subscription(
     key_id: int, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
+    _require_permission(request, "subscriptions")
     key = await VpnKeyService(db).revoke(key_id)
     if not key:
         resp = Response(status_code=404)
@@ -740,7 +786,7 @@ async def cancel_subscription(
 
 @router.get("/promos", response_class=HTMLResponse)
 async def promos_page(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
+    _require_permission(request, "promos")
     ctx = await _base_ctx(request, db, "promos")
     ctx["promos"] = await PromoService(db).get_all()
     ctx["plans"] = await PlanService(db).get_all(only_active=True)
@@ -757,7 +803,7 @@ async def create_promo(
     max_uses: int = Form(0),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "promos")
     await PromoService(db).create(
         code=code.upper().strip(),
         promo_type=promo_type,
@@ -780,7 +826,7 @@ async def create_promo(
 async def delete_promo(
     promo_id: int, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
+    _require_permission(request, "promos")
     await PromoService(db).delete(promo_id)
     await db.commit()
     resp = HTMLResponse("")
@@ -792,7 +838,7 @@ async def delete_promo(
 async def toggle_promo(
     promo_id: int, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
+    _require_permission(request, "promos")
     promo = await PromoService(db).toggle_active(promo_id)
     await db.commit()
     if not promo:
@@ -812,7 +858,7 @@ async def toggle_promo(
 
 @router.get("/referrals", response_class=HTMLResponse)
 async def referrals_page(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
+    _require_permission(request, "referrals")
     ctx = await _base_ctx(request, db, "referrals")
     ctx["stats"] = await ReferralService(db).get_stats()
     ctx["top"] = await ReferralService(db).get_top(limit=20)
@@ -826,7 +872,7 @@ async def referrals_page(request: Request, db: AsyncSession = Depends(get_db)):
 async def support_page(
     request: Request, status: Optional[str] = None, db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
+    _require_permission(request, "support")
     ctx = await _base_ctx(request, db, "support")
     ts = TicketStatus(status) if status else None
     ctx["tickets"] = await SupportService(db).get_all(status=ts, limit=100)
@@ -843,7 +889,7 @@ async def support_ticket(
     status: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "support")
     ctx = await _base_ctx(request, db, "support")
     ts = TicketStatus(status) if status else None
     ctx["tickets"] = await SupportService(db).get_all(status=ts, limit=100)
@@ -861,7 +907,7 @@ async def support_reply(
     notify_user: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "support")
     svc = SupportService(db)
     await svc.add_message(ticket_id=ticket_id, sender_id=0, text=text, is_admin=True)
     await db.commit()
@@ -882,7 +928,7 @@ async def support_reply(
 async def support_close(
     ticket_id: int, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
+    _require_permission(request, "support")
     svc = SupportService(db)
     ticket = await svc.get_by_id(ticket_id)
     if not ticket:
@@ -908,7 +954,7 @@ async def support_status(
     status: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "support")
     await SupportService(db).set_status(ticket_id, TicketStatus(status))
     await db.commit()
     resp = Response(status_code=200)
@@ -923,7 +969,7 @@ async def support_priority(
     priority: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "support")
     await SupportService(db).set_priority(ticket_id, TicketPriority(priority))
     await db.commit()
     resp = Response(status_code=200)
@@ -936,7 +982,7 @@ async def support_priority(
 
 @router.get("/vpn", response_class=HTMLResponse)
 async def vpn_page(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
+    _require_permission(request, "vpn.read")
     ctx = await _base_ctx(request, db, "vpn")
     ctx["keys"] = await VpnKeyService(db).get_all(limit=200)
     return templates.TemplateResponse("vpn.html", ctx)
@@ -946,7 +992,7 @@ async def vpn_page(request: Request, db: AsyncSession = Depends(get_db)):
 async def revoke_vpn_key(
     key_id: int, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
+    _require_permission(request, "vpn")
     key = await VpnKeyService(db).revoke(key_id)
     await db.commit()
     resp = Response(status_code=200)
@@ -962,7 +1008,7 @@ async def revoke_vpn_key(
 async def delete_vpn_key(
     key_id: int, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
+    _require_permission(request, "vpn")
     key = await VpnKeyService(db).delete_from_marzban(key_id)
     await db.commit()
     resp = HTMLResponse("")
@@ -976,7 +1022,7 @@ async def delete_vpn_key(
 
 @router.post("/vpn/sync", response_class=HTMLResponse)
 async def sync_vpn_keys(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
+    _require_permission(request, "vpn")
     result = await VpnKeyService(db).sync_from_marzban()
     await db.commit()
     resp = Response(status_code=200)
@@ -986,7 +1032,7 @@ async def sync_vpn_keys(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.get("/broadcasts", response_class=HTMLResponse)
 async def broadcasts_page(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
+    _require_permission(request, "broadcasts")
     ctx = await _base_ctx(request, db, "broadcasts")
     ctx["broadcasts"] = await BroadcastService(db).get_all()
     return templates.TemplateResponse("broadcasts.html", ctx)
@@ -1001,7 +1047,7 @@ async def create_broadcast_view(
     parse_mode: str = Form("HTML"),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "broadcasts")
     await BroadcastService(db).create(
         title=title, text=text, target=target, parse_mode=parse_mode
     )
@@ -1017,7 +1063,7 @@ async def create_broadcast_view(
 async def send_broadcast_view(
     broadcast_id: int, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    _require_auth(request)
+    _require_permission(request, "broadcasts")
     bc = await BroadcastService(db).send(broadcast_id)
     if not bc:
         return HTMLResponse("", status_code=400)
@@ -1033,7 +1079,7 @@ async def send_broadcast_view(
 
 @router.get("/telegram", response_class=HTMLResponse)
 async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
+    _require_permission(request, "system")
     ctx = await _base_ctx(request, db, "telegram")
     ctx["bot_info"] = await TelegramNotifyService().get_bot_info()
     ctx["admin_ids"] = config.telegram.telegram_admin_ids
@@ -1130,7 +1176,7 @@ _ALLOWED_PS_KEYS = frozenset(
 @router.post("/telegram/payment-systems/yookassa")
 async def ps_save_yookassa(request: Request, db: AsyncSession = Depends(get_db)):
     """Сохраняет настройки ЮКассы в bot_settings. Все данные через ORM — SQL-инъекции невозможны."""
-    _require_auth(request)
+    _require_permission(request, "system")
     from fastapi.responses import JSONResponse
     import re
 
@@ -1178,7 +1224,7 @@ async def ps_save_yookassa(request: Request, db: AsyncSession = Depends(get_db))
 @router.post("/telegram/payment-systems/yookassa/test")
 async def ps_test_yookassa(request: Request, db: AsyncSession = Depends(get_db)):
     """Проверяет подключение к ЮКассе."""
-    _require_auth(request)
+    _require_permission(request, "system")
     from fastapi.responses import JSONResponse
 
     svc = BotSettingsService(db)
@@ -1239,7 +1285,7 @@ async def ps_test_yookassa(request: Request, db: AsyncSession = Depends(get_db))
 @router.post("/telegram/payment-systems/cryptobot")
 async def ps_save_cryptobot(request: Request, db: AsyncSession = Depends(get_db)):
     """Сохраняет токен CryptoBot в bot_settings."""
-    _require_auth(request)
+    _require_permission(request, "system")
     from fastapi.responses import JSONResponse
     import re
 
@@ -1251,7 +1297,6 @@ async def ps_save_cryptobot(request: Request, db: AsyncSession = Depends(get_db)
             {"ok": False, "message": "Токен не указан"}, status_code=400
         )
 
-    # Валидация: только цифры, буквы, двоеточие, дефис, подчёркивание
     if not re.fullmatch(r"[\d]+:[A-Za-z0-9_\-]+", token_raw):
         return JSONResponse(
             {
@@ -1269,19 +1314,11 @@ async def ps_save_cryptobot(request: Request, db: AsyncSession = Depends(get_db)
         {"ok": True, "message": "CryptoBot токен сохранён", "enabled": True}
     )
 
-    svc = BotSettingsService(db)
-    await svc.set("cryptobot_token", token_raw)
-    await db.commit()
-
-    return JSONResponse(
-        {"ok": True, "message": "CryptoBot токен сохранён", "enabled": True}
-    )
-
 
 @router.post("/telegram/payment-systems/cryptobot/test")
 async def ps_test_cryptobot(request: Request, db: AsyncSession = Depends(get_db)):
     """Проверяет подключение к CryptoBot."""
-    _require_auth(request)
+    _require_permission(request, "system")
     from fastapi.responses import JSONResponse
 
     svc = BotSettingsService(db)
@@ -1320,7 +1357,7 @@ async def ps_test_cryptobot(request: Request, db: AsyncSession = Depends(get_db)
 @router.post("/telegram/payment-systems/toggle")
 async def ps_toggle(request: Request, db: AsyncSession = Depends(get_db)):
     """Включает/отключает платёжную систему. Хранит флаг в bot_settings."""
-    _require_auth(request)
+    _require_permission(request, "system")
     from fastapi.responses import JSONResponse
 
     _ALLOWED_TOGGLE_KEYS = frozenset(
@@ -1359,7 +1396,7 @@ async def ps_toggle(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/telegram/payment-systems/freekassa")
 async def ps_save_freekassa(request: Request, db: AsyncSession = Depends(get_db)):
     """Сохраняет настройки FreeKassa в bot_settings через ORM (без SQL-инъекций)."""
-    _require_auth(request)
+    _require_permission(request, "system")
     from fastapi.responses import JSONResponse
     import re
 
@@ -1411,7 +1448,7 @@ async def ps_save_freekassa(request: Request, db: AsyncSession = Depends(get_db)
 @router.post("/telegram/payment-systems/freekassa/test")
 async def ps_test_freekassa(request: Request, db: AsyncSession = Depends(get_db)):
     """Проверяет подключение к FreeKassa через API баланса."""
-    _require_auth(request)
+    _require_permission(request, "system")
     from fastapi.responses import JSONResponse
 
     svc = BotSettingsService(db)
@@ -1449,17 +1486,12 @@ async def ps_test_freekassa(request: Request, db: AsyncSession = Depends(get_db)
         return JSONResponse(
             {"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400
         )
-    except Exception as e:
-        log.error(f"FreeKassa test error: {e}")
-        return JSONResponse(
-            {"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400
-        )
 
 
 @router.post("/telegram/payment-systems/aikassa")
 async def ps_save_aikassa(request: Request, db: AsyncSession = Depends(get_db)):
     """Сохраняет настройки AiKassa в bot_settings через ORM."""
-    _require_auth(request)
+    _require_permission(request, "system")
     from fastapi.responses import JSONResponse
     import re
 
@@ -1504,7 +1536,7 @@ async def ps_save_aikassa(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/telegram/payment-systems/aikassa/test")
 async def ps_test_aikassa(request: Request, db: AsyncSession = Depends(get_db)):
     """Проверяет подключение к AiKassa."""
-    _require_auth(request)
+    _require_permission(request, "system")
     from fastapi.responses import JSONResponse
 
     svc = BotSettingsService(db)
@@ -1541,7 +1573,7 @@ async def ps_test_aikassa(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/telegram/payment-systems/stars-rate")
 async def ps_save_stars_rate(request: Request, db: AsyncSession = Depends(get_db)):
     """Сохраняет курс Telegram Stars (1 Star = X рублей)."""
-    _require_auth(request)
+    _require_permission(request, "system")
     from fastapi.responses import JSONResponse
     import re
 
@@ -1569,7 +1601,7 @@ async def ps_save_stars_rate(request: Request, db: AsyncSession = Depends(get_db
 
 @router.post("/telegram/test-marzban", response_class=HTMLResponse)
 async def test_marzban(request: Request):
-    _require_auth(request)
+    _require_permission(request, "system")
     from app.services.pasarguard.pasarguard import PasarguardService
 
     marzban = PasarguardService()
@@ -1630,7 +1662,7 @@ async def test_marzban(request: Request):
 @router.get("/telegram/groups", response_class=HTMLResponse)
 async def get_marzban_groups(request: Request):
     """HTMX: возвращает список групп из Marzban для отображения чекбоксов."""
-    _require_auth(request)
+    _require_permission(request, "system")
     from app.services.pasarguard.pasarguard import PasarguardService
 
     groups = await PasarguardService().get_groups()
@@ -1657,7 +1689,7 @@ async def get_marzban_groups(request: Request):
 @router.post("/telegram/groups", response_class=HTMLResponse)
 async def save_marzban_groups(request: Request, db: AsyncSession = Depends(get_db)):
     """Сохраняет выбранные group_ids в bot_settings."""
-    _require_auth(request)
+    _require_permission(request, "system")
     import json as _json
 
     form = await request.form()
@@ -1680,7 +1712,7 @@ async def upload_photo(
     Загружает фото через Bot API (sendPhoto), получает file_id и сохраняет в bot_settings.
     Отправляет фото первому admin_id чтобы получить file_id от Telegram.
     """
-    _require_auth(request)
+    _require_permission(request, "system")
     import httpx
     from fastapi.responses import JSONResponse
 
@@ -1727,7 +1759,7 @@ async def save_miniapp(
     db: AsyncSession = Depends(get_db),
 ):
     """Сохраняет URL панели для кнопки Mini App в /admin команде."""
-    _require_auth(request)
+    _require_permission(request, "system")
     panel_url = panel_url.strip().rstrip("/")
     await BotSettingsService(db).set("panel_url", panel_url)
     await db.commit()
@@ -1742,7 +1774,7 @@ async def clear_photo(
     key: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
-    _require_auth(request)
+    _require_permission(request, "system")
     await BotSettingsService(db).set(key, "")
     await db.commit()
     resp = Response(status_code=200)
@@ -1752,7 +1784,7 @@ async def clear_photo(
 
 @router.post("/telegram/bot-settings")
 async def save_bot_settings(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
+    _require_permission(request, "system")
     form = await request.form()
     allowed_keys = {
         "welcome_message",
@@ -1830,7 +1862,7 @@ async def save_bot_settings(request: Request, db: AsyncSession = Depends(get_db)
 @router.post("/telegram/lang-strings")
 async def save_lang_strings(request: Request, db: AsyncSession = Depends(get_db)):
     """Save i18n string overrides for a specific language."""
-    _require_auth(request)
+    _require_permission(request, "system")
     form = await request.form()
     lang = form.get("lang", "ru")
     if lang not in ("ru", "en", "fa"):
@@ -1903,7 +1935,7 @@ async def save_lang_strings(request: Request, db: AsyncSession = Depends(get_db)
 
 @router.post("/telegram/bot-toggle")
 async def bot_toggle(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
+    _require_permission(request, "system")
     svc = BotSettingsService(db)
     current = await svc.get("bot_enabled") or "1"
     new_val = "0" if current == "1" else "1"
@@ -1918,7 +1950,7 @@ async def bot_toggle(request: Request, db: AsyncSession = Depends(get_db)):
 async def telegram_send_view(
     request: Request, chat_id: int = Form(...), text: str = Form(...)
 ):
-    _require_auth(request)
+    _require_permission(request, "system")
     ok = await TelegramNotifyService().send_message(chat_id, text)
     resp = Response(status_code=200)
     _toast(
@@ -1934,14 +1966,14 @@ async def telegram_send_view(
 
 @router.get("/backup", response_class=HTMLResponse)
 async def backup_page(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
+    _require_permission(request, "system")
     ctx = await _base_ctx(request, db, "backup")
     return templates.TemplateResponse("backup.html", ctx)
 
 
 @router.get("/backup/export")
 async def backup_export(request: Request, format: str = "sql"):
-    _require_auth(request)
+    _require_permission(request, "system")
     db_cfg = config.database
     env = {
         "PGPASSWORD": db_cfg.db_password.get_secret_value(),
@@ -2002,7 +2034,7 @@ async def backup_import(
     file: UploadFile = File(...),
     confirm: Optional[str] = Form(None),
 ):
-    _require_auth(request)
+    _require_permission(request, "system")
     if confirm != "yes":
         resp = Response(status_code=400)
         _toast(resp, "Подтвердите восстановление", "error")
@@ -2066,7 +2098,7 @@ async def backup_import(
 
 @router.get("/pasarguard", response_class=HTMLResponse)
 async def pasarguard_page(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
+    _require_permission(request, "system")
     ctx = await _base_ctx(request, db, "pasarguard")
     ctx["bot_settings"] = await BotSettingsService(db).get_all()
     from app.services.pasarguard.pasarguard import PasarguardService
@@ -2082,7 +2114,7 @@ async def pasarguard_page(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.get("/pasarguard/users", response_class=HTMLResponse)
 async def pg_users(request: Request):
-    _require_auth(request)
+    _require_permission(request, "system")
     from app.services.pasarguard.pasarguard import PasarguardService
 
     try:
@@ -2120,7 +2152,7 @@ async def pg_users(request: Request):
 
 @router.get("/pasarguard/groups", response_class=HTMLResponse)
 async def pg_groups(request: Request):
-    _require_auth(request)
+    _require_permission(request, "system")
     from app.services.pasarguard.pasarguard import PasarguardService
 
     try:
@@ -2153,7 +2185,7 @@ async def pg_groups(request: Request):
 
 @router.get("/pasarguard/nodes", response_class=HTMLResponse)
 async def pg_nodes(request: Request):
-    _require_auth(request)
+    _require_permission(request, "system")
     from app.services.pasarguard.pasarguard import PasarguardService
 
     try:
@@ -2188,7 +2220,297 @@ async def pg_nodes(request: Request):
     </table></div>""")
 
 
-# ── Keyboard Editor ───────────────────────────────────────────────────────────
+
+
+# ── Nodes ─────────────────────────────────────────────────────────────────────
+
+
+@router.get("/nodes", response_class=HTMLResponse)
+async def nodes_page(request: Request, db: AsyncSession = Depends(get_db)):
+    admin_info = _require_permission(request, "vpn.read")
+    ctx = await _base_ctx(request, db, "nodes", admin_info)
+    from app.services.pasarguard.pasarguard import PasarguardService
+    try:
+        data = await PasarguardService().get_nodes()
+        ctx["nodes"] = data.get("nodes", []) if isinstance(data, dict) else data
+    except Exception:
+        ctx["nodes"] = []
+    return templates.TemplateResponse("nodes.html", ctx)
+
+
+@router.get("/nodes/data", response_class=HTMLResponse)
+async def nodes_data(request: Request):
+    _require_permission(request, "vpn.read")
+    from app.services.pasarguard.pasarguard import PasarguardService
+    try:
+        data = await PasarguardService().get_nodes()
+        nodes = data.get("nodes", []) if isinstance(data, dict) else data
+    except Exception as e:
+        return HTMLResponse(f'''<div class="p-3" style="color:var(--danger)">Ошибка: {e}</div>''')
+
+    if not nodes:
+        return HTMLResponse('''<div class="p-3 text-muted">Нод нет</div>''')
+
+    cards = ""
+    for n in nodes:
+        status = n.get("status", "")
+        color = {"connected": "var(--success)", "connecting": "var(--warning)", "error": "var(--danger)"}.get(status, "var(--muted)")
+        pulse = "animation: pulse-glow 2s infinite" if status == "connecting" else ""
+        cards += f'''
+        <div class="col-md-6 col-xl-4">
+          <div class="card glass p-3 h-100">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div class="d-flex align-items-center gap-2">
+                <span style="width:10px;height:10px;border-radius:50%;background:{color};box-shadow:0 0 8px {color};{pulse}"></span>
+                <span class="fw-semibold" style="color:var(--text)">{n.get("name", "")}</span>
+              </div>
+              <span style="font-size:.7rem;color:var(--muted)">#{n.get("id", "")}</span>
+            </div>
+            <div style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem">{n.get("address", "")}</div>
+            <div class="d-flex gap-3 mb-2" style="font-size:.75rem;color:var(--muted)">
+              <span><i class="bi bi-hdd-network me-1"></i>{n.get("port", "—")}</span>
+              <span><i class="bi bi-people me-1"></i>{n.get("total_users", 0)}</span>
+            </div>
+            <div class="d-flex gap-2 mt-auto">
+              <button class="btn btn-sm btn-outline" hx-post="/panel/nodes/{n.get("id", "")}/reconnect" hx-target="#nodes-grid" hx-swap="innerHTML">
+                <i class="bi bi-arrow-clockwise me-1"></i>Переподключить
+              </button>
+            </div>
+          </div>
+        </div>'''
+
+    return HTMLResponse(f'''<div class="row g-3" id="nodes-grid" hx-get="/panel/nodes/data" hx-trigger="every 30s" hx-swap="outerHTML">{cards}</div>''')
+
+
+@router.post("/nodes/{node_id}/reconnect", response_class=HTMLResponse)
+async def reconnect_node(node_id: int, request: Request):
+    _require_permission(request, "system")
+    from app.services.pasarguard.pasarguard import PasarguardService
+    try:
+        await PasarguardService().reconnect_node(node_id)
+    except Exception as e:
+        return HTMLResponse(f'''<div class="p-3" style="color:var(--danger)">Ошибка: {e}</div>''')
+    return await nodes_data(request)
+
+
+@router.post("/nodes/add", response_class=HTMLResponse)
+async def add_node(
+    request: Request,
+    name: str = Form(...),
+    address: str = Form(...),
+    port: int = Form(62050),
+    api_port: int = Form(62051),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_permission(request, "system")
+    from app.services.pasarguard.pasarguard import PasarguardService
+    try:
+        await PasarguardService().add_node(name=name, address=address, port=port, api_port=api_port)
+    except Exception as e:
+        resp = Response(status_code=400)
+        _toast(resp, f"Ошибка добавления ноды: {str(e)[:100]}", "error")
+        return resp
+    return await nodes_data(request)
+
+
+@router.delete("/nodes/{node_id}", response_class=HTMLResponse)
+async def delete_node(node_id: int, request: Request):
+    _require_permission(request, "system")
+    from app.services.pasarguard.pasarguard import PasarguardService
+    try:
+        await PasarguardService().remove_node(node_id)
+    except Exception as e:
+        resp = Response(status_code=400)
+        _toast(resp, f"Ошибка удаления ноды: {str(e)[:100]}", "error")
+        return resp
+    return await nodes_data(request)
+
+
+# ── Export ────────────────────────────────────────────────────────────────────
+
+
+@router.get("/export/users")
+async def export_users(
+    request: Request,
+    format: str = "csv",
+    db: AsyncSession = Depends(get_db),
+):
+    _require_permission(request, "export")
+    data = await ExportService(db).export_users(fmt=format)
+    ext = "xlsx" if format == "xlsx" else "csv"
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if ext == "xlsx" else "text/csv"
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type=mime,
+        headers={"Content-Disposition": f'attachment; filename="users_{ts}.{ext}"'},
+    )
+
+
+@router.get("/export/payments")
+async def export_payments(
+    request: Request,
+    format: str = "csv",
+    status: Optional[str] = None,
+    payment_type: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    _require_permission(request, "export")
+    data = await ExportService(db).export_payments(
+        fmt=format, status=status, payment_type=payment_type,
+        date_from=date_from, date_to=date_to,
+    )
+    ext = "xlsx" if format == "xlsx" else "csv"
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if ext == "xlsx" else "text/csv"
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type=mime,
+        headers={"Content-Disposition": f'attachment; filename="payments_{ts}.{ext}"'},
+    )
+
+
+@router.get("/export/subscriptions")
+async def export_subscriptions(
+    request: Request,
+    format: str = "csv",
+    db: AsyncSession = Depends(get_db),
+):
+    _require_permission(request, "export")
+    data = await ExportService(db).export_subscriptions(fmt=format)
+    ext = "xlsx" if format == "xlsx" else "csv"
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if ext == "xlsx" else "text/csv"
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type=mime,
+        headers={"Content-Disposition": f'attachment; filename="subscriptions_{ts}.{ext}"'},
+    )
+
+
+# ── WebSocket Token ───────────────────────────────────────────────────────────
+
+
+@router.get("/ws-token")
+async def ws_token(request: Request):
+    """Return a short-lived token for WebSocket authentication."""
+    admin_info = _require_auth(request)
+    from app.utils.security import create_access_token
+    token = create_access_token(
+        subject=admin_info["sub"],
+        role=admin_info["role"],
+        expires_delta=timedelta(minutes=1),
+    )
+    return {"token": token}
+
+# ── Admins ────────────────────────────────────────────────────────────────────
+
+@router.get("/admins", response_class=HTMLResponse)
+async def admins_page(request: Request, db: AsyncSession = Depends(get_db)):
+    _require_permission(request, "system")
+    ctx = await _base_ctx(request, db, "admins")
+    ctx["admins"] = await AdminService(db).get_all()
+    return templates.TemplateResponse("admins.html", ctx)
+
+
+@router.post("/admins", response_class=HTMLResponse)
+async def create_admin(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    role: str = Form("operator"),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_permission(request, "system")
+    if role not in ("superadmin", "manager", "operator"):
+        resp = Response(status_code=400)
+        _toast(resp, "Недопустимая роль", "error")
+        return resp
+    existing = await AdminService(db).get_by_username(username)
+    if existing:
+        resp = Response(status_code=400)
+        _toast(resp, "Администратор с таким именем уже существует", "error")
+        return resp
+    await AdminService(db).create(username=username, password=password, role=role)
+    await db.commit()
+    admins = await AdminService(db).get_all()
+    resp = templates.TemplateResponse(
+        "partials/admins_table.html",
+        {"request": request, "admins": admins},
+    )
+    _toast(resp, f"Администратор {username} создан")
+    return resp
+
+
+@router.post("/admins/{admin_id}/edit", response_class=HTMLResponse)
+async def edit_admin(
+    admin_id: int,
+    request: Request,
+    username: Optional[str] = Form(None),
+    password: Optional[str] = Form(None),
+    role: Optional[str] = Form(None),
+    is_active: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_permission(request, "system")
+    admin_info = _get_admin_info(request)
+    # Prevent self-demotion from superadmin
+    target = await AdminService(db).get_by_id(admin_id)
+    if not target:
+        resp = Response(status_code=404)
+        _toast(resp, "Администратор не найден", "error")
+        return resp
+    if target.username == admin_info["sub"] and role and role != "superadmin":
+        resp = Response(status_code=400)
+        _toast(resp, "Нельзя понизить самого себя", "error")
+        return resp
+    updates = {}
+    if username is not None:
+        updates["username"] = username
+    if password is not None and password.strip():
+        updates["password"] = password
+    if role is not None:
+        updates["role"] = role
+    if is_active is not None:
+        updates["is_active"] = is_active == "1"
+    await AdminService(db).update(admin_id, **updates)
+    await db.commit()
+    admins = await AdminService(db).get_all()
+    resp = templates.TemplateResponse(
+        "partials/admins_table.html",
+        {"request": request, "admins": admins},
+    )
+    _toast(resp, "Администратор обновлён")
+    return resp
+
+
+@router.delete("/admins/{admin_id}", response_class=HTMLResponse)
+async def delete_admin(admin_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    _require_permission(request, "system")
+    admin_info = _get_admin_info(request)
+    target = await AdminService(db).get_by_id(admin_id)
+    if not target:
+        resp = Response(status_code=404)
+        _toast(resp, "Администратор не найден", "error")
+        return resp
+    if target.username == admin_info["sub"]:
+        resp = Response(status_code=400)
+        _toast(resp, "Нельзя удалить самого себя", "error")
+        return resp
+    await AdminService(db).delete(admin_id)
+    await db.commit()
+    admins = await AdminService(db).get_all()
+    resp = templates.TemplateResponse(
+        "partials/admins_table.html",
+        {"request": request, "admins": admins},
+    )
+    _toast(resp, "Администратор удалён")
+    return resp
+
+
+# ── Keyboard Editor ─────────────────────────────────────────────────────────--
 
 # All available buttons definition
 _ALL_BUTTONS = [
@@ -2230,7 +2552,7 @@ _DEFAULT_LAYOUT = [
 
 @router.get("/keyboard", response_class=HTMLResponse)
 async def keyboard_editor(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_auth(request)
+    _require_permission(request, "system")
     ctx = await _base_ctx(request, db, "keyboard")
     ctx["bot_settings"] = await BotSettingsService(db).get_all()
     ctx["bot_info"] = await TelegramNotifyService().get_bot_info()

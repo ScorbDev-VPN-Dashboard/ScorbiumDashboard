@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Администраторы — {{ app_name }}{% endblock %}
+{% block page_title %}Администраторы{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-12">
+    <div class="card glass">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span><i class="bi bi-shield-lock me-2"></i>Список администраторов</span>
+        <button class="btn btn-sm btn-accent" data-bs-toggle="modal" data-bs-target="#addAdminModal">
+          <i class="bi bi-plus-lg me-1"></i>Добавить
+        </button>
+      </div>
+      <div class="card-body p-0" id="admins-table">
+        {% include "partials/admins_table.html" %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Admin Modal -->
+<div class="modal fade" id="addAdminModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="background:var(--bg-card);border:1px solid var(--border)">
+      <div class="modal-header" style="border-bottom:1px solid var(--border)">
+        <h5 class="modal-title" style="color:var(--text)">Новый администратор</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form hx-post="/panel/admins" hx-target="#admins-table" hx-swap="innerHTML" data-bs-dismiss="modal">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Имя пользователя</label>
+            <input type="text" name="username" class="form-control" required minlength="3" maxlength="64">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Пароль</label>
+            <input type="password" name="password" class="form-control" required minlength="6">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Роль</label>
+            <select name="role" class="form-select">
+              <option value="operator">Оператор (только поддержка + чтение)</option>
+              <option value="manager">Менеджер (пользователи, платежи, экспорт)</option>
+              <option value="superadmin">Суперадмин (полный доступ)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--border)">
+          <button type="button" class="btn btn-sm btn-outline" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-sm btn-accent">Создать</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

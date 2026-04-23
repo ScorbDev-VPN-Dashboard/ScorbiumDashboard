@@ -13,13 +13,20 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # Copy dependency files first (layer cache)
 COPY pyproject.toml uv.lock ./
 
-# Install dependencies
-RUN uv sync --frozen --no-dev
+# Install dependencies + optional export (openpyxl)
+RUN uv sync --frozen --no-dev --extra export
+
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
 
 # Copy source
-COPY . .
+COPY --chown=appuser:appuser . .
 
 EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/')"
 
 # Run combined API + Bot
 CMD ["uv", "run", "python", "main.py"]

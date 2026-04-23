@@ -94,6 +94,17 @@ async def cmd_start(message: Message) -> None:
 
         await session.commit()
 
+        if created:
+            from app.services.notification import notification_manager
+            await notification_manager.broadcast({
+                "type": "new_user",
+                "data": {
+                    "user_id": user.id,
+                    "full_name": message.from_user.full_name or "",
+                    "username": message.from_user.username or "",
+                },
+            })
+
         settings = await BotSettingsService(session).get_all()
         welcome_tpl = settings.get("welcome_message")
         user_lang = user.language if user and user.language else None
@@ -787,6 +798,15 @@ async def support_message(message: Message, state: FSMContext) -> None:
     )
     safe_subject = escape_html(subject)
     safe_text = escape_html(truncate(text, 300))
+    from app.services.notification import notification_manager
+    await notification_manager.broadcast({
+        "type": "new_ticket",
+        "data": {
+            "ticket_id": ticket_id,
+            "user_id": message.from_user.id,
+            "subject": subject,
+        },
+    })
     for admin_id in config.telegram.telegram_admin_ids:
         await notify.send_message(
             admin_id,

@@ -86,6 +86,16 @@ async def check_pending_yookassa_payments() -> None:
                     else:
                         text = f"{success_msg}\n\n⚠️ Не удалось создать ключ. Обратитесь в поддержку."
                     await TelegramNotifyService().send_message(pd["user_id"], text)
+                    from app.services.notification import notification_manager
+                    await notification_manager.broadcast({
+                        "type": "new_payment",
+                        "data": {
+                            "payment_id": pd["id"],
+                            "user_id": pd["user_id"],
+                            "amount": str(payment.amount),
+                            "currency": payment.currency,
+                        },
+                    })
                     log.info(f"[polling] Payment {pd['id']} confirmed, key={key.id if key else None}")
 
             elif yk_payment.status in ("canceled", "expired"):
