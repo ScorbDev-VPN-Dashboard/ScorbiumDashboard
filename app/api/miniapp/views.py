@@ -562,7 +562,6 @@ async def check_payment(
     if payment.status == PaymentStatus.FAILED.value:
         return JSONResponse({"ok": True, "status": "failed"})
 
-    # Still pending — check with YooKassa
     if not payment.external_id:
         return JSONResponse({"ok": True, "status": "pending"})
 

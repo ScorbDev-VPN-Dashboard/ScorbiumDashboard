@@ -1,4 +1,5 @@
-"""add admins table
+"""
+add admins table
 
 Revision ID: d5e6f7a8b9c0
 Revises: c4d5e6f7a8b9
