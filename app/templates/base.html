@@ -358,18 +358,40 @@
   <nav class="sidebar-nav">
     <div class="nav-section">Обзор</div>
     <div class="nav-item"><a href="/panel/" class="{% if active == 'dashboard' %}active{% endif %}"><i class="bi bi-grid-1x2-fill"></i> Дашборд</a></div>
+
     <div class="nav-section">Управление</div>
+    {% if has_perm(admin_role, 'users') %}
     <div class="nav-item"><a href="/panel/users" class="{% if active == 'users' %}active{% endif %}"><i class="bi bi-people-fill"></i> Пользователи</a></div>
+    {% endif %}
+    {% if has_perm(admin_role, 'plans') %}
     <div class="nav-item"><a href="/panel/plans" class="{% if active == 'plans' %}active{% endif %}"><i class="bi bi-tags-fill"></i> Тарифы</a></div>
+    {% endif %}
+    {% if has_perm(admin_role, 'subscriptions') %}
     <div class="nav-item"><a href="/panel/subscriptions" class="{% if active == 'subscriptions' %}active{% endif %}"><i class="bi bi-calendar-check-fill"></i> Подписки</a></div>
+    {% endif %}
+    {% if has_perm(admin_role, 'payments') %}
     <div class="nav-item"><a href="/panel/payments" class="{% if active == 'payments' %}active{% endif %}"><i class="bi bi-credit-card-fill"></i> Платежи{% if pending_payments %}<span class="nav-badge nav-badge-warn">{{ pending_payments }}</span>{% endif %}</a></div>
+    {% endif %}
+
     <div class="nav-section">Сервис</div>
+    {% if has_perm(admin_role, 'support') %}
     <div class="nav-item"><a href="/panel/support" class="{% if active == 'support' %}active{% endif %}"><i class="bi bi-headset"></i> Поддержка{% if open_tickets %}<span class="nav-badge">{{ open_tickets }}</span>{% endif %}</a></div>
+    {% endif %}
+    {% if has_perm(admin_role, 'broadcasts') %}
     <div class="nav-item"><a href="/panel/broadcasts" class="{% if active == 'broadcasts' %}active{% endif %}"><i class="bi bi-megaphone-fill"></i> Рассылки</a></div>
+    {% endif %}
+    {% if has_perm(admin_role, 'promos') %}
     <div class="nav-item"><a href="/panel/promos" class="{% if active == 'promos' %}active{% endif %}"><i class="bi bi-ticket-perforated-fill"></i> Промокоды</a></div>
+    {% endif %}
+    {% if has_perm(admin_role, 'referrals') %}
     <div class="nav-item"><a href="/panel/referrals" class="{% if active == 'referrals' %}active{% endif %}"><i class="bi bi-diagram-3-fill"></i> Рефералы</a></div>
+    {% endif %}
+    {% if has_perm(admin_role, 'vpn') %}
     <div class="nav-item"><a href="/panel/vpn" class="{% if active == 'vpn' %}active{% endif %}"><i class="bi bi-key-fill"></i> VPN ключи</a></div>
+    {% endif %}
+
     <div class="nav-section">Система</div>
+    {% if has_perm(admin_role, 'system') %}
     <div class="nav-item"><a href="/panel/telegram" class="{% if active == 'telegram' %}active{% endif %}"><i class="bi bi-telegram"></i> Telegram</a></div>
     {% if vpn_panel_type == 'remnawave' %}
     <div class="nav-item"><a href="/panel/remnawave" class="{% if active == 'remnawave' %}active{% endif %}"><i class="bi bi-shield-lock-fill"></i> Remnawave</a></div>
@@ -378,19 +400,13 @@
     {% endif %}
     <div class="nav-item"><a href="/panel/nodes" class="{% if active == 'nodes' %}active{% endif %}"><i class="bi bi-server"></i> Серверы</a></div>
     <div class="nav-item"><a href="/panel/backup" class="{% if active == 'backup' %}active{% endif %}"><i class="bi bi-database-fill-down"></i> Резерв. копия</a></div>
+    {% endif %}
     {% if admin_role == 'superadmin' %}
     <div class="nav-item"><a href="/panel/admins" class="{% if active == 'admins' %}active{% endif %}"><i class="bi bi-shield-lock"></i> Администраторы</a></div>
     {% endif %}
     <div class="nav-item"><a href="/docs" target="_blank"><i class="bi bi-code-slash"></i> API Docs</a></div>
   </nav>
-  <div class="sidebar-footer">
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <button class="theme-toggle" onclick="toggleTheme()" title="Сменить тему"><i class="bi bi-moon-stars-fill" id="themeIcon"></i></button>
-      <span style="font-size:.65rem;color:var(--text-muted)">v{{ app_version | default('1.0') }}</span>
-      <a href="/panel/logout" title="Выйти"><i class="bi bi-box-arrow-left"></i></a>
-    </div>
-    </div>
-  </aside>
+</aside>
 <div class="main-wrap">
   <header class="topbar">
     <div class="topbar-left">
