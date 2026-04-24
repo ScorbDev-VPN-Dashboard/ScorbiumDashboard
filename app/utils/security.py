@@ -1,45 +1,41 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.core.config import config
 from app.utils.log import log
-
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
 
 def _secret_key() -> str:
-    """Return a dedicated JWT signing secret.
-
-    Falls back to the superadmin password only for backward compatibility,
-    but logs a warning because rotating the admin password would invalidate
-    all active sessions when the password is used as the secret.
-    """
+    """Return a dedicated JWT signing secret."""
     import os
-
     secret = os.environ.get("JWT_SECRET_KEY", "").strip()
     if secret:
         return secret
-    # Fallback: derive a stable secret from the superadmin password.
-    # NOTE: Changing the superadmin password will log out all admins.
-    log.warning(
-        "JWT_SECRET_KEY is not set; using web_superadmin_password as fallback. "
-        "Set JWT_SECRET_KEY in your environment to allow password rotation without invalidating tokens."
-    )
+    log.warning("JWT_SECRET_KEY not set; using web_superadmin_password fallback")
     return config.web.web_superadmin_password.get_secret_value()
 
 
 def hash_password(password: str) -> str:
-    return _pwd_context.hash(password.encode("utf-8")[:72])
+    """Hash password with bcrypt (auto-generates salt, handles encoding)."""
+    # bcrypt has 72-byte limit; passlib does this internally, we do it explicitly
+    pw_bytes = password.encode("utf-8")[:72]
+    return bcrypt.hashpw(pw_bytes, bcrypt.gensalt(rounds=12)).decode("ascii")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain.encode("utf-8")[:72], hashed)
+    """Verify plain password against bcrypt hash."""
+    try:
+        pw_bytes = plain.encode("utf-8")[:72]
+        hash_bytes = hashed.encode("ascii")
+        return bcrypt.checkpw(pw_bytes, hash_bytes)
+    except Exception:
+        return False
 
 
 def create_access_token(

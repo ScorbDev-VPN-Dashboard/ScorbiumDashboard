@@ -1,6 +1,6 @@
 [project]
 name = "vpn-dashboard"
-version = "1.6.1"
+version = "1.4.2"
 description = "VPN Dashboard — Telegram bot + FastAPI backend"
 readme = "README.md"
 requires-python = ">=3.13"
