@@ -8,7 +8,7 @@
 .tab-nav { display:flex; gap:.5rem; margin-bottom:1.25rem; flex-wrap:wrap; }
 .tab-btn { padding:.4rem .9rem; border-radius:8px; font-size:.78rem; font-weight:600; border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; transition:all .15s; }
 .tab-btn:hover { color:#fff; background:rgba(255,255,255,.05); }
-.tab-btn.active { background:rgba(108,99,255,.2); border-color:var(--accent); color:#fff; }
+.tab-btn.active { background:rgba(0,212,170,.2); border-color:var(--accent); color:#fff; }
 .tab-pane { display:none; }
 .tab-pane.active { display:block; }
 .user-row:hover { background:rgba(255,255,255,.03); }
@@ -39,11 +39,11 @@
         <div class="row g-2">
           {% set items = [
             ('bi-wifi','rgba(34,197,94,.1)','#22c55e','Онлайн', marzban_stats.get('users_active',0)),
-            ('bi-people','rgba(108,99,255,.1)','#a78bfa','Всего юзеров', marzban_stats.get('total_user',0)),
+            ('bi-people','rgba(0,212,170,.1)','#0ea5e9','Всего юзеров', marzban_stats.get('total_user',0)),
             ('bi-arrow-down-circle','rgba(59,130,246,.1)','#3b82f6','Входящий', ((marzban_stats.get('incoming_bandwidth',0)/1073741824)|round(2)|string)~' GB'),
             ('bi-arrow-up-circle','rgba(239,68,68,.1)','#ef4444','Исходящий', ((marzban_stats.get('outgoing_bandwidth',0)/1073741824)|round(2)|string)~' GB'),
             ('bi-memory','rgba(234,179,8,.1)','#eab308','RAM', ((marzban_stats.get('mem_used',0)//1048576)|string)~' MB'),
-            ('bi-cpu','rgba(108,99,255,.1)','#a78bfa','CPU', (marzban_stats.get('cpu_usage',0)|round(1)|string)~'%'),
+            ('bi-cpu','rgba(0,212,170,.1)','#0ea5e9','CPU', (marzban_stats.get('cpu_usage',0)|round(1)|string)~'%'),
           ] %}
           {% for icon,bg,color,label,val in items %}
           <div class="col-6">

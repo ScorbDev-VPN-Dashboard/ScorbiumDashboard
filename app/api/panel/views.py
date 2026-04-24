@@ -510,9 +510,9 @@ def _render_messages(ticket) -> str:
     msgs_html = ""
     for msg in ticket.messages:
         align = "justify-content-end" if msg.is_admin else ""
-        bg = "rgba(108,99,255,.2)" if msg.is_admin else "rgba(255,255,255,.05)"
+        bg = "rgba(0,212,170,.2)" if msg.is_admin else "rgba(255,255,255,.05)"
         sender = (
-            '<i class="bi bi-shield-check me-1" style="color:#6c63ff"></i>Поддержка'
+            '<i class="bi bi-shield-check me-1" style="color:#00d4aa"></i>Поддержка'
             if msg.is_admin
             else f'<i class="bi bi-person me-1"></i>Пользователь {msg.sender_id}'
         )
@@ -520,7 +520,7 @@ def _render_messages(ticket) -> str:
         if not msg.is_admin:
             reply_btn = (
                 f'<div class="mt-1 text-end">'
-                f'<button class="btn btn-sm py-0 px-2" style="font-size:.65rem;color:#6c63ff;background:none;border:1px solid rgba(108,99,255,.3)" '
+                f'<button class="btn btn-sm py-0 px-2" style="font-size:.65rem;color:#00d4aa;background:none;border:1px solid rgba(0,212,170,.3)" '
                 f"onclick=\"document.querySelector('[name=text]').value=''\">✏️ Ответить</button>"
                 f"</div>"
             )
@@ -686,8 +686,8 @@ async def refund_payment_view(
     if not payment:
         return HTMLResponse("", status_code=404)
     resp = HTMLResponse(f"""<tr>
-      <td><code style="color:#6c63ff">#{payment.id}</code></td>
-      <td><a href="/panel/users/{payment.user_id}" style="color:#6c63ff">{payment.user_id}</a></td>
+      <td><code style="color:#00d4aa">#{payment.id}</code></td>
+      <td><a href="/panel/users/{payment.user_id}" style="color:#00d4aa">{payment.user_id}</a></td>
       <td><span style="color:#8892a4;font-size:.8rem">{payment.provider}</span></td>
       <td><b>{payment.amount}</b> {payment.currency}</td>
       <td><span class="badge badge-custom badge-open">Возврат</span></td>
@@ -1616,7 +1616,7 @@ async def test_marzban(request: Request):
 
         items = [
             ("bi-wifi", "rgba(34,197,94,.1)", "#22c55e", "Онлайн", users_active),
-            ("bi-people", "rgba(108,99,255,.1)", "#a78bfa", "Всего юзеров", total_user),
+            ("bi-people", "rgba(0,212,170,.1)", "#0ea5e9", "Всего юзеров", total_user),
             (
                 "bi-arrow-down-circle",
                 "rgba(59,130,246,.1)",
@@ -1632,7 +1632,7 @@ async def test_marzban(request: Request):
                 f"{outgoing} GB",
             ),
             ("bi-memory", "rgba(234,179,8,.1)", "#eab308", "RAM", f"{ram_mb} MB"),
-            ("bi-cpu", "rgba(108,99,255,.1)", "#a78bfa", "CPU", f"{cpu}%"),
+            ("bi-cpu", "rgba(0,212,170,.1)", "#0ea5e9", "CPU", f"{cpu}%"),
         ]
 
         cards = ""

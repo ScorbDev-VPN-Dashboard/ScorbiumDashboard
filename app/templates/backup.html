@@ -88,7 +88,7 @@
           <div class="col-md-6">
             <div style="background:rgba(255,255,255,.03);border-radius:10px;border:1px solid var(--border);padding:1rem">
               <div style="font-size:.72rem;color:#8892a4;margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.8px">Очистить все таблицы (сохранить структуру)</div>
-              <code style="font-size:.78rem;color:#a78bfa;display:block;white-space:pre-wrap">psql $DATABASE_URL -c "
+              <code style="font-size:.78rem;color:#0ea5e9;display:block;white-space:pre-wrap">psql $DATABASE_URL -c "
 TRUNCATE users, subscriptions,
   payments, vpn_keys, plans,
   promos, referrals, support_tickets,
@@ -106,7 +106,7 @@ alembic upgrade head</code>
           <div class="col-md-6">
             <div style="background:rgba(255,255,255,.03);border-radius:10px;border:1px solid var(--border);padding:1rem">
               <div style="font-size:.72rem;color:#8892a4;margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.8px">Удалить только платежи и подписки</div>
-              <code style="font-size:.78rem;color:#a78bfa;display:block;white-space:pre-wrap">psql $DATABASE_URL -c "
+              <code style="font-size:.78rem;color:#0ea5e9;display:block;white-space:pre-wrap">psql $DATABASE_URL -c "
 TRUNCATE payments, subscriptions,
   vpn_keys RESTART IDENTITY CASCADE;"</code>
             </div>
@@ -114,7 +114,7 @@ TRUNCATE payments, subscriptions,
           <div class="col-md-6">
             <div style="background:rgba(255,255,255,.03);border-radius:10px;border:1px solid var(--border);padding:1rem">
               <div style="font-size:.72rem;color:#8892a4;margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.8px">Через Docker Compose</div>
-              <code style="font-size:.78rem;color:#a78bfa;display:block;white-space:pre-wrap">docker compose exec db psql \
+              <code style="font-size:.78rem;color:#0ea5e9;display:block;white-space:pre-wrap">docker compose exec db psql \
   -U $DB_USER -d $DB_NAME \
   -c "TRUNCATE users CASCADE;"</code>
             </div>

@@ -31,9 +31,9 @@
       <tbody>
         {% for key in keys %}
         <tr id="vpn-key-{{ key.id }}">
-          <td><code style="color:#6c63ff">#{{ key.id }}</code></td>
+          <td><code style="color:#00d4aa">#{{ key.id }}</code></td>
           <td>
-            <a href="/panel/users" style="color:#6c63ff;font-size:.85rem">{{ key.user_id }}</a>
+            <a href="/panel/users" style="color:#00d4aa;font-size:.85rem">{{ key.user_id }}</a>
           </td>
           <td>
             <code style="font-size:.75rem;color:#8892a4">{{ key.pasarguard_key_id or '—' }}</code>
@@ -45,7 +45,7 @@
               <code style="font-size:.7rem;color:#8892a4;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">
                 {{ key.access_url[:60] }}{% if key.access_url|length > 60 %}…{% endif %}
               </code>
-              <button class="btn btn-sm p-0" style="color:#6c63ff"
+              <button class="btn btn-sm p-0" style="color:#00d4aa"
                 onclick="navigator.clipboard.writeText('{{ key.access_url }}');showToast('Скопировано')"
                 title="Копировать">
                 <i class="bi bi-clipboard" style="font-size:.8rem"></i>

@@ -297,6 +297,10 @@
       const opacity = 0.4 + (v / max) * 0.6;
       return '<div style="flex:1;background:linear-gradient(to top, #00d4aa, #0ea5e9);border-radius:3px 3px 0 0;height:' + h + 'px;opacity:' + opacity + ';transition:height .5s ease"></div>';
     }).join('');
+    spark.style.display = 'flex';
+    spark.style.alignItems = 'flex-end';
+    spark.style.gap = '3px';
+    spark.style.height = '40px';
   }
 </script>
 {% endblock %}

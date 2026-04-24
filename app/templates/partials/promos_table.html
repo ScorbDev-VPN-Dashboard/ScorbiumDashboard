@@ -19,7 +19,7 @@
       <tbody>
         {% for promo in promos %}
         <tr id="promo-row-{{ promo.id }}">
-          <td><code style="color:#6c63ff;font-size:.85rem">{{ promo.code }}</code></td>
+          <td><code style="color:#00d4aa;font-size:.85rem">{{ promo.code }}</code></td>
           <td>
             {% if promo.promo_type.value == 'discount' %}
               <span class="badge badge-custom" style="background:rgba(234,179,8,.15);color:#eab308">Скидка</span>

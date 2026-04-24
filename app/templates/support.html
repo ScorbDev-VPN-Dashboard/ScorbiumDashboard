@@ -26,7 +26,7 @@
         {% set pr = t.priority.value if t.priority.value is defined else t.priority %}
         <a href="/panel/support/{{ t.id }}{% if current_status %}?status={{ current_status }}{% endif %}"
           class="d-block text-decoration-none p-3"
-          style="border-bottom:1px solid var(--border);transition:.15s;{% if selected_id == t.id %}background:rgba(108,99,255,.12);border-left:3px solid var(--accent){% endif %}">
+          style="border-bottom:1px solid var(--border);transition:.15s;{% if selected_id == t.id %}background:rgba(0,212,170,.12);border-left:3px solid var(--accent){% endif %}">
           <div class="d-flex align-items-start justify-content-between gap-2 mb-1">
             <span style="font-size:.8rem;font-weight:600;color:#fff;line-height:1.3">#{{ t.id }} {{ t.subject[:40] }}</span>
             {% if st == 'open' %}<span class="badge badge-custom badge-open flex-shrink-0" style="font-size:.6rem">Открыт</span>
@@ -96,7 +96,7 @@
         {% for msg in ticket.messages %}
         {% set is_adm = msg.is_admin %}
         <div class="mb-3 d-flex {% if is_adm %}justify-content-end{% endif %}">
-          <div style="max-width:80%;background:{% if is_adm %}rgba(108,99,255,.2){% else %}rgba(255,255,255,.05){% endif %};
+          <div style="max-width:80%;background:{% if is_adm %}rgba(0,212,170,.2){% else %}rgba(255,255,255,.05){% endif %};
             border-radius:12px;padding:.65rem .9rem;font-size:.83rem;color:#d0d8ea">
             <div style="font-size:.68rem;color:var(--muted);margin-bottom:.3rem">
               {% if is_adm %}

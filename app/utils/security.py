@@ -35,11 +35,11 @@ def _secret_key() -> str:
 
 
 def hash_password(password: str) -> str:
-    return _pwd_context.hash(password)
+    return _pwd_context.hash(password.encode("utf-8")[:72])
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
+    return _pwd_context.verify(plain.encode("utf-8")[:72], hashed)
 
 
 def create_access_token(

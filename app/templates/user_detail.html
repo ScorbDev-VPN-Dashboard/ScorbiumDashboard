@@ -9,7 +9,7 @@
   <div class="col-lg-4">
     <div class="card p-3 mb-3">
       <div class="d-flex align-items-center gap-3 mb-3">
-        <div style="width:52px;height:52px;background:rgba(108,99,255,.15);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#6c63ff">
+        <div style="width:52px;height:52px;background:rgba(0,212,170,.15);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#00d4aa">
           <i class="bi bi-person"></i>
         </div>
         <div>
@@ -85,7 +85,7 @@
           <tbody>
             {% for sub in subscriptions %}
             <tr>
-              <td><code style="color:#6c63ff">#{{ sub.id }}</code></td>
+              <td><code style="color:#00d4aa">#{{ sub.id }}</code></td>
               <td>{% if sub.plan_ref %}{{ sub.plan_ref.name }}{% else %}—{% endif %}</td>
               <td>
                 {% if sub.status.value == 'active' %}<span class="badge badge-custom badge-active">Активна</span>
@@ -121,7 +121,7 @@
     <div class="card mb-3">
       <div class="card-header px-3 py-2 d-flex align-items-center justify-content-between">
         <span><i class="bi bi-key me-2 text-muted"></i>VPN Ключи</span>
-        <span class="badge badge-custom" style="background:rgba(108,99,255,.15);color:#6c63ff">{{ vpn_keys|length }}</span>
+        <span class="badge badge-custom" style="background:rgba(0,212,170,.15);color:#00d4aa">{{ vpn_keys|length }}</span>
       </div>
       <div class="table-responsive">
         <table class="table mb-0" style="font-size:.82rem">
@@ -129,7 +129,7 @@
           <tbody>
             {% for key in vpn_keys %}
             <tr>
-              <td><code style="color:#6c63ff">#{{ key.id }}</code></td>
+              <td><code style="color:#00d4aa">#{{ key.id }}</code></td>
               <td>{{ key.name or '—' }}</td>
               <td>
                 {% if key.status.value == 'active' %}<span class="badge badge-custom badge-active">Активен</span>
@@ -163,7 +163,7 @@
           <tbody>
             {% for p in payments %}
             <tr>
-              <td><code style="color:#6c63ff">#{{ p.id }}</code></td>
+              <td><code style="color:#00d4aa">#{{ p.id }}</code></td>
               <td style="color:#8892a4">{{ p.provider.value }}</td>
               <td><b>{{ p.amount }}</b> {{ p.currency }}</td>
               <td>

@@ -58,11 +58,11 @@
       <tbody>
         {% for sub in subscriptions %}
         <tr id="sub-row-{{ sub.id }}">
-          <td><code style="color:#6c63ff">#{{ sub.id }}</code></td>
-          <td><a href="/panel/users/{{ sub.user_id }}" style="color:#6c63ff">{{ sub.user_id }}</a></td>
+          <td><code style="color:#00d4aa">#{{ sub.id }}</code></td>
+          <td><a href="/panel/users/{{ sub.user_id }}" style="color:#00d4aa">{{ sub.user_id }}</a></td>
           <td>
             {% if sub.plan %}
-              <span class="badge badge-custom" style="background:rgba(108,99,255,.15);color:#6c63ff">{{ sub.plan.name }}</span>
+              <span class="badge badge-custom" style="background:rgba(0,212,170,.15);color:#00d4aa">{{ sub.plan.name }}</span>
             {% else %}
               <span style="color:#8892a4">{{ sub.name or '—' }}</span>
             {% endif %}

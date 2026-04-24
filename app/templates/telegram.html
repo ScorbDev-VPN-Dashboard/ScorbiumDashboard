@@ -12,7 +12,7 @@
   cursor:pointer; transition:all .15s;
 }
 .tab-btn:hover { color:#fff; background:rgba(255,255,255,.05); }
-.tab-btn.active { background:rgba(108,99,255,.2); border-color:var(--accent); color:#fff; }
+.tab-btn.active { background:rgba(0,212,170,.2); border-color:var(--accent); color:#fff; }
 .tab-pane { display:none; }
 .tab-pane.active { display:block; }
 </style>
@@ -42,7 +42,7 @@
       <div class="fw-semibold text-white mb-3"><i class="bi bi-robot me-2 text-muted"></i>Информация о боте</div>
       {% if bot_info %}
       <div class="d-flex align-items-center gap-3 mb-3">
-        <div style="width:48px;height:48px;background:rgba(108,99,255,.15);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:#6c63ff"><i class="bi bi-robot"></i></div>
+        <div style="width:48px;height:48px;background:rgba(0,212,170,.15);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:#00d4aa"><i class="bi bi-robot"></i></div>
         <div>
           <div class="text-white fw-semibold">{{ bot_info.first_name }}</div>
           <div style="color:#8892a4;font-size:.8rem">@{{ bot_info.username }}</div>
@@ -92,7 +92,7 @@
       <div class="fw-semibold text-white mb-3"><i class="bi bi-shield-lock me-2 text-muted"></i>Администраторы</div>
       {% for admin_id in admin_ids %}
       <div class="d-flex align-items-center gap-3 p-2 mb-2" style="background:rgba(255,255,255,.03);border-radius:8px">
-        <div style="width:36px;height:36px;background:rgba(108,99,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#6c63ff"><i class="bi bi-person-badge"></i></div>
+        <div style="width:36px;height:36px;background:rgba(0,212,170,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#00d4aa"><i class="bi bi-person-badge"></i></div>
         <code style="color:#c8d0e0">{{ admin_id }}</code>
         <span class="badge badge-custom badge-active ms-auto">Admin</span>
       </div>
@@ -238,7 +238,7 @@
               placeholder="Получить у @CryptoBot → /pay"
               value="{{ bot_settings.get('cryptobot_token','') }}" />
             <div style="font-size:.7rem;color:#8892a4;margin-top:.25rem">
-              Получить токен: <a href="https://t.me/CryptoBot" target="_blank" style="color:#6c63ff">@CryptoBot</a> → /pay → Create App
+              Получить токен: <a href="https://t.me/CryptoBot" target="_blank" style="color:#00d4aa">@CryptoBot</a> → /pay → Create App
               {% if bot_settings.get('cryptobot_token') %}
               <span style="color:#22c55e;margin-left:.5rem"><i class="bi bi-check-circle-fill"></i> Активно</span>
               {% endif %}
@@ -322,7 +322,7 @@
         box-shadow:0 20px 60px rgba(0,0,0,.5)">
         <!-- Topbar -->
         <div style="display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:8px">
-          <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#6c63ff,#a78bfa);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#fff;font-weight:700">B</div>
+          <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#00d4aa,#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#fff;font-weight:700">B</div>
           <div>
             <div style="font-size:.75rem;font-weight:600;color:#fff">{{ bot_info.first_name if bot_info else 'VPN Bot' }}</div>
             <div style="font-size:.6rem;color:#22c55e">● online</div>
@@ -651,7 +651,7 @@
         </div>
       </div>
       <div style="font-size:.75rem;color:#8892a4;margin-bottom:.75rem">
-        Оплата банковской картой и СБП. Требуется аккаунт на <a href="https://yookassa.ru" target="_blank" style="color:#6c63ff">yookassa.ru</a>
+        Оплата банковской картой и СБП. Требуется аккаунт на <a href="https://yookassa.ru" target="_blank" style="color:#00d4aa">yookassa.ru</a>
       </div>
       <form id="yk-form" hx-post="/panel/telegram/payment-systems/yookassa" hx-swap="none"
             hx-on::after-request="handlePsResponse(event, 'yk')">
@@ -717,7 +717,7 @@
         </div>
       </div>
       <div style="font-size:.75rem;color:#8892a4;margin-bottom:.75rem">
-        Оплата криптовалютой через <a href="https://t.me/CryptoBot" target="_blank" style="color:#6c63ff">@CryptoBot</a>. Создайте приложение в боте.
+        Оплата криптовалютой через <a href="https://t.me/CryptoBot" target="_blank" style="color:#00d4aa">@CryptoBot</a>. Создайте приложение в боте.
       </div>
       <form hx-post="/panel/telegram/payment-systems/cryptobot" hx-swap="none"
             hx-on::after-request="handlePsResponse(event, 'cb')">
@@ -767,7 +767,7 @@
         </div>
       </div>
       <div style="font-size:.75rem;color:#8892a4;margin-bottom:.75rem">
-        Приём платежей через <a href="https://freekassa.com" target="_blank" style="color:#6c63ff">FreeKassa</a>. Карты, СБП, электронные кошельки.
+        Приём платежей через <a href="https://freekassa.com" target="_blank" style="color:#00d4aa">FreeKassa</a>. Карты, СБП, электронные кошельки.
       </div>
       <form hx-post="/panel/telegram/payment-systems/freekassa" hx-swap="none"
             hx-on::after-request="handlePsResponse(event, 'fk')">
@@ -847,7 +847,7 @@
         </div>
       </div>
       <div style="font-size:.75rem;color:#8892a4;margin-bottom:.75rem">
-        Платёжный агрегатор <a href="https://aikassa.ru" target="_blank" style="color:#6c63ff">AiKassa</a>. Карты, СБП и другие методы.
+        Платёжный агрегатор <a href="https://aikassa.ru" target="_blank" style="color:#00d4aa">AiKassa</a>. Карты, СБП и другие методы.
       </div>
       <form hx-post="/panel/telegram/payment-systems/aikassa" hx-swap="none"
             hx-on::after-request="handlePsResponse(event, 'ak')">
@@ -910,7 +910,7 @@
       <div class="row g-2">
         <div class="col-auto">
           <div class="d-flex align-items-center gap-2 p-2" style="background:rgba(255,255,255,.04);border-radius:8px;font-size:.8rem">
-            <i class="bi bi-bank" style="color:#6c63ff"></i>
+            <i class="bi bi-bank" style="color:#00d4aa"></i>
             <span>ЮКасса (карта)</span>
             <span id="status-yk" class="badge badge-custom {% if ps.yookassa_enabled %}badge-active{% else %}badge-closed{% endif %}">{% if ps.yookassa_enabled %}✓{% else %}✗{% endif %}</span>
           </div>
@@ -963,22 +963,22 @@
 <style>
 .kb-palette-btn {
   padding:5px 10px;border-radius:6px;font-size:.75rem;
-  background:rgba(108,99,255,.15);border:1px solid rgba(108,99,255,.3);
-  color:#a78bfa;cursor:grab;user-select:none;transition:all .15s;
+  background:rgba(0,212,170,.15);border:1px solid rgba(0,212,170,.3);
+  color:#0ea5e9;cursor:grab;user-select:none;transition:all .15s;
 }
-.kb-palette-btn:hover{background:rgba(108,99,255,.3);}
+.kb-palette-btn:hover{background:rgba(0,212,170,.3);}
 .kb-palette-btn.used{opacity:.3;cursor:not-allowed;}
 .kb-row-wrap{
   display:flex;align-items:center;gap:6px;
   background:rgba(255,255,255,.03);border-radius:8px;
   padding:6px 8px;border:1px dashed rgba(255,255,255,.1);min-height:42px;
 }
-.kb-row-wrap.drag-over{border-color:var(--accent);background:rgba(108,99,255,.08);}
+.kb-row-wrap.drag-over{border-color:var(--accent);background:rgba(0,212,170,.08);}
 .kb-row-btns{display:flex;gap:5px;flex:1;flex-wrap:wrap;}
 .kb-chip{
   display:flex;align-items:center;gap:4px;
   padding:4px 8px;border-radius:6px;font-size:.73rem;
-  background:rgba(108,99,255,.2);border:1px solid rgba(108,99,255,.4);
+  background:rgba(0,212,170,.2);border:1px solid rgba(0,212,170,.4);
   color:#c4b5fd;cursor:grab;user-select:none;
 }
 .kb-chip .x{
