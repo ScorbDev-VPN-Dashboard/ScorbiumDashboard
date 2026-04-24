@@ -39,9 +39,10 @@ def upgrade() -> None:
     env_pass = os.environ.get('WEB_SUPERADMIN_PASSWORD', '').strip()
     if env_user and env_pass:
         try:
-            from passlib.context import CryptContext
-            pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-            hashed = pwd_ctx.hash(env_pass)
+            import bcrypt
+            # bcrypt has 72-byte limit; truncate explicitly
+            pw_bytes = env_pass.encode('utf-8')[:72]
+            hashed = bcrypt.hashpw(pw_bytes, bcrypt.gensalt(rounds=12)).decode('ascii')
             op.execute(
                 text(
                     "INSERT INTO admins (username, password_hash, role, is_active) "
@@ -56,4 +57,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index('ix_admins_username', table_name='admins')
     op.drop_table('admins')
-

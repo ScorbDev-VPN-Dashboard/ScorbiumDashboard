@@ -129,6 +129,7 @@ async def _base_ctx(
         "admin_role": role,
         "admin_username": admin_info["sub"] if admin_info else "",
         "has_perm": has_permission,
+        "current_time": datetime.now().strftime("%H:%M"),
     }
 
 
