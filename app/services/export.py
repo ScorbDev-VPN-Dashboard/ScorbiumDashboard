@@ -23,18 +23,17 @@ class ExportService:
 
         headers = [
             "Telegram ID", "Full Name", "Username", "Language",
-            "Balance", "Referrer ID", "Banned", "Auto Renew",
+            "Balance", "Banned", "Auto Renew",
             "Created At", "Subscriptions Count", "Payments Count",
         ]
         rows = []
         for u in users:
             rows.append([
-                u.telegram_id,
+                u.id,
                 u.full_name or "",
                 u.username or "",
                 u.language or "",
                 float(u.balance or 0),
-                u.referrer_id or "",
                 "Yes" if u.is_banned else "No",
                 "Yes" if u.autorenew else "No",
                 u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "",
@@ -83,7 +82,7 @@ class ExportService:
                 p.id,
                 p.user_id,
                 p.provider or "",
-                p.payment_type or "",
+                str(p.payment_type) if p.payment_type else "",
                 float(p.amount or 0),
                 p.currency or "",
                 p.status or "",
@@ -100,17 +99,15 @@ class ExportService:
         keys = list(result.scalars().all())
 
         headers = [
-            "ID", "User ID", "Name", "Status", "Price",
-            "Plan ID", "Expires At", "Access URL", "Created At",
+            "ID", "User ID", "Status", "Plan ID",
+            "Expires At", "Access URL", "Created At",
         ]
         rows = []
         for k in keys:
             rows.append([
                 k.id,
                 k.user_id,
-                k.name or "",
                 k.status or "",
-                float(k.price or 0),
                 k.plan_id or "",
                 k.expires_at.strftime("%Y-%m-%d %H:%M") if k.expires_at else "",
                 k.access_url or "",
@@ -178,4 +175,3 @@ class ExportService:
         except ImportError:
             log.warning("openpyxl not installed, falling back to CSV")
             return self._to_csv(headers, rows)
-

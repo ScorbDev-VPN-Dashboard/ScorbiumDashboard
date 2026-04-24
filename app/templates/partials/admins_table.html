@@ -54,7 +54,8 @@
               <h5 class="modal-title" style="color:var(--text)">Редактировать {{ a.username }}</h5>
               <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form hx-post="/panel/admins/{{ a.id }}/edit" hx-target="#admins-table" hx-swap="innerHTML" data-bs-dismiss="modal">
+            <form hx-post="/panel/admins/{{ a.id }}/edit" hx-target="#admins-table" hx-swap="innerHTML"
+                  hx-on::after-request="if(event.detail.successful){ bootstrap.Modal.getInstance(document.getElementById('editAdminModal{{ a.id }}')).hide(); }">
               <div class="modal-body">
                 <div class="mb-3">
                   <label class="form-label">Имя пользователя</label>
@@ -79,14 +80,12 @@
                     <option value="0" {% if not a.is_active %}selected{% endif %}>Отключён</option>
                   </select>
                 </div>
-              </div>
               <div class="modal-footer" style="border-top:1px solid var(--border)">
                 <button type="button" class="btn btn-sm btn-outline" data-bs-dismiss="modal">Отмена</button>
                 <button type="submit" class="btn btn-sm btn-accent">Сохранить</button>
               </div>
             </form>
           </div>
-        </div>
       </div>
       {% else %}
       <tr>
@@ -99,4 +98,3 @@
     </tbody>
   </table>
 </div>
-

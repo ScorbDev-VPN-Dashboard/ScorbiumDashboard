@@ -15,9 +15,7 @@
       <div class="card-body p-0" id="admins-table">
         {% include "partials/admins_table.html" %}
       </div>
-    </div>
   </div>
-</div>
 
 <!-- Add Admin Modal -->
 <div class="modal fade" id="addAdminModal" tabindex="-1" aria-hidden="true">
@@ -27,7 +25,8 @@
         <h5 class="modal-title" style="color:var(--text)">Новый администратор</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <form hx-post="/panel/admins" hx-target="#admins-table" hx-swap="innerHTML" data-bs-dismiss="modal">
+      <form hx-post="/panel/admins" hx-target="#admins-table" hx-swap="innerHTML"
+            hx-on::after-request="if(event.detail.successful){ bootstrap.Modal.getInstance(document.getElementById('addAdminModal')).hide(); this.reset(); }">
         <div class="modal-body">
           <div class="mb-3">
             <label class="form-label">Имя пользователя</label>
@@ -45,14 +44,11 @@
               <option value="superadmin">Суперадмин (полный доступ)</option>
             </select>
           </div>
-        </div>
         <div class="modal-footer" style="border-top:1px solid var(--border)">
           <button type="button" class="btn btn-sm btn-outline" data-bs-dismiss="modal">Отмена</button>
           <button type="submit" class="btn btn-sm btn-accent">Создать</button>
         </div>
       </form>
     </div>
-  </div>
 </div>
 {% endblock %}
-
