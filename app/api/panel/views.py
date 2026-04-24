@@ -114,9 +114,11 @@ def _redirect(url: str):
 async def _base_ctx(
     request: Request, db: AsyncSession, active: str, admin_info: dict | None = None
 ) -> dict:
+    if admin_info is None:
+        admin_info = _get_admin_info(request)
     open_tickets = await SupportService(db).count_open()
     pending_payments = await PaymentService(db).count_by_status(PaymentStatus.PENDING)
-    role = admin_info["role"] if admin_info else "superadmin"
+    role = admin_info["role"] if admin_info else ""
     return {
         "request": request,
         "active": active,

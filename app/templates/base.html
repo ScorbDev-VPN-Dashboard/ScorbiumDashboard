@@ -360,13 +360,13 @@
     <div class="nav-item"><a href="/panel/" class="{% if active == 'dashboard' %}active{% endif %}"><i class="bi bi-grid-1x2-fill"></i> Дашборд</a></div>
 
     <div class="nav-section">Управление</div>
-    {% if has_perm(admin_role, 'users') %}
+    {% if has_perm(admin_role, 'users.read') %}
     <div class="nav-item"><a href="/panel/users" class="{% if active == 'users' %}active{% endif %}"><i class="bi bi-people-fill"></i> Пользователи</a></div>
     {% endif %}
     {% if has_perm(admin_role, 'plans') %}
     <div class="nav-item"><a href="/panel/plans" class="{% if active == 'plans' %}active{% endif %}"><i class="bi bi-tags-fill"></i> Тарифы</a></div>
     {% endif %}
-    {% if has_perm(admin_role, 'subscriptions') %}
+    {% if has_perm(admin_role, 'subscriptions.read') %}
     <div class="nav-item"><a href="/panel/subscriptions" class="{% if active == 'subscriptions' %}active{% endif %}"><i class="bi bi-calendar-check-fill"></i> Подписки</a></div>
     {% endif %}
     {% if has_perm(admin_role, 'payments') %}
@@ -386,8 +386,13 @@
     {% if has_perm(admin_role, 'referrals') %}
     <div class="nav-item"><a href="/panel/referrals" class="{% if active == 'referrals' %}active{% endif %}"><i class="bi bi-diagram-3-fill"></i> Рефералы</a></div>
     {% endif %}
-    {% if has_perm(admin_role, 'vpn') %}
+    {% if has_perm(admin_role, 'vpn.read') %}
     <div class="nav-item"><a href="/panel/vpn" class="{% if active == 'vpn' %}active{% endif %}"><i class="bi bi-key-fill"></i> VPN ключи</a></div>
+    {% endif %}
+
+    <div class="nav-section">Система</div>
+    {% if has_perm(admin_role, 'vpn.read') %}
+    <div class="nav-item"><a href="/panel/nodes" class="{% if active == 'nodes' %}active{% endif %}"><i class="bi bi-server"></i> Серверы</a></div>
     {% endif %}
 
     <div class="nav-section">Система</div>
@@ -398,7 +403,6 @@
     {% else %}
     <div class="nav-item"><a href="/panel/pasarguard" class="{% if active == 'pasarguard' %}active{% endif %}"><i class="bi bi-hdd-network-fill"></i> PasarGuard</a></div>
     {% endif %}
-    <div class="nav-item"><a href="/panel/nodes" class="{% if active == 'nodes' %}active{% endif %}"><i class="bi bi-server"></i> Серверы</a></div>
     <div class="nav-item"><a href="/panel/backup" class="{% if active == 'backup' %}active{% endif %}"><i class="bi bi-database-fill-down"></i> Резерв. копия</a></div>
     {% endif %}
     {% if admin_role == 'superadmin' %}
