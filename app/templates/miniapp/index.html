@@ -260,9 +260,34 @@ body {
   background: var(--bg2); display: flex; align-items: center;
   justify-content: center; flex-direction: column;
 }
+
+/* ── Offline indicator ── */
+.offline-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  background: #ef4444; color: #fff; text-align: center;
+  padding: 6px; font-size: 12px; font-weight: 600;
+  transform: translateY(-100%); transition: transform .3s ease;
+}
+.offline-bar.on { transform: translateY(0); }
+
+/* ── Pull to refresh hint ── */
+.ptr-hint {
+  text-align: center; padding: 8px; font-size: 11px;
+  color: var(--hi); opacity: 0; transition: opacity .3s;
+}
+.ptr-hint.show { opacity: 1; }
+
+/* ── Skeleton loading ── */
+.skel {
+  background: linear-gradient(90deg, var(--bg2) 25%, var(--bg3) 50%, var(--bg2) 75%);
+  background-size: 200% 100%; animation: skel 1.2s infinite;
+  border-radius: 8px;
+}
+@keyframes skel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 </style>
 </head>
 <body class="dark">
+<div class="offline-bar" id="offlineBar">⚠️ Нет подключения к интернету</div>
 
 <!-- ── HOME ── -->
 <div id="s-home" class="scr on">
@@ -324,6 +349,37 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
+// ── Network status ──
+window.addEventListener('online', () => {
+  document.getElementById('offlineBar').classList.remove('on');
+  toast('✅ Соединение восстановлено');
+});
+window.addEventListener('offline', () => {
+  document.getElementById('offlineBar').classList.add('on');
+});
+
+// ── Haptic feedback ──
+function haptic(type) {
+  if (tg.HapticFeedback) {
+    const map = { light: 'impactLight', medium: 'impactMedium', heavy: 'impactHeavy', success: 'notificationSuccess', error: 'notificationError' };
+    tg.HapticFeedback[map[type] || 'impactLight']?.();
+  }
+}
+
+// ── Cache helpers ──
+function cacheSet(key, data) { try { localStorage.setItem('cache_' + key, JSON.stringify({t: Date.now(), d: data})); } catch(e) {} }
+function cacheGet(key, maxAgeMs) {
+  try {
+    const raw = localStorage.getItem('cache_' + key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Date.now() - parsed.t > maxAgeMs) return null;
+    return parsed.d;
+  } catch(e) { return null; }
+}
+</script>
+
+<script>
 const tg = window.Telegram.WebApp;
 tg.ready(); tg.expand();
 const B = '/app';
@@ -357,6 +413,27 @@ if (t === 'subs') loadSubs();
 
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
+  // Check if Telegram WebApp is available
+  if (!window.Telegram || !window.Telegram.WebApp) {
+    document.getElementById('home-c').innerHTML = `
+      <div class="em">
+        <div class="ei" style="font-size:64px">📱</div>
+        <div class="em-title">Откройте через Telegram</div>
+        <div class="em-sub">Это приложение работает только внутри Telegram</div>`;
+    document.querySelectorAll('.nb').forEach(b => b.style.display = 'none');
+    return;
+  }
+  
+  // Check initData
+  if (!tg.initData || tg.initData.length < 10) {
+    document.getElementById('home-c').innerHTML = `
+      <div class="em">
+        <div class="ei" style="font-size:64px">🔐</div>
+        <div class="em-title">Ошибка авторизации</div>
+        <div class="em-sub">Не удалось получить данные авторизации. Попробуйте перезапустить приложение.</div>`;
+    return;
+  }
+  
   try {
     // Загружаем настройки (флаги платёжных систем)
     const sr = await fetch(B + '/settings');
@@ -384,7 +461,10 @@ async function init() {
     if (U.is_admin) document.getElementById('n-admin').style.display = 'block';
     const pid = localStorage.getItem('ppid');
     if (pid) { go('buy'); showCheck(+pid); }
-  } catch (e) { showErr('Нет соединения'); }
+  } catch (e) { 
+    console.error('Mini App init error:', e);
+    showErr('Ошибка загрузки: ' + (e.message || 'Нет соединения')); 
+  }
 }
 
 // ── Home ───────────────────────────────────────────────────────────────────
