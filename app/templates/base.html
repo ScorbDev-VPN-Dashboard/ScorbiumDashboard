@@ -406,6 +406,13 @@
     {% endif %}
     <div class="nav-item"><a href="/docs" target="_blank"><i class="bi bi-code-slash"></i> API Docs</a></div>
   </nav>
+  <div class="sidebar-footer">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <button class="theme-toggle" onclick="toggleTheme()" title="Сменить тему"><i class="bi bi-moon-stars-fill" id="themeIcon"></i></button>
+      <span style="font-size:.65rem;color:var(--text-muted)">v{{ app_version | default('1.0') }}</span>
+      <a href="/panel/logout" title="Выйти"><i class="bi bi-box-arrow-left"></i></a>
+    </div>
+  </div>
 </aside>
 <div class="main-wrap">
   <header class="topbar">
