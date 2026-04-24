@@ -206,6 +206,20 @@ def create_app() -> FastAPI:
         log.error(f"Unhandled exception on {request.url}: {exc}")
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
+    @app.exception_handler(403)
+    async def _forbidden_exc(request: Request, exc: Exception):
+        from fastapi.templating import Jinja2Templates
+        tpl = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+        return tpl.TemplateResponse(
+            "forbidden.html",
+            {
+                "request": request,
+                "app_name": config.web.app_name,
+                "app_version": config.web.app_version,
+            },
+            status_code=403,
+        )
+
     from starlette.middleware.base import BaseHTTPMiddleware as _BHM
     class _SecurityHeaders(_BHM):
         async def dispatch(self, request: Request, call_next):

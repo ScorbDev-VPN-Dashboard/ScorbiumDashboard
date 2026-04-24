@@ -46,12 +46,13 @@
       pointer-events: none;
     }
     .logo-block { display: flex; flex-direction: column; align-items: center; margin-bottom: 2rem; position: relative; z-index: 1; }
-    .logo-icon {
-      width: 68px; height: 68px; border-radius: 18px;
-      background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 1rem; box-shadow: 0 8px 32px rgba(0,212,170,.35);
-      font-size: 1.8rem; color: #fff;
+    .logo-avatar {
+      width: 72px; height: 72px; border-radius: 50%;
+      object-fit: cover;
+      margin-bottom: 1rem;
+      box-shadow: 0 8px 32px rgba(0,212,170,.35);
+      border: 2px solid rgba(0,212,170,.25);
+      background: var(--surface);
     }
     .app-name { font-size: 1.3rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
     .app-sub { font-size: .82rem; color: var(--text-muted); margin-top: .25rem; }
@@ -80,6 +81,7 @@
       background: linear-gradient(135deg, var(--accent), #0d9488); border: none; color: #fff;
       font-weight: 700; border-radius: 12px; padding: .75rem; letter-spacing: .3px;
       transition: all .2s; box-shadow: 0 4px 16px rgba(0,212,170,.3); font-size: .9rem;
+      margin-top: .5rem;
     }
     .btn-login:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,212,170,.45); filter: brightness(1.1); color: #fff; }
     .btn-login:active { transform: translateY(0); }
@@ -94,12 +96,16 @@
   <div class="login-wrap">
     <div class="login-card">
       <div class="logo-block">
-        <div class="logo-icon"><i class="bi bi-shield-lock-fill"></i></div>
+        <img src="/static/img/logo.svg" alt="Logo" class="logo-avatar" onerror="this.style.display='none';document.getElementById('fallback-icon').style.display='flex';">
+        <div id="fallback-icon" class="logo-icon" style="display:none;width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-secondary));align-items:center;justify-content:center;margin-bottom:1rem;box-shadow:0 8px 32px rgba(0,212,170,.35);font-size:1.8rem;color:#fff;">
+          <i class="bi bi-shield-lock-fill"></i>
+        </div>
         <div class="app-name">{{ app_name | default('VPN Panel') }}</div>
         <div class="app-sub">
           Панель управления
           <span class="version-badge">v{{ app_version | default('1.0.0') }}</span>
         </div>
+      </div>
 
       {% if error %}
       <div class="alert-custom mb-3 d-flex align-items-center gap-2">
@@ -115,12 +121,14 @@
             <span class="input-group-text"><i class="bi bi-person"></i></span>
             <input type="text" name="username" class="form-control" placeholder="admin" required autofocus />
           </div>
+        </div>
         <div class="mb-4">
           <label class="form-label">Пароль</label>
           <div class="input-group">
             <span class="input-group-text"><i class="bi bi-lock"></i></span>
             <input type="password" name="password" class="form-control" placeholder="••••••••" required />
           </div>
+        </div>
         <button type="submit" class="btn btn-login w-100">
           <i class="bi bi-box-arrow-in-right me-2"></i>Войти в панель
         </button>
@@ -129,7 +137,9 @@
       <div class="footer-text">
         Защищённый доступ · Только для администраторов
       </div>
+    </div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+
