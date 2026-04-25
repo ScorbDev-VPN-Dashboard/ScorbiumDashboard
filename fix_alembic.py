@@ -91,7 +91,7 @@ async def get_actual_revision(conn: asyncpg.Connection) -> str:
     return "d5e6f7a8b9c0"
 
 
-async def get_stamped_revision(conn: asyncpg.Connection) -> str | None:
+async def get_stamped_revisions(conn: asyncpg.Connection) -> list[str]:
     row = await conn.fetchrow(
         """
         SELECT 1 FROM information_schema.tables
@@ -99,10 +99,10 @@ async def get_stamped_revision(conn: asyncpg.Connection) -> str | None:
         """
     )
     if not row:
-        return None
+        return []
 
-    row = await conn.fetchrow("SELECT version_num FROM alembic_version")
-    return row[0] if row else None
+    rows = await conn.fetch("SELECT version_num FROM alembic_version")
+    return [r[0] for r in rows]
 
 
 async def set_revision(conn: asyncpg.Connection, revision: str) -> None:
@@ -144,18 +144,27 @@ async def main() -> int:
     dsn = get_dsn()
     conn = await asyncpg.connect(dsn)
     try:
-        stamped = await get_stamped_revision(conn)
+        stamped_revs = await get_stamped_revisions(conn)
         actual = await get_actual_revision(conn)
 
-        print(f"\n1. Stamped revision : {stamped}")
-        print(f"2. Actual schema    : {actual}")
+        print(f"\n1. Stamped revisions: {stamped_revs}")
+        print(f"2. Actual schema     : {actual}")
 
-        if stamped == actual:
-            print(f"\n[OK] Stamped and actual match ({actual})")
-        else:
-            print(f"\n[WARN] Mismatch detected — stamping DB as {actual}")
+        needs_fix = False
+
+        if len(stamped_revs) != 1:
+            print(f"\n[WARN] Found {len(stamped_revs)} stamped revisions (expected 1)")
+            needs_fix = True
+        elif stamped_revs[0] != actual:
+            print(f"\n[WARN] Stamped ({stamped_revs[0]}) != actual ({actual})")
+            needs_fix = True
+
+        if needs_fix:
+            print(f"[INFO] Cleaning alembic_version and stamping as {actual}")
             await set_revision(conn, actual)
             print("[OK] alembic_version updated")
+        else:
+            print(f"\n[OK] Stamped and actual match ({actual})")
 
         # Always run upgrade head so idempotent migrations fix any drift
         code = await run_alembic_upgrade()
@@ -163,8 +172,8 @@ async def main() -> int:
             print("[ERR] alembic upgrade head failed")
             return code
 
-        final = await get_stamped_revision(conn)
-        print(f"\n[OK] Final revision: {final}")
+        final_revs = await get_stamped_revisions(conn)
+        print(f"\n[OK] Final revisions: {final_revs}")
         return 0
     finally:
         await conn.close()
@@ -172,4 +181,3 @@ async def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main()))
-
