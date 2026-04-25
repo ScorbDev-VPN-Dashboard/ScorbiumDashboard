@@ -380,7 +380,7 @@ CRONEOF
 
     # Применяем миграции
     info "Применяю миграции БД..."
-    docker compose -f docker-compose.prod.yml exec app .venv/bin/alembic upgrade head
+    docker compose -f docker-compose.prod.yml exec app uv run alembic upgrade head
     success "Миграции применены"
 
     # Запускаем nginx с SSL
@@ -405,7 +405,7 @@ else
     info "Жду запуска (15 сек)..."
     sleep 15
     info "Применяю миграции БД..."
-    docker compose exec app .venv/bin/alembic upgrade head
+    docker compose exec app uv run alembic upgrade head
     success "Миграции применены"
 fi
 
