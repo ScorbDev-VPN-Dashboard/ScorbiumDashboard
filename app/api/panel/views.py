@@ -1993,6 +1993,8 @@ async def backup_export(request: Request, format: str = "sql"):
         "-d",
         db_cfg.db_name,
         "--no-password",
+        "--clean",
+        "--if-exists",
     ]
 
     try:
@@ -2071,6 +2073,9 @@ async def backup_import(
         "-d",
         db_cfg.db_name,
         "--no-password",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "--single-transaction",
     ]
 
     try:
@@ -2078,9 +2083,12 @@ async def backup_import(
             cmd, input=content, capture_output=True, env=env, timeout=300
         )
         if result.returncode != 0:
-            err = result.stderr.decode(errors="replace")[:400]
+            err = result.stderr.decode(errors="replace")[:800]
+            out = result.stdout.decode(errors="replace")[:800]
+            detail = err or out or "unknown error"
+            log.error(f"Backup restore failed: {detail}")
             resp = Response(status_code=500)
-            _toast(resp, f"Ошибка восстановления: {err[:100]}", "error")
+            _toast(resp, f"Ошибка восстановления: {detail[:120]}", "error")
             return resp
     except FileNotFoundError:
         resp = Response(status_code=500)
