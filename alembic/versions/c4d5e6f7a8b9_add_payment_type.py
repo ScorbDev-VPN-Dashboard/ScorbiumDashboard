@@ -16,11 +16,23 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        'payments',
-        sa.Column('payment_type', sa.String(32), nullable=False, server_default='subscription')
-    )
+    conn = op.get_bind()
+    result = conn.execute(sa.text("""
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'payments' AND column_name = 'payment_type'
+    """))
+    if not result.fetchone():
+        op.add_column(
+            'payments',
+            sa.Column('payment_type', sa.String(32), nullable=False, server_default='subscription')
+        )
 
 
 def downgrade() -> None:
-    op.drop_column('payments', 'payment_type')
+    conn = op.get_bind()
+    result = conn.execute(sa.text("""
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'payments' AND column_name = 'payment_type'
+    """))
+    if result.fetchone():
+        op.drop_column('payments', 'payment_type')

@@ -243,7 +243,7 @@ done
 
 # ── [4/4] Миграции ────────────────────────────────────────────────────────────
 info "[4/4] Применяю миграции БД..."
-docker compose -f docker-compose.prod.yml exec app .venv/bin/alembic upgrade head
+docker compose -f docker-compose.prod.yml exec app uv run python fix_alembic.py
 success "Миграции применены"
 
 # ── Перезапускаем nginx с новым конфигом ─────────────────────────────────────

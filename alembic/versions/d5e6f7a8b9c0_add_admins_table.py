@@ -1,15 +1,14 @@
-"""
-add admins table
+"""add admins table
 
 Revision ID: d5e6f7a8b9c0
 Revises: c4d5e6f7a8b9
-Create Date: 2026-04-14 10:00:00.000000
+Create Date: 2026-04-15 10:00:00.000000
 
 """
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy import text
+from datetime import datetime
 
 revision: str = 'd5e6f7a8b9c0'
 down_revision: Union[str, Sequence[str], None] = 'c4d5e6f7a8b9'
@@ -18,42 +17,44 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create admins table
-    op.create_table(
-        'admins',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('username', sa.String(64), nullable=False),
-        sa.Column('password_hash', sa.String(256), nullable=False),
-        sa.Column('role', sa.String(32), nullable=False, server_default='operator'),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('username'),
-    )
-    op.create_index('ix_admins_username', 'admins', ['username'])
+    conn = op.get_bind()
 
-    # Seed initial superadmin from env (if available)
-    import os
-    env_user = os.environ.get('WEB_SUPERADMIN_USERNAME', '').strip()
-    env_pass = os.environ.get('WEB_SUPERADMIN_PASSWORD', '').strip()
-    if env_user and env_pass:
+    # Create admins table if not exists
+    result = conn.execute(sa.text("""
+        SELECT 1 FROM information_schema.tables
+        WHERE table_name = 'admins'
+    """))
+    if not result.fetchone():
+        op.create_table(
+            'admins',
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('username', sa.String(64), unique=True, nullable=False, index=True),
+            sa.Column('password_hash', sa.String(256), nullable=False),
+            sa.Column('role', sa.String(32), nullable=False, server_default='operator'),
+            sa.Column('is_active', sa.Boolean, nullable=False, server_default='true'),
+            sa.Column('created_at', sa.DateTime, nullable=False, server_default=sa.func.now()),
+            sa.Column('updated_at', sa.DateTime, nullable=False, server_default=sa.func.now()),
+        )
+
+    # Add superadmin if not exists
+    result = conn.execute(sa.text("""
+        SELECT 1 FROM admins WHERE username = 'superadmin'
+    """))
+    if not result.fetchone():
+        import os
+        env_pass = os.environ.get("WEB_SUPERADMIN_PASSWORD", "changeme")
         try:
-            import bcrypt
-            # bcrypt has 72-byte limit; truncate explicitly
-            pw_bytes = env_pass.encode('utf-8')[:72]
-            hashed = bcrypt.hashpw(pw_bytes, bcrypt.gensalt(rounds=12)).decode('ascii')
-            op.execute(
-                text(
-                    "INSERT INTO admins (username, password_hash, role, is_active) "
-                    "VALUES (:username, :password_hash, 'superadmin', true) "
-                    "ON CONFLICT (username) DO NOTHING"
-                ).bindparams(username=env_user, password_hash=hashed)
-            )
+            from bcrypt import hashpw, gensalt
+            pw_bytes = env_pass.encode("utf-8")[:72]
+            pw_hash = hashpw(pw_bytes, gensalt(rounds=12)).decode("ascii")
         except Exception:
-            pass  # If bcrypt is not available, skip seeding
+            # Fallback if bcrypt not available during migration
+            pw_hash = env_pass
+        conn.execute(sa.text("""
+            INSERT INTO admins (username, password_hash, role, is_active, created_at, updated_at)
+            VALUES ('superadmin', :pw_hash, 'superadmin', true, NOW(), NOW())
+        """), {"pw_hash": pw_hash})
 
 
 def downgrade() -> None:
-    op.drop_index('ix_admins_username', table_name='admins')
     op.drop_table('admins')

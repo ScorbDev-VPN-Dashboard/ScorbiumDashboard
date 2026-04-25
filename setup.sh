@@ -378,9 +378,9 @@ CRONEOF
         sleep 5
     done
 
-    # Применяем миграции
+    # Применяем миграции (auto-fix перед upgrade)
     info "Применяю миграции БД..."
-    docker compose -f docker-compose.prod.yml exec app uv run alembic upgrade head
+    docker compose -f docker-compose.prod.yml exec app uv run python fix_alembic.py
     success "Миграции применены"
 
     # Запускаем nginx с SSL
@@ -405,7 +405,7 @@ else
     info "Жду запуска (15 сек)..."
     sleep 15
     info "Применяю миграции БД..."
-    docker compose exec app uv run alembic upgrade head
+    docker compose exec app uv run python fix_alembic.py
     success "Миграции применены"
 fi
 

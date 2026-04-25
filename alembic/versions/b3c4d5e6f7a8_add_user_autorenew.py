@@ -16,8 +16,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('users', sa.Column('autorenew', sa.Boolean(), nullable=False, server_default='false'))
+    conn = op.get_bind()
+    result = conn.execute(sa.text("""
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'autorenew'
+    """))
+    if not result.fetchone():
+        op.add_column('users', sa.Column('autorenew', sa.Boolean(), nullable=False, server_default='false'))
 
 
 def downgrade() -> None:
-    op.drop_column('users', 'autorenew')
+    conn = op.get_bind()
+    result = conn.execute(sa.text("""
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'autorenew'
+    """))
+    if result.fetchone():
+        op.drop_column('users', 'autorenew')

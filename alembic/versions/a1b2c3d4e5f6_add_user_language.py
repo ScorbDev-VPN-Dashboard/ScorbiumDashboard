@@ -16,8 +16,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('users', sa.Column('language', sa.String(8), nullable=True))
+    conn = op.get_bind()
+    result = conn.execute(sa.text("""
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'language'
+    """))
+    if not result.fetchone():
+        op.add_column('users', sa.Column('language', sa.String(8), nullable=True))
 
 
 def downgrade() -> None:
-    op.drop_column('users', 'language')
+    conn = op.get_bind()
+    result = conn.execute(sa.text("""
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'language'
+    """))
+    if result.fetchone():
+        op.drop_column('users', 'language')
