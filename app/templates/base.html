@@ -394,8 +394,6 @@
     {% if has_perm(admin_role, 'vpn.read') %}
     <div class="nav-item"><a href="/panel/nodes" class="{% if active == 'nodes' %}active{% endif %}"><i class="bi bi-server"></i> Серверы</a></div>
     {% endif %}
-
-    <div class="nav-section">Система</div>
     {% if has_perm(admin_role, 'system') %}
     <div class="nav-item"><a href="/panel/telegram" class="{% if active == 'telegram' %}active{% endif %}"><i class="bi bi-telegram"></i> Telegram</a></div>
     {% if vpn_panel_type == 'remnawave' %}

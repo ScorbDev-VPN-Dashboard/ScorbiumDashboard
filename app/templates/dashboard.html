@@ -34,7 +34,9 @@
         <div class="stat-value">{{ stats.total_users }}</div>
         <div class="stat-label">Пользователей</div>
         <div class="stat-trend up"><i class="bi bi-arrow-up-short"></i>+{{ stats.new_users_today }} сегодня</div>
+      </div>
     </div>
+  </div>
   <div class="col-6 col-xl-3 fade-in-up stagger-2">
     <div class="stat-card dash-kpi kpi-subs">
       <div class="kpi-icon" style="background:linear-gradient(135deg, rgba(16,185,129,.15), rgba(5,150,105,.1)); color:var(--success)"><i class="bi bi-calendar-check-fill"></i></div>
@@ -42,7 +44,9 @@
         <div class="stat-value">{{ stats.active_subscriptions }}</div>
         <div class="stat-label">Активных подписок</div>
         <div class="stat-trend down"><i class="bi bi-arrow-down-short"></i>{{ stats.expired_keys }} истекших</div>
+      </div>
     </div>
+  </div>
   <div class="col-6 col-xl-3 fade-in-up stagger-3">
     <div class="stat-card dash-kpi kpi-rev">
       <div class="kpi-icon" style="background:linear-gradient(135deg, rgba(245,158,11,.15), rgba(217,119,6,.1)); color:var(--warning)"><i class="bi bi-currency-ruble"></i></div>
@@ -50,7 +54,9 @@
         <div class="stat-value">{{ stats.total_revenue | int }}</div>
         <div class="stat-label">Выручка (₽)</div>
         <div class="stat-trend up"><i class="bi bi-arrow-up-short"></i>+{{ stats.revenue_today | int }} сегодня</div>
+      </div>
     </div>
+  </div>
   <div class="col-6 col-xl-3 fade-in-up stagger-4">
     <div class="stat-card dash-kpi kpi-tix">
       <div class="kpi-icon" style="background:linear-gradient(135deg, rgba(14,165,233,.15), rgba(2,132,199,.1)); color:var(--info)"><i class="bi bi-headset"></i></div>
@@ -58,7 +64,9 @@
         <div class="stat-value">{{ stats.open_tickets }}</div>
         <div class="stat-label">Открытых тикетов</div>
         <div class="stat-trend" style="color:var(--text-muted)"><i class="bi bi-clock"></i>{{ stats.pending_payments }} ожид.</div>
+      </div>
     </div>
+  </div>
 </div>
 
 <div class="row g-3 mb-4">
@@ -70,10 +78,12 @@
           <div>
             <div style="font-size:.9rem;font-weight:700;color:var(--text)">Выручка за 7 дней</div>
             <div style="font-size:.75rem;color:var(--text-muted)">Последняя неделя</div>
+          </div>
         </div>
         <span class="badge badge-custom badge-active">{{ stats.total_revenue | int }} ₽ всего</span>
       </div>
       <div class="chart-area"><canvas id="revenueChart"></canvas></div>
+    </div>
   </div>
   <div class="col-lg-4 fade-in-up stagger-2">
     <div class="card p-3 h-100">
@@ -82,19 +92,24 @@
         <div>
           <div style="font-size:.9rem;font-weight:700;color:var(--text)">Активность</div>
           <div style="font-size:.75rem;color:var(--text-muted)">Сегодня</div>
+        </div>
       </div>
       <div class="row g-2 mb-3">
         <div class="col-6">
           <div class="mini-kpi">
             <div style="font-size:1.6rem;font-weight:800;color:var(--success)">+{{ stats.new_users_today }}</div>
             <div style="font-size:.72rem;color:var(--text-muted)">Новые юзеры</div>
+          </div>
         </div>
         <div class="col-6">
           <div class="mini-kpi">
             <div style="font-size:1.6rem;font-weight:800;color:var(--accent)">{{ recent_payments | length }}</div>
             <div style="font-size:.72rem;color:var(--text-muted)">Платежи</div>
+          </div>
         </div>
+      </div>
       <div class="mini-chart" id="miniSparkline"></div>
+    </div>
   </div>
 
 <div class="row g-3 mb-4">
@@ -107,37 +122,45 @@
           <div>
             <div style="font-size:.9rem;font-weight:700;color:var(--text)">VPN Panel</div>
             <div style="font-size:.75rem;color:var(--text-muted)">Marzban</div>
+          </div>
         </div>
         <div class="d-flex align-items-center gap-2">
           <span class="status-dot online"></span>
           <span style="font-size:.78rem;color:var(--success);font-weight:600">Подключено</span>
         </div>
+      </div>
       <div class="row g-2">
         <div class="col-6 col-md-3">
           <div class="vpn-metric">
             <div style="font-size:.85rem;color:var(--success);margin-bottom:.3rem"><i class="bi bi-wifi"></i></div>
             <div style="font-size:1.15rem;font-weight:800;color:var(--text)">{{ marzban_stats.get('users_active', 0) }}</div>
             <div style="font-size:.68rem;color:var(--text-muted)">Онлайн</div>
+          </div>
         </div>
         <div class="col-6 col-md-3">
           <div class="vpn-metric">
             <div style="font-size:.85rem;color:#818cf8;margin-bottom:.3rem"><i class="bi bi-people"></i></div>
             <div style="font-size:1.15rem;font-weight:800;color:var(--text)">{{ marzban_stats.get('total_user', 0) }}</div>
             <div style="font-size:.68rem;color:var(--text-muted)">Всего</div>
+          </div>
         </div>
         <div class="col-6 col-md-3">
           <div class="vpn-metric">
             <div style="font-size:.85rem;color:var(--info);margin-bottom:.3rem"><i class="bi bi-arrow-down-circle"></i></div>
             <div style="font-size:1.15rem;font-weight:800;color:var(--text)">{{ (marzban_stats.get('incoming_bandwidth', 0) / 1073741824) | round(1) }} GB</div>
             <div style="font-size:.68rem;color:var(--text-muted)">Входящий</div>
+          </div>
         </div>
         <div class="col-6 col-md-3">
           <div class="vpn-metric">
             <div style="font-size:.85rem;color:var(--danger);margin-bottom:.3rem"><i class="bi bi-arrow-up-circle"></i></div>
             <div style="font-size:1.15rem;font-weight:800;color:var(--text)">{{ (marzban_stats.get('outgoing_bandwidth', 0) / 1073741824) | round(1) }} GB</div>
             <div style="font-size:.68rem;color:var(--text-muted)">Исходящий</div>
+          </div>
         </div>
+      </div>
     </div>
+  </div>
   {% endif %}
   <div class="col-lg-{% if marzban_stats %}6{% else %}12{% endif %} fade-in-up stagger-2">
     <div class="card p-3">
@@ -146,6 +169,7 @@
         <div>
           <div style="font-size:.9rem;font-weight:700;color:var(--text)">Быстрые действия</div>
           <div style="font-size:.75rem;color:var(--text-muted)">Перейти к разделу</div>
+        </div>
       </div>
       <div class="d-flex flex-wrap gap-2">
         <a href="/panel/support" class="quick-tile" style="flex:1 1 calc(50% - .5rem);min-width:140px">
@@ -162,6 +186,7 @@
           <i class="bi bi-key" style="color:var(--warning)"></i><span>VPN ключи</span>
         </a>
       </div>
+    </div>
   </div>
 
 <div class="row g-3">
@@ -200,6 +225,7 @@
           </tbody>
         </table>
       </div>
+    </div>
   </div>
   <div class="col-lg-5 fade-in-up stagger-2">
     <div class="card">
@@ -237,7 +263,9 @@
           </tbody>
         </table>
       </div>
+    </div>
   </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -267,7 +295,7 @@
       data: {
         labels: revLabels,
         datasets: [{
-          label: 'Выручка ₽',
+          label: 'Выручка',
           data: revData,
           backgroundColor: gradient,
           borderColor: '#00d4aa',
@@ -319,27 +347,5 @@
     spark.style.gap = '3px';
     spark.style.height = '40px';
   }
-
-  // ── Count-up animation for stat values ──
-  document.querySelectorAll('.stat-value, .stat-trend').forEach(function(el) {
-    const text = el.textContent;
-    const match = text.match(/[\d.,]+/);
-    if (!match) return;
-    const target = parseFloat(match[0].replace(',', '.')) || 0;
-    if (!target) return;
-    const suffix = text.slice(match.index + match[0].length);
-    const prefix = text.slice(0, match.index);
-    let current = 0;
-    const duration = 900;
-    const start = performance.now();
-    function step(now) {
-      const progress = Math.min((now - start) / duration, 1);
-      const ease = 1 - Math.pow(1 - progress, 3);
-      current = Math.round(ease * target);
-      el.textContent = prefix + current + suffix;
-      if (progress < 1) requestAnimationFrame(step);
-    }
-    requestAnimationFrame(step);
-  });
 </script>
 {% endblock %}
