@@ -2057,6 +2057,9 @@ async def backup_import(
             _toast(resp, "Не удалось распаковать .gz файл", "error")
             return resp
 
+    # Strip PostgreSQL 17+ transaction_timeout (incompatible with PG 15)
+    content = re.sub(rb"SET transaction_timeout = [^;]+;\r?\n?", b"", content)
+
     db_cfg = config.database
     env = {
         "PGPASSWORD": db_cfg.db_password.get_secret_value(),
