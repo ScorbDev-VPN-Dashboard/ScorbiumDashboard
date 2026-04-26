@@ -107,7 +107,7 @@
             {% for sub in subscriptions %}
             <tr>
               <td><code style="color:#00d4aa">#{{ sub.id }}</code></td>
-              <td>{% if sub.plan_ref %}{{ sub.plan_ref.name }}{% else %}—{% endif %}</td>
+              <td>{% if sub.plan %}{{ sub.plan.name }}{% else %}—{% endif %}</td>
               <td>
                 {% if sub.status.value == 'active' %}<span class="badge badge-custom badge-active">Активна</span>
                 {% elif sub.status.value == 'expired' %}<span class="badge badge-custom badge-expired">Истекла</span>
