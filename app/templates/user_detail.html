@@ -25,7 +25,12 @@
       <div style="font-size:.82rem;color:#8892a4" class="mb-3">
         <div class="mb-1"><i class="bi bi-hash me-1"></i>ID: <code class="text-white">{{ user.id }}</code></div>
         <div class="mb-1"><i class="bi bi-currency-ruble me-1"></i>Баланс: <b class="text-white">{{ "%.2f"|format(user.balance or 0) }} ₽</b></div>
-        <div><i class="bi bi-link-45deg me-1"></i>Реф. код: <code class="text-white">{{ user.referral_code or '—' }}</code></div>
+        <div class="mb-1"><i class="bi bi-link-45deg me-1"></i>Реф. код: <code class="text-white">{{ user.referral_code or '—' }}</code></div>
+        <div class="mb-1"><i class="bi bi-globe me-1"></i>Язык: <span class="text-white">{{ user.language or '—' }}</span></div>
+        <div class="mb-1"><i class="bi bi-arrow-repeat me-1"></i>Автопродление:
+          {% if user.autorenew %}<span class="text-success">Вкл</span>{% else %}<span class="text-muted">Выкл</span>{% endif %}
+        </div>
+        <div><i class="bi bi-calendar me-1"></i>Регистрация: <span class="text-white">{{ user.created_at.strftime('%d.%m.%Y %H:%M') if user.created_at else '—' }}</span></div>
       </div>
 
       <!-- Actions -->
@@ -55,8 +60,8 @@
     </div>
 
     <!-- Gift subscription -->
-    <div class="card p-3">
-      <div class="fw-semibold text-white mb-3"><i class="bi bi-gift me-2 text-muted"></i>Подарить подписку</div>
+    <div class="card p-3 mb-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-gift me-2 text-muted"></i>Подарить по тарифу</div>
       <form hx-post="/panel/users/{{ user.id }}/gift-subscription" hx-swap="none">
         <select name="plan_id" class="form-select mb-2" required>
           {% for plan in plans %}
@@ -65,6 +70,22 @@
         </select>
         <button type="submit" class="btn btn-accent btn-sm w-100">
           <i class="bi bi-gift me-1"></i>Подарить
+        </button>
+      </form>
+    </div>
+
+    <!-- Gift by days -->
+    <div class="card p-3">
+      <div class="fw-semibold text-white mb-3"><i class="bi bi-calendar-heart me-2 text-muted"></i>Подарить по дням</div>
+      <form hx-post="/panel/users/{{ user.id }}/gift-days" hx-swap="none">
+        <div class="mb-2">
+          <input type="number" name="days" class="form-control" placeholder="Дней" min="1" max="3650" required />
+        </div>
+        <div class="mb-2">
+          <input type="text" name="name" class="form-control" placeholder="Название (необязательно)" />
+        </div>
+        <button type="submit" class="btn btn-accent btn-sm w-100">
+          <i class="bi bi-gift me-1"></i>Выдать
         </button>
       </form>
     </div>

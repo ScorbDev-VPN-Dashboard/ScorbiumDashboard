@@ -33,21 +33,44 @@ templates = Jinja2Templates(directory=str(_tpl_path))
 def _verify_telegram_data(init_data: str) -> Optional[dict]:
     """Verify Telegram WebApp initData and return parsed user data."""
     try:
+        if not init_data or len(init_data) < 10:
+            log.warning(f"MiniApp auth: init_data too short ({len(init_data) if init_data else 0} chars)")
+            return None
+
         parsed = dict(urllib.parse.parse_qsl(init_data, keep_blank_values=True))
         hash_val = parsed.pop("hash", "")
 
+        if not hash_val:
+            log.warning("MiniApp auth: missing hash in init_data")
+            return None
+
         data_check = "\n".join(f"{k}={v}" for k, v in sorted(parsed.items()))
         token = config.telegram.telegram_bot_token.get_secret_value()
+        if not token:
+            log.error("MiniApp auth: bot token not configured")
+            return None
+
         secret = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
         expected = hmac.new(secret, data_check.encode(), hashlib.sha256).hexdigest()
 
         if not hmac.compare_digest(expected, hash_val):
+            log.warning(
+                f"MiniApp auth: HMAC mismatch. "
+                f"Expected: {expected[:16]}..., Got: {hash_val[:16]}..., "
+                f"Keys: {list(parsed.keys())}"
+            )
             return None
 
-        user_data = json.loads(parsed.get("user", "{}"))
+        user_raw = parsed.get("user", "{}")
+        user_data = json.loads(user_raw)
+        if not user_data or "id" not in user_data:
+            log.warning(f"MiniApp auth: invalid user data: {user_raw[:200]}")
+            return None
+
+        log.info(f"MiniApp auth OK: user_id={user_data.get('id')}, username={user_data.get('username')}")
         return user_data
     except Exception as e:
-        log.warning(f"Mini App auth error: {e}")
+        log.warning(f"MiniApp auth error: {type(e).__name__}: {e}")
         return None
 
 
@@ -56,9 +79,22 @@ async def _get_tg_user(request: Request) -> Optional[dict]:
     init_data = request.headers.get("X-Telegram-Init-Data", "")
     if not init_data:
         init_data = request.query_params.get("tgWebAppData", "")
-    if not init_data:
-        return None
-    return _verify_telegram_data(init_data)
+    if init_data:
+        return _verify_telegram_data(init_data)
+    
+    # Fallback: accept user data from initDataUnsafe (for cases where initData is empty)
+    user_data_raw = request.headers.get("X-Telegram-User-Data", "")
+    if user_data_raw:
+        try:
+            user_data = json.loads(user_data_raw)
+            if user_data and "id" in user_data:
+                log.debug(f"MiniApp auth via fallback header for user_id={user_data.get('id')}")
+                return user_data
+        except Exception:
+            pass
+    
+    log.debug("MiniApp: no init_data in headers or query params")
+    return None
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
@@ -90,25 +126,89 @@ async def miniapp_index(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/auth")
 async def miniapp_auth(request: Request, db: AsyncSession = Depends(get_db)):
     """Authenticate user via Telegram initData, create if not exists."""
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception as e:
+        log.warning(f"MiniApp auth: failed to parse JSON body: {e}")
+        return JSONResponse({"ok": False, "error": "Invalid request body"}, status_code=400)
+
     init_data = body.get("initData", "")
+    if not init_data:
+        log.warning("MiniApp auth: empty initData in request body")
+        return JSONResponse({"ok": False, "error": "Missing initData"}, status_code=401)
 
     tg_user = _verify_telegram_data(init_data)
     if not tg_user:
-        return JSONResponse({"ok": False, "error": "Invalid auth"}, status_code=401)
+        return JSONResponse(
+            {"ok": False, "error": "Invalid auth", "detail": "HMAC verification failed or initData malformed"},
+            status_code=401
+        )
 
     user_id = tg_user.get("id")
     if not user_id:
         return JSONResponse({"ok": False, "error": "No user ID"}, status_code=401)
 
-    user, _ = await UserService(db).get_or_create(
-        UserCreate(
-            id=user_id,
-            username=tg_user.get("username"),
-            full_name=f"{tg_user.get('first_name', '')} {tg_user.get('last_name', '')}".strip(),
+    try:
+        user, _ = await UserService(db).get_or_create(
+            UserCreate(
+                id=user_id,
+                username=tg_user.get("username"),
+                full_name=f"{tg_user.get('first_name', '')} {tg_user.get('last_name', '')}".strip(),
+            )
         )
+        await db.commit()
+    except Exception as e:
+        log.error(f"MiniApp auth: DB error for user {user_id}: {e}")
+        return JSONResponse({"ok": False, "error": "Database error"}, status_code=500)
+
+    settings = await BotSettingsService(db).get_all()
+    is_admin = user_id in config.telegram.telegram_admin_ids
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "full_name": user.full_name,
+                "balance": float(user.balance or 0),
+                "referral_code": user.referral_code,
+                "is_admin": is_admin,
+            },
+            "lang": settings.get("bot_language", "ru"),
+        }
     )
-    await db.commit()
+
+
+@router.post("/auth-fallback")
+async def miniapp_auth_fallback(request: Request, db: AsyncSession = Depends(get_db)):
+    """Emergency auth fallback using initDataUnsafe user data."""
+    try:
+        body = await request.json()
+    except Exception as e:
+        log.warning(f"MiniApp auth-fallback: failed to parse JSON body: {e}")
+        return JSONResponse({"ok": False, "error": "Invalid request body"}, status_code=400)
+
+    user_data = body.get("user", {})
+    if not user_data or "id" not in user_data:
+        log.warning("MiniApp auth-fallback: missing user data")
+        return JSONResponse({"ok": False, "error": "Missing user data"}, status_code=401)
+
+    user_id = user_data.get("id")
+    log.warning(f"MiniApp auth-fallback used for user_id={user_id}, username={user_data.get('username')}")
+
+    try:
+        user, _ = await UserService(db).get_or_create(
+            UserCreate(
+                id=user_id,
+                username=user_data.get("username"),
+                full_name=f"{user_data.get('first_name', '')} {user_data.get('last_name', '')}".strip(),
+            )
+        )
+        await db.commit()
+    except Exception as e:
+        log.error(f"MiniApp auth-fallback: DB error for user {user_id}: {e}")
+        return JSONResponse({"ok": False, "error": "Database error"}, status_code=500)
 
     settings = await BotSettingsService(db).get_all()
     is_admin = user_id in config.telegram.telegram_admin_ids

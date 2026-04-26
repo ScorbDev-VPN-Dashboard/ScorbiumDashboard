@@ -139,6 +139,81 @@ class VpnKeyService:
         log.info(f"✅ VPN provisioned: user={user_id} key={key.id} marzban={username}")
         return key
 
+    async def provision_days(
+        self, user_id: int, days: int, name: str = None
+    ) -> Optional[VpnKey]:
+        """Create a VPN key with arbitrary days (no plan required)."""
+        from app.services.bot_settings import BotSettingsService
+
+        async with AsyncSessionFactory() as check_session:
+            if await BotSettingsService(check_session).is_maintenance_mode():
+                log.info(f"Provision days blocked: maintenance mode for user {user_id}")
+                return None
+
+        expires_at = datetime.now(timezone.utc) + timedelta(days=days)
+        key_name = name or f"Подарок — {days} дн."
+        key = VpnKey(
+            user_id=user_id,
+            plan_id=None,
+            price=0,
+            expires_at=expires_at,
+            name=key_name,
+            status=VpnKeyStatus.ACTIVE.value,
+            access_url="pending",
+        )
+        self.session.add(key)
+        await self.session.flush()
+
+        username = _marzban_username(user_id, key.id)
+
+        try:
+            import json as _json
+
+            from app.services.bot_settings import BotSettingsService
+
+            group_ids: list[int] = []
+            try:
+                raw_groups = await BotSettingsService(self.session).get("vpn_group_ids")
+                if raw_groups:
+                    group_ids = [
+                        int(x)
+                        for x in _json.loads(raw_groups)
+                        if str(x).strip().isdigit()
+                    ]
+            except Exception as e:
+                log.warning(f"Failed to load vpn_group_ids setting: {e}")
+                group_ids = []
+
+            marz_user = await self._get_panel().create_user(
+                username=username,
+                expire_days=days,
+                data_limit_gb=0,
+                group_ids=group_ids or None,
+            )
+        except Exception as e:
+            log.error(f"Marzban/Pasarguard create_user failed for {username}: {e}")
+            await self.session.delete(key)
+            await self.session.flush()
+            return None
+
+        sub_token = marz_user.get("subscription_url", "")
+        _pg = config.pasarguard
+        panel_base = str(_pg.pasarguard_admin_panel).rstrip("/") if _pg else ""
+
+        if sub_token:
+            if sub_token.startswith("http"):
+                access_url = sub_token.rstrip("/")
+            else:
+                access_url = f"{panel_base}{sub_token.rstrip('/')}"
+        else:
+            access_url = f"{panel_base}/sub/{username}"
+
+        key.pasarguard_key_id = username
+        key.access_url = access_url
+        await self.session.flush()
+        log.info(f"✅ VPN provisioned (days): user={user_id} key={key.id} days={days}")
+        return key
+
     async def provision_for_subscription(
         self, user_id: int, subscription_id: int, plan: Plan
     ) -> Optional[VpnKey]:

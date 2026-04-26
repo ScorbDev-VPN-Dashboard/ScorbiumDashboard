@@ -482,6 +482,40 @@ async def gift_subscription(
     return resp
 
 
+@router.post("/users/{user_id}/gift-days", response_class=HTMLResponse)
+async def gift_days(
+    user_id: int,
+    request: Request,
+    days: int = Form(...),
+    name: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_permission(request, "users.write")
+    if days < 1 or days > 3650:
+        resp = Response(status_code=400)
+        _toast(resp, "Количество дней должно быть от 1 до 3650", "error")
+        return resp
+    key_name = name.strip() if name else f"Подарок — {days} дн."
+    key = await VpnKeyService(db).provision_days(user_id=user_id, days=days, name=key_name)
+    await db.commit()
+    if key:
+        exp_str = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
+        await TelegramNotifyService().send_message(
+            user_id,
+            f"🎁 <b>Вам подарена подписка!</b>\n\n"
+            f"Длительность: <b>{days} дней</b>\n"
+            f"Действует до: <b>{exp_str}</b>\n\n"
+            f"🔑 <b>Ссылка:</b>\n<code>{key.access_url}</code>",
+        )
+    resp = Response(status_code=200)
+    _toast(
+        resp,
+        f"Подписка на {days} дней подарена" if key else "Ошибка создания ключа в Marzban",
+        "success" if key else "error",
+    )
+    return resp
+
+
 @router.post("/users/{user_id}/add-balance", response_class=HTMLResponse)
 async def add_balance(
     user_id: int,
@@ -737,6 +771,40 @@ async def create_subscription(
     _toast(
         resp,
         f"Подписка «{plan.name}» создана" if key else "Ошибка создания ключа в Marzban",
+        "success" if key else "error",
+    )
+    return resp
+
+
+@router.post("/subscriptions/create-days", response_class=HTMLResponse)
+async def create_subscription_days(
+    request: Request,
+    user_id: int = Form(...),
+    days: int = Form(...),
+    name: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_permission(request, "subscriptions")
+    if days < 1 or days > 3650:
+        resp = Response(status_code=400)
+        _toast(resp, "Количество дней должно быть от 1 до 3650", "error")
+        return resp
+    key_name = name.strip() if name else f"Подписка — {days} дн."
+    key = await VpnKeyService(db).provision_days(user_id=user_id, days=days, name=key_name)
+    await db.commit()
+    if key:
+        exp_str = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
+        await TelegramNotifyService().send_message(
+            user_id,
+            f"🎁 <b>Вам выдана подписка!</b>\n\n"
+            f"Длительность: <b>{days} дней</b>\n"
+            f"Действует до: <b>{exp_str}</b>\n\n"
+            f"🔑 <b>Ссылка:</b>\n<code>{key.access_url}</code>",
+        )
+    resp = Response(status_code=200)
+    _toast(
+        resp,
+        f"Подписка на {days} дней создана" if key else "Ошибка создания ключа в Marzban",
         "success" if key else "error",
     )
     return resp

@@ -165,17 +165,67 @@ function escapeHtml(t){if(!t)return'';return t.replace(/&/g,'&amp;').replace(/\x
 
 // Init
 async function init(){
-  if(!window.Telegram||!window.Telegram.WebApp){document.getElementById('home-c').innerHTML='<div class="em"><div class="ei" style="font-size:64px">📱</div><div class="em-title">Откройте через Telegram</div><div class="em-sub">Приложение работает только внутри Telegram</div></div>';document.querySelectorAll('.nb').forEach(b=>b.style.display='none');return;}
-  if(!tg.initData||tg.initData.length<10){document.getElementById('home-c').innerHTML='<div class="em"><div class="ei" style="font-size:64px">🔐</div><div class="em-title">Ошибка авторизации</div><div class="em-sub">Перезапустите приложение</div></div>';return;}
+  console.log('[MiniApp] init() started');
+  if(!window.Telegram||!window.Telegram.WebApp){
+    console.log('[MiniApp] Not in Telegram WebApp');
+    document.getElementById('home-c').innerHTML='<div class="em"><div class="ei" style="font-size:64px">📱</div><div class="em-title">Откройте через Telegram</div><div class="em-sub">Приложение работает только внутри Telegram</div></div>';
+    document.querySelectorAll('.nb').forEach(b=>b.style.display='none');
+    return;
+  }
+  console.log('[MiniApp] Telegram.WebApp available');
+  
+  // Try initData first, fallback to initDataUnsafe
+  let initData = tg.initData || '';
+  let authMethod = 'initData';
+  
+  if(!initData || initData.length < 10){
+    console.log('[MiniApp] initData empty or short ('+(initData?initData.length:0)+' chars), trying initDataUnsafe');
+    if(tg.initDataUnsafe && tg.initDataUnsafe.user){
+      authMethod = 'fallback';
+    } else {
+      console.log('[MiniApp] No auth data available');
+      document.getElementById('home-c').innerHTML='<div class="em"><div class="ei" style="font-size:64px">🔐</div><div class="em-title">Ошибка авторизации</div><div class="em-sub">Перезапустите приложение из Telegram</div></div>';
+      return;
+    }
+  }
+  
   try{
-    const sd=await api('/settings');if(sd.ok){HAS_YK=sd.has_yookassa||false;HAS_SBP=sd.has_sbp||false;HAS_CB=sd.has_cryptobot||false;HAS_FK=sd.has_freekassa||false;STARS=sd.stars_rate||1.5;BOT_UNAME=sd.bot_username||'';}
-    const d=await apiPost('/auth',{initData:tg.initData});
-    if(!d.ok){document.getElementById('home-c').innerHTML='<div class="em"><div class="ei" style="font-size:64px">🔐</div><div class="em-title">Ошибка авторизации</div><div class="em-sub">'+(d.error||'Неизвестная ошибка')+'</div></div>';return;}
+    console.log('[MiniApp] Loading settings...');
+    const sd=await api('/settings',{},3);
+    if(sd.ok){HAS_YK=sd.has_yookassa||false;HAS_SBP=sd.has_sbp||false;HAS_CB=sd.has_cryptobot||false;HAS_FK=sd.has_freekassa||false;STARS=sd.stars_rate||1.5;BOT_UNAME=sd.bot_username||'';}
+    console.log('[MiniApp] Settings loaded');
+    
+    let d;
+    if(authMethod === 'initData'){
+      console.log('[MiniApp] Auth via initData');
+      d=await apiPost('/auth',{initData:initData});
+    } else {
+      console.log('[MiniApp] Auth via fallback (initDataUnsafe)');
+      d=await apiPost('/auth-fallback',{user:tg.initDataUnsafe.user});
+    }
+    
+    if(!d.ok){
+      console.error('[MiniApp] Auth failed:', d.error, d.detail);
+      document.getElementById('home-c').innerHTML='<div class="em"><div class="ei" style="font-size:64px">🔐</div><div class="em-title">Ошибка авторизации</div><div class="em-sub">'+(d.error||'Неизвестная ошибка')+'</div><div style="font-size:12px;color:var(--hi);margin-top:8px">Попробуйте перезапустить приложение</div></div>';
+      return;
+    }
+    
+    console.log('[MiniApp] Auth success, user:', d.user?.id);
     U=d.user||null;
     if(U&&U.is_admin){document.getElementById('n-admin').style.display='block';}
-    loadHome();loadServerStatus();
-    setInterval(()=>{if(cur==='home')loadHome();if(cur==='profile')loadProfile();if(cur==='admin')loadAdmin();},30000);
-  }catch(e){document.getElementById('home-c').innerHTML='<div class="em"><div class="ei" style="font-size:64px">😕</div><div class="em-title">Ошибка</div><div class="em-sub">'+e.message+'</div><button class="btn bp" onclick="init()">Повторить</button></div>';}
+    
+    loadHome();
+    loadServerStatus();
+    
+    setInterval(()=>{
+      if(cur==='home')loadHome();
+      if(cur==='profile')loadProfile();
+      if(cur==='admin')loadAdmin();
+    },30000);
+  }catch(e){
+    console.error('[MiniApp] Init error:', e);
+    document.getElementById('home-c').innerHTML='<div class="em"><div class="ei" style="font-size:64px">😕</div><div class="em-title">Ошибка подключения</div><div class="em-sub">'+e.message+'</div><button class="btn bp" onclick="init()">Повторить</button></div>';
+  }
 }
 
 // Pull to refresh
