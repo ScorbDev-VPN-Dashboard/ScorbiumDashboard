@@ -1,5 +1,6 @@
 import gzip
 import io
+import re
 import json
 import subprocess
 import tempfile
