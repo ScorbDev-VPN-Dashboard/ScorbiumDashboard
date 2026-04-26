@@ -16,12 +16,15 @@ async def answer_with_photo(
 ) -> Message:
     """Отправляет новое сообщение — с фото если есть file_id, иначе текст."""
     if photo:
-        return await message.answer_photo(
-            photo=photo,
-            caption=text,
-            reply_markup=reply_markup,
-            parse_mode=parse_mode,
-        )
+        try:
+            return await message.answer_photo(
+                photo=photo,
+                caption=text,
+                reply_markup=reply_markup,
+                parse_mode=parse_mode,
+            )
+        except TelegramBadRequest:
+            pass
     return await message.answer(
         text=text,
         reply_markup=reply_markup,
