@@ -1,0 +1,179 @@
+{% extends "web/base.html" %}
+
+{% block title %}{{ app_name }} — Быстрый и безопасный VPN{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <h1 class="display-4 fw-bold mb-4">
+                    Быстрый VPN<br>
+                    <span style="color: var(--accent);">для свободного интернета</span>
+                </h1>
+                <p class="lead mb-4" style="color: var(--text-muted);">
+                    Защитите свои данные, обходите блокировки и получите доступ к любым сайтам 
+                    с нашим высокоскоростным VPN на базе современных протоколов.
+                </p>
+                <div class="d-flex gap-3 flex-wrap">
+                    <a href="#plans" class="btn btn-accent btn-lg">
+                        <i class="bi bi-lightning-charge me-2"></i>Выбрать тариф
+                    </a>
+                    <a href="/login" class="btn btn-outline-accent btn-lg">
+                        <i class="bi bi-person me-2"></i>Личный кабинет
+                    </a>
+                </div>
+                <div class="mt-4 d-flex gap-4" style="color: var(--text-muted); font-size: 0.9rem;">
+                    <span><i class="bi bi-check-circle-fill me-1" style="color: var(--accent);"></i>Без логов</span>
+                    <span><i class="bi bi-check-circle-fill me-1" style="color: var(--accent);"></i>Безлимитный трафик</span>
+                    <span><i class="bi bi-check-circle-fill me-1" style="color: var(--accent);"></i>99.9% uptime</span>
+                </div>
+            </div>
+            <div class="col-lg-6 text-center mt-5 mt-lg-0">
+                <div class="position-relative">
+                    <div style="width: 300px; height: 300px; background: radial-gradient(circle, rgba(0, 212, 170, 0.2) 0%, transparent 70%); border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);"></div>
+                    <i class="bi bi-shield-lock-fill" style="font-size: 10rem; color: var(--accent); position: relative; z-index: 1;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section class="py-5">
+    <div class="container">
+        <h2 class="text-center mb-5">Почему выбирают нас</h2>
+        <div class="row g-4">
+            {% for feature in features %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card-glass p-4 h-100">
+                    <div class="feature-icon">
+                        <i class="bi {{ feature.icon }}"></i>
+                    </div>
+                    <h5 class="fw-bold mb-2">{{ feature.title }}</h5>
+                    <p style="color: var(--text-muted);">{{ feature.desc }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- Plans Section -->
+<section class="py-5" id="plans">
+    <div class="container">
+        <h2 class="text-center mb-3">Тарифные планы</h2>
+        <p class="text-center mb-5" style="color: var(--text-muted);">Выберите подходящий план и получите доступ мгновенно</p>
+        
+        <div class="row g-4 justify-content-center">
+            {% for plan in plans %}
+            <div class="col-md-6 col-lg-4">
+                <div class="plan-card {% if loop.index == 2 %}featured{% endif %}">
+                    <h4 class="fw-bold mb-3">{{ plan.name }}</h4>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">{{ plan.description or 'Доступ ко всем серверам' }}</p>
+                    
+                    <div class="my-4">
+                        <span class="price">{{ plan.price }}</span>
+                        <span style="color: var(--text-muted);"> {{ plan.currency }}</span>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-check-circle-fill me-2" style="color: var(--accent);"></i>
+                            <span>{{ plan.duration_days }} дней</span>
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-check-circle-fill me-2" style="color: var(--accent);"></i>
+                            <span>Безлимитный трафик</span>
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-check-circle-fill me-2" style="color: var(--accent);"></i>
+                            <span>До 5 устройств</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-check-circle-fill me-2" style="color: var(--accent);"></i>
+                            <span>Поддержка 24/7</span>
+                        </div>
+                    </div>
+                    
+                    {% if user %}
+                    <button class="btn btn-accent w-100" onclick="buyPlan({{ plan.id }})">
+                        <i class="bi bi-cart me-2"></i>Купить
+                    </button>
+                    {% else %}
+                    <a href="/login" class="btn btn-accent w-100">
+                        <i class="bi bi-telegram me-2"></i>Войти для покупки
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        {% if not plans %}
+        <div class="text-center py-5">
+            <i class="bi bi-inbox" style="font-size: 3rem; color: var(--text-muted);"></i>
+            <p class="mt-3" style="color: var(--text-muted);">В настоящее время нет доступных тарифов</p>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- How It Works -->
+<section class="py-5">
+    <div class="container">
+        <h2 class="text-center mb-5">Как это работает</h2>
+        <div class="row g-4">
+            <div class="col-md-4 text-center">
+                <div class="mx-auto mb-3 d-flex align-items-center justify-content-center" 
+                     style="width: 80px; height: 80px; background: rgba(0, 212, 170, 0.1); border-radius: 50%;">
+                    <i class="bi bi-1-circle-fill" style="font-size: 2rem; color: var(--accent);"></i>
+                </div>
+                <h5 class="fw-bold">Войдите через Telegram</h5>
+                <p style="color: var(--text-muted);">Быстрая авторизация без паролей и регистрации</p>
+            </div>
+            <div class="col-md-4 text-center">
+                <div class="mx-auto mb-3 d-flex align-items-center justify-content-center" 
+                     style="width: 80px; height: 80px; background: rgba(0, 212, 170, 0.1); border-radius: 50%;">
+                    <i class="bi bi-2-circle-fill" style="font-size: 2rem; color: var(--accent);"></i>
+                </div>
+                <h5 class="fw-bold">Выберите тариф</h5>
+                <p style="color: var(--text-muted);">Подходящий план под ваши задачи</p>
+            </div>
+            <div class="col-md-4 text-center">
+                <div class="mx-auto mb-3 d-flex align-items-center justify-content-center" 
+                     style="width: 80px; height: 80px; background: rgba(0, 212, 170, 0.1); border-radius: 50%;">
+                    <i class="bi bi-3-circle-fill" style="font-size: 2rem; color: var(--accent);"></i>
+                </div>
+                <h5 class="fw-bold">Получите доступ</h5>
+                <p style="color: var(--text-muted);">Мгновенная выдача ключа после оплаты</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="py-5 mb-5">
+    <div class="container">
+        <div class="card-glass p-5 text-center">
+            <h2 class="fw-bold mb-3">Готовы начать?</h2>
+            <p class="mb-4" style="color: var(--text-muted);">Присоединяйтесь к тысячам довольных пользователей</p>
+            <a href="/login" class="btn btn-accent btn-lg">
+                <i class="bi bi-telegram me-2"></i>Войти через Telegram
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function buyPlan(planId) {
+    // Show payment provider selection modal or redirect
+    if (confirm('Перейти к оплате?')) {
+        window.location.href = '/dashboard?buy=' + planId;
+    }
+}
+</script>
+{% endblock %}

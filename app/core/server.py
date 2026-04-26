@@ -240,6 +240,9 @@ def create_app() -> FastAPI:
     from app.api.miniapp import get_miniapp_router
     app.include_router(get_miniapp_router())
 
+    from app.api.web import get_web_router
+    app.include_router(get_web_router())
+
     static_path = Path(__file__).resolve().parent.parent / "static"
     static_path.mkdir(exist_ok=True)
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
@@ -278,8 +281,8 @@ def create_app() -> FastAPI:
         await dp.feed_update(bot, update)
         return JSONResponse({"ok": True})
 
-    @app.get("/", include_in_schema=False)
-    async def root():
+    @app.get("/panel-root", include_in_schema=False)
+    async def panel_root():
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/panel/")
 

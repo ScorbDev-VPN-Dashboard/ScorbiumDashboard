@@ -1,0 +1,247 @@
+{% extends "web/base.html" %}
+
+{% block title %}Личный кабинет — {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="py-4">
+    <div class="container">
+        <!-- User Info -->
+        <div class="card-glass p-4 mb-4">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h4 class="fw-bold mb-1">
+                        <i class="bi bi-person-circle me-2" style="color: var(--accent);"></i>
+                        {{ user.full_name or user.username or 'Пользователь' }}
+                    </h4>
+                    <p class="mb-0" style="color: var(--text-muted);">
+                        ID: {{ user.id }} {% if user.username %}| @{{ user.username }}{% endif %}
+                    </p>
+                </div>
+                <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                    <div class="d-inline-block text-center">
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent);">
+                            {{ user.balance }} ₽
+                        </div>
+                        <div style="color: var(--text-muted); font-size: 0.85rem;">Баланс</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- My Keys -->
+        <h5 class="fw-bold mb-3">
+            <i class="bi bi-key me-2" style="color: var(--accent);"></i>Мои подписки
+        </h5>
+        
+        {% if keys %}
+        <div class="row g-3 mb-5">
+            {% for key in keys %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card-glass p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="fw-bold mb-0">{{ key.name or 'Подписка #' + key.id|string }}</h6>
+                        <span class="status-badge status-{{ key.status }}">
+                            {% if key.status == 'active' %}Активна{% elif key.status == 'expired' %}Истекла{% else %}Отозвана{% endif %}
+                        </span>
+                    </div>
+                    
+                    <div class="mb-3" style="font-size: 0.85rem; color: var(--text-muted);">
+                        <div class="mb-1">
+                            <i class="bi bi-calendar me-1"></i>
+                            {% if key.expires_at %}
+                                До {{ key.expires_at.strftime('%d.%m.%Y') }}
+                            {% else %}
+                                Бессрочно
+                            {% endif %}
+                        </div>
+                        <div>
+                            <i class="bi bi-clock-history me-1"></i>
+                            Создана {{ key.created_at.strftime('%d.%m.%Y') if key.created_at else '—' }}
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-accent flex-fill" onclick="copyKey('{{ key.access_url }}')">
+                            <i class="bi bi-copy me-1"></i>Копировать ключ
+                        </button>
+                        <a href="{{ key.access_url }}" target="_blank" class="btn btn-sm btn-outline-accent">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="card-glass p-4 text-center mb-5">
+            <i class="bi bi-key" style="font-size: 3rem; color: var(--text-muted);"></i>
+            <p class="mt-2 mb-0" style="color: var(--text-muted);">У вас пока нет активных подписок</p>
+        </div>
+        {% endif %}
+
+        <!-- Buy Plan -->
+        <h5 class="fw-bold mb-3">
+            <i class="bi bi-cart me-2" style="color: var(--accent);"></i>Купить подписку
+        </h5>
+        
+        <div class="row g-3 mb-5">
+            {% for plan in plans %}
+            <div class="col-md-6 col-lg-4">
+                <div class="plan-card">
+                    <h6 class="fw-bold mb-2">{{ plan.name }}</h6>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">{{ plan.description or plan.duration_days|string + ' дней' }}</p>
+                    
+                    <div class="mb-3">
+                        <span style="font-size: 1.5rem; font-weight: 700; color: var(--accent);">{{ plan.price }}</span>
+                        <span style="color: var(--text-muted);"> {{ plan.currency }}</span>
+                    </div>
+                    
+                    <button class="btn btn-accent w-100" onclick="showPaymentModal({{ plan.id }}, '{{ plan.name }}', {{ plan.price }})">
+                        <i class="bi bi-cart me-2"></i>Купить
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Payment History -->
+        <h5 class="fw-bold mb-3">
+            <i class="bi bi-clock-history me-2" style="color: var(--accent);"></i>История платежей
+        </h5>
+        
+        {% if payments %}
+        <div class="card-glass overflow-hidden">
+            <div class="table-responsive">
+                <table class="table mb-0" style="color: var(--text);">
+                    <thead>
+                        <tr style="color: var(--text-muted); font-size: 0.85rem;">
+                            <th>ID</th>
+                            <th>Сумма</th>
+                            <th>Статус</th>
+                            <th>Дата</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for payment in payments %}
+                        <tr>
+                            <td><code style="color: var(--accent);">#{{ payment.id }}</code></td>
+                            <td><b>{{ payment.amount }} {{ payment.currency }}</b></td>
+                            <td>
+                                <span class="status-badge status-{{ payment.status }}">
+                                    {% if payment.status == 'succeeded' %}Успешно{% elif payment.status == 'pending' %}В обработке{% elif payment.status == 'failed' %}Ошибка{% else %}{{ payment.status }}{% endif %}
+                                </span>
+                            </td>
+                            <td style="color: var(--text-muted); font-size: 0.85rem;">
+                                {{ payment.created_at.strftime('%d.%m.%Y %H:%M') if payment.created_at else '—' }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="card-glass p-4 text-center">
+            <i class="bi bi-receipt" style="font-size: 2rem; color: var(--text-muted);"></i>
+            <p class="mt-2 mb-0" style="color: var(--text-muted);">История платежей пуста</p>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Payment Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: var(--bg-card); border: 1px solid var(--border); color: var(--text);">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold">Оплата подписки</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">Тариф: <b id="modalPlanName"></b></p>
+                <p class="mb-4">Сумма: <b id="modalPlanPrice" style="color: var(--accent);"></b></p>
+                
+                <div class="d-grid gap-2">
+                    <button class="btn btn-accent" onclick="createPayment('yookassa')">
+                        <i class="bi bi-credit-card me-2"></i>Оплатить картой (ЮKassa)
+                    </button>
+                    <button class="btn btn-outline-accent" onclick="createPayment('cryptobot')">
+                        <i class="bi bi-currency-bitcoin me-2"></i>Оплатить криптой (CryptoBot)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedPlanId = null;
+
+function copyKey(url) {
+    navigator.clipboard.writeText(url).then(() => {
+        alert('Ключ скопирован в буфер обмена!');
+    }).catch(() => {
+        // Fallback
+        const textarea = document.createElement('textarea');
+        textarea.value = url;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('Ключ скопирован в буфер обмена!');
+    });
+}
+
+function showPaymentModal(planId, planName, planPrice) {
+    selectedPlanId = planId;
+    document.getElementById('modalPlanName').textContent = planName;
+    document.getElementById('modalPlanPrice').textContent = planPrice + ' ₽';
+    new bootstrap.Modal(document.getElementById('paymentModal')).show();
+}
+
+async function createPayment(provider) {
+    if (!selectedPlanId) return;
+    
+    const formData = new FormData();
+    formData.append('plan_id', selectedPlanId);
+    formData.append('provider', provider);
+    
+    try {
+        const response = await fetch('/api/create-payment', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.ok && data.payment_url) {
+            window.location.href = data.payment_url;
+        } else {
+            alert(data.error || 'Ошибка создания платежа');
+        }
+    } catch (error) {
+        alert('Ошибка сети: ' + error.message);
+    }
+}
+
+// Check for payment return
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.has('payment')) {
+    const paymentId = urlParams.get('payment');
+    fetch('/api/payment-status/' + paymentId)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'succeeded') {
+                alert('Оплата прошла успешно! Ваша подписка активирована.');
+                window.location.href = '/dashboard';
+            } else if (data.status === 'pending') {
+                alert('Платеж обрабатывается. Подписка будет активирована автоматически.');
+            } else {
+                alert('Платеж не завершён. Попробуйте снова.');
+            }
+        });
+}
+</script>
+{% endblock %}
