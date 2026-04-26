@@ -2061,6 +2061,14 @@ async def backup_import(
     # Strip PostgreSQL 17+ transaction_timeout (incompatible with PG 15)
     content = re.sub(rb"SET transaction_timeout = [^;]+;\r?\n?", b"", content)
 
+    # Pre-clean: drop all tables in public schema to handle old backups without --clean
+    content = (
+        b"DO $$ DECLARE r RECORD; BEGIN "
+        b"FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP "
+        b"EXECUTE 'DROP TABLE IF EXISTS public.' || quote_ident(r.tablename) || ' CASCADE'; "
+        b"END LOOP; END $$;\n"
+    ) + content
+
     db_cfg = config.database
     env = {
         "PGPASSWORD": db_cfg.db_password.get_secret_value(),
