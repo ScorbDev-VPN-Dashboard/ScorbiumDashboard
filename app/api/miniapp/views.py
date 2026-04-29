@@ -407,16 +407,7 @@ async def pay_balance(request: Request, db: AsyncSession = Depends(get_db)):
     if not updated:
         return JSONResponse({"ok": False, "error": "Balance error"}, status_code=400)
 
-    payment = await PaymentService(db).create_pending(
-        user_id=user_id, plan=plan, provider=PaymentProvider.BALANCE
-    )
-    payment.status = PaymentStatus.SUCCEEDED.value
-    await db.flush()
-
-    key = await VpnKeyService(db).provision(user_id=user_id, plan=plan)
-    if key:
-        payment.vpn_key_id = key.id
-    await db.commit()
+    # ATOMIC: create payment + provision key\n    async with db.begin():\n        payment = await PaymentService(db).create_pending(\n            user_id=user_id, plan=plan, provider=PaymentProvider.BALANCE\n        )\n        payment.status = PaymentStatus.SUCCEEDED.value\n        await db.flush()\n\n        # RETRY VPN provisioning\n        key = None\n        for attempt in range(3):\n            try:\n                key = await VpnKeyService(db).provision(user_id=user_id, plan=plan)\n                break\n            except Exception as e:\n                log.warning(f\"Provision attempt {attempt+1}/3 failed: {e}\")\n                if attempt == 2:\n                    raise\n                await asyncio.sleep(1)\n        \n        if not key:\n            raise Exception(\"VPN provisioning failed after 3 retries\")\n        \n        payment.vpn_key_id = key.id\n        await db.flush()
 
     if key:
         return JSONResponse(

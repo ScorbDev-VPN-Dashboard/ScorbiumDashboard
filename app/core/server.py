@@ -261,12 +261,30 @@ def create_app() -> FastAPI:
 
     app.include_router(get_router())
     app.include_router(get_panel_router())
-
     from app.api.miniapp import get_miniapp_router
     app.include_router(get_miniapp_router())
 
     from app.api.web import get_web_router
     app.include_router(get_web_router())
+
+    @app.get('/health')
+    async def health():
+        return {'status': 'ok', 'miniapp': 'fixed', 'version': config.web.app_version}
+
+    @app.websocket('/ws/notifications')
+    async def ws_notifications(websocket: WebSocket):
+        from app.services.notification import notification_manager
+        await websocket.accept()
+        notification_manager.connect(websocket)
+        try:
+            while True:
+                data = await websocket.receive_text()
+                if data == 'ping':
+                    await websocket.send_text('pong')
+        except:
+            pass
+        finally:
+            notification_manager.disconnect(websocket)
 
     static_path = Path(__file__).resolve().parent.parent / "static"
     static_path.mkdir(exist_ok=True)
@@ -287,7 +305,6 @@ def create_app() -> FastAPI:
         await notification_manager.connect(websocket)
         try:
             while True:
-                # Keep-alive ping-pong
                 data = await websocket.receive_text()
                 if data == "ping":
                     await websocket.send_text("pong")
@@ -312,3 +329,4 @@ def create_app() -> FastAPI:
         return RedirectResponse(url="/panel/")
 
     return app
+

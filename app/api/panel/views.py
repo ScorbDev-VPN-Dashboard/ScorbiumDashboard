@@ -367,8 +367,7 @@ async def user_detail_page(
     from app.models.vpn_key import VpnKey
 
     user = await UserService(db).get_by_id(user_id)
-    if not user:
-        return HTMLResponse("Пользователь не найден", status_code=404)
+    if not user:\n        resp = Response(status_code=404)\n        _toast(resp, "Пользователь не найден", "error")\n        return resp
 
     keys_result = await db.execute(
         select(VpnKey).where(VpnKey.user_id == user_id).order_by(VpnKey.id.desc())

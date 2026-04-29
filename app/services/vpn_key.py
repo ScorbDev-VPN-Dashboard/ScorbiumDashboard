@@ -108,17 +108,7 @@ class VpnKeyService:
                 log.warning(f"Failed to load vpn_group_ids setting: {e}")
                 group_ids = []
 
-            marz_user = await self._get_panel().create_user(
-                username=username,
-                expire_days=plan.duration_days,
-                data_limit_gb=0,
-                group_ids=group_ids or None,
-            )
-        except Exception as e:
-            log.error(f"Marzban/Pasarguard create_user failed for {username}: {e}")
-            await self.session.delete(key)
-            await self.session.flush()
-            return None
+            # RETRY LOGIC: 3x with backoff\n            for attempt in range(3):\n                try:\n                    marz_user = await self._get_panel().create_user(\n                        username=username,\n                        expire_days=plan.duration_days,\n                        data_limit_gb=0,\n                        group_ids=group_ids or None,\n                    )\n                    log.info(f\"✅ Marzban provisioned user {username} (attempt {attempt+1})\")\n                    break\n                except Exception as e:\n                    log.warning(f\"❌ Marzban attempt {attempt+1}/3 failed for {username}: {e}\")\n                    if attempt == 2:\n                        raise\n                    await asyncio.sleep(0.5 * (attempt + 1))\n            else:\n                log.error(f\"💥 All 3 Marzban attempts failed for {username}\")\n                await self.session.delete(key)\n                await self.session.flush()\n                return None
 
         sub_token = marz_user.get("subscription_url", "")
         # Build access URL
