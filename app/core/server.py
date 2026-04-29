@@ -328,5 +328,22 @@ def create_app() -> FastAPI:
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/panel/")
 
+
+    
+
+
+    @app.get('/health', include_in_schema=False)
+    async def health_check():
+        from sqlalchemy import text
+        from fastapi.responses import JSONResponse
+        try:
+            from app.core.database import AsyncSessionFactory
+            async with AsyncSessionFactory() as session:
+                await session.execute(text('SELECT 1'))
+            return JSONResponse({'status': 'ok', 'db': 'connected'})
+        except Exception as e:
+            log.error(f'Health check failed: {e}')
+            return JSONResponse({'status': 'error', 'db': str(e)}, status_code=503)
+
     return app
 

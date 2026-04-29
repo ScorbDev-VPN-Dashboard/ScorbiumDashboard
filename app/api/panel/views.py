@@ -417,7 +417,9 @@ async def ban_user_view(
         return resp
     user = await UserService(db).ban(user_id)
     if not user:
-        return HTMLResponse("", status_code=404)
+        resp = Response(status_code=404)
+    _toast(resp, 'Not found', 'error')
+    return resp
     await db.commit()
     ban_msg = (
         await BotSettingsService(db).get("ban_message")
@@ -438,7 +440,9 @@ async def unban_user_view(
     _require_permission(request, "users.write")
     user = await UserService(db).unban(user_id)
     if not user:
-        return HTMLResponse("", status_code=404)
+        resp = Response(status_code=404)
+    _toast(resp, 'Not found', 'error')
+    return resp
     await db.commit()
     unban_msg = (
         await BotSettingsService(db).get("unban_message")
@@ -462,7 +466,9 @@ async def gift_subscription(
     _require_permission(request, "users.write")
     plan = await PlanService(db).get_by_id(plan_id)
     if not plan:
-        return HTMLResponse("", status_code=404)
+        resp = Response(status_code=404)
+    _toast(resp, 'Not found', 'error')
+    return resp
     key = await VpnKeyService(db).provision(user_id=user_id, plan=plan)
     await db.commit()
     if key:
@@ -652,7 +658,9 @@ async def toggle_plan_view(
     _require_permission(request, "plans")
     plan = await PlanService(db).toggle_active(plan_id)
     if not plan:
-        return HTMLResponse("", status_code=404)
+        resp = Response(status_code=404)
+    _toast(resp, 'Not found', 'error')
+    return resp
     status_label = "active" if plan.is_active is True else "closed"
     status_text = "Активен" if plan.is_active is True else "Отключён"
     icon = "pause" if plan.is_active is True else "play"
@@ -723,7 +731,9 @@ async def refund_payment_view(
     _require_permission(request, "payments")
     payment = await PaymentService(db).refund(payment_id)
     if not payment:
-        return HTMLResponse("", status_code=404)
+        resp = Response(status_code=404)
+    _toast(resp, 'Not found', 'error')
+    return resp
     resp = HTMLResponse(f"""<tr>
       <td><code style="color:#00d4aa">#{payment.id}</code></td>
       <td><a href="/panel/users/{payment.user_id}" style="color:#00d4aa">{payment.user_id}</a></td>
@@ -915,7 +925,9 @@ async def toggle_promo(
     promo = await PromoService(db).toggle_active(promo_id)
     await db.commit()
     if not promo:
-        return HTMLResponse("", status_code=404)
+        resp = Response(status_code=404)
+    _toast(resp, 'Not found', 'error')
+    return resp
     promos = await PromoService(db).get_all()
     plans = await PlanService(db).get_all(only_active=True)
     resp = templates.TemplateResponse(
