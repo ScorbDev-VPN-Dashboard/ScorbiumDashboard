@@ -44,7 +44,7 @@ async def check_pending_yookassa_payments() -> None:
 
     for pd in payment_data:
         try:
-            yk_payment = yk.get_payment(pd["external_id"])
+            yk_payment = await yk.get_payment(pd["external_id"])
             if yk_payment.status == "succeeded":
                 plan_id = None
                 if pd["meta"]:
@@ -57,6 +57,10 @@ async def check_pending_yookassa_payments() -> None:
                 if not plan_id:
                     continue
 
+                # Сохраняем amount и currency до закрытия сессии
+                payment_amount = None
+                payment_currency = None
+
                 async with AsyncSessionFactory() as session:
                     plan = await PlanService(session).get_by_id(plan_id)
                     if not plan:
@@ -65,6 +69,9 @@ async def check_pending_yookassa_payments() -> None:
                     payment = await PaymentService(session).get_by_id(pd["id"])
                     if not payment or payment.status == PaymentStatus.SUCCEEDED.value:
                         continue
+
+                    payment_amount = str(payment.amount)
+                    payment_currency = payment.currency
 
                     payment.status = PaymentStatus.SUCCEEDED.value
                     await session.flush()
@@ -92,8 +99,8 @@ async def check_pending_yookassa_payments() -> None:
                         "data": {
                             "payment_id": pd["id"],
                             "user_id": pd["user_id"],
-                            "amount": str(payment.amount),
-                            "currency": payment.currency,
+                            "amount": payment_amount or "0",
+                            "currency": payment_currency or "RUB",
                         },
                     })
                     log.info(f"[polling] Payment {pd['id']} confirmed, key={key.id if key else None}")

@@ -75,14 +75,35 @@ def _verify_telegram_data(init_data: str) -> Optional[dict]:
 
 
 async def _get_tg_user(request: Request) -> Optional[dict]:
-    """Extract and verify Telegram user from request."""
+    """Extract and verify Telegram user from request.
+    
+    Priority:
+    1. X-Telegram-Init-Data header (set by JS on every request)
+    2. tgWebAppData query param
+    3. Request body (for POST requests with initData in JSON body)
+    4. Fallback header X-Telegram-User-Data
+    """
+    # 1. Header (primary method after JS fix)
     init_data = request.headers.get("X-Telegram-Init-Data", "")
-    if not init_data:
-        init_data = request.query_params.get("tgWebAppData", "")
     if init_data:
         return _verify_telegram_data(init_data)
     
-    # Fallback: accept user data from initDataUnsafe (for cases where initData is empty)
+    # 2. Query param
+    init_data = request.query_params.get("tgWebAppData", "")
+    if init_data:
+        return _verify_telegram_data(init_data)
+    
+    # 3. Request body (for POST requests that include initData)
+    if request.method == "POST":
+        try:
+            body = await request.json()
+            init_data = body.get("initData", "")
+            if init_data:
+                return _verify_telegram_data(init_data)
+        except Exception:
+            pass
+    
+    # 4. Fallback: accept raw user data (unverified, for emergency only)
     user_data_raw = request.headers.get("X-Telegram-User-Data", "")
     if user_data_raw:
         try:
@@ -93,7 +114,7 @@ async def _get_tg_user(request: Request) -> Optional[dict]:
         except Exception:
             pass
     
-    log.debug("MiniApp: no init_data in headers or query params")
+    log.debug("MiniApp: no auth data found in request")
     return None
 
 
@@ -490,7 +511,7 @@ async def pay_yookassa(request: Request, db: AsyncSession = Depends(get_db)):
         await db.flush()
 
         return_url = f"https://t.me/{body.get('bot_username', '')}"
-        yk_payment = yk.create_payment(
+        yk_payment = await yk.create_payment(
             amount=plan.price,
             description=f"VPN — {plan.name}",
             return_url=return_url,
@@ -545,7 +566,7 @@ async def pay_sbp(request: Request, db: AsyncSession = Depends(get_db)):
         payment.meta = _json.dumps({"plan_id": plan.id})
 
         return_url = "https://t.me/"
-        yk_payment = yk.create_sbp_payment(
+        yk_payment = await yk.create_sbp_payment(
             amount=plan.price,
             description=f"VPN — {plan.name}",
             return_url=return_url,
@@ -670,7 +691,7 @@ async def check_payment(
         from app.services.yookassa import YookassaService
 
         yk = await YookassaService.create()
-        yk_payment = yk.get_payment(str(payment.external_id))
+        yk_payment = await yk.get_payment(str(payment.external_id))
         if yk_payment.status == "succeeded":
             payment.status = PaymentStatus.SUCCEEDED.value
             await db.flush()
@@ -748,6 +769,10 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
     _cb_toggle = s.get("ps_cryptobot_enabled", "0") == "1"
     has_cryptobot = _cb_toggle and bool(s.get("cryptobot_token", "").strip())
 
+    # Telegram Stars: флаг включения (не требует API-ключа)
+    _stars_toggle = s.get("ps_stars_enabled", "0") == "1"
+    has_stars = _stars_toggle
+
     # FreeKassa
     _fk_toggle = s.get("ps_freekassa_enabled", "0") == "1"
     has_freekassa = _fk_toggle and bool(
@@ -760,10 +785,14 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
     except (ValueError, TypeError):
         stars_rate = 1.5
 
-    # Получаем username бота (с кешем)
-    bot_username = _get_cached_bot_username()
-    if not bot_username:
-        bot_username = await _fetch_bot_username()
+    # Получаем username бота (с кешем) — никогда не падает
+    bot_username = ""
+    try:
+        bot_username = _get_cached_bot_username()
+        if not bot_username:
+            bot_username = await _fetch_bot_username_safe()
+    except Exception as e:
+        log.warning(f"MiniApp settings: failed to fetch bot username: {e}")
 
     return JSONResponse(
         {
@@ -774,6 +803,7 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
             "has_yookassa": has_yookassa,
             "has_sbp": has_sbp,
             "has_cryptobot": has_cryptobot,
+            "has_stars": has_stars,
             "has_freekassa": has_freekassa,
             "stars_rate": stars_rate,
             "bot_username": bot_username,
@@ -788,27 +818,31 @@ def _get_cached_bot_username() -> str:
     return _BOT_USERNAME_CACHE
 
 
-async def _fetch_bot_username() -> str:
+async def _fetch_bot_username_safe() -> str:
+    """Fetch bot username safely without crashing."""
     global _BOT_USERNAME_CACHE
     try:
         from app.core.server import get_bot
-
         bot = get_bot()
         if bot:
             me = await bot.get_me()
             _BOT_USERNAME_CACHE = me.username or ""
             return _BOT_USERNAME_CACHE
-        # Fallback
+    except Exception as e:
+        log.debug(f"MiniApp: get_bot() failed: {e}")
+
+    try:
         from aiogram import Bot
         from app.core.config import config as _cfg2
+        token = _cfg2.telegram.telegram_bot_token.get_secret_value()
+        async with Bot(token=token) as _bot_tmp:
+            me = await _bot_tmp.get_me()
+            _BOT_USERNAME_CACHE = me.username or ""
+            return _BOT_USERNAME_CACHE
+    except Exception as e:
+        log.debug(f"MiniApp: fallback Bot creation failed: {e}")
 
-        _bot_tmp = Bot(token=_cfg2.telegram.telegram_bot_token.get_secret_value())
-        me = await _bot_tmp.get_me()
-        _BOT_USERNAME_CACHE = me.username or ""
-        await _bot_tmp.session.close()
-    except Exception:
-        pass
-    return _BOT_USERNAME_CACHE
+    return ""
 
 
 # ── Promo codes ─────────────────────────────────────────────────────────────

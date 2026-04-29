@@ -15,6 +15,7 @@ from app.utils.log import log
 
 _bot = None
 _dp = None
+_bg_tasks = []
 
 
 def get_bot():
@@ -23,6 +24,23 @@ def get_bot():
 
 def get_dp():
     return _dp
+
+
+def _start_bg_task(coro, name: str = ""):
+    """Start a background task, store reference, and log exceptions."""
+    task = asyncio.create_task(coro, name=name or None)
+    _bg_tasks.append(task)
+    task.add_done_callback(lambda t: _bg_tasks.remove(t) if t in _bg_tasks else None)
+    task.add_done_callback(_log_task_exception)
+    return task
+
+
+def _log_task_exception(task: asyncio.Task):
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc:
+        log.error(f"Background task {task.get_name() or task} failed: {exc}", exc_info=exc)
 
 
 def _make_dp():
@@ -117,9 +135,9 @@ async def _lifespan(app: FastAPI):
         )
         log.info("🤖 Bot polling started")
 
-    asyncio.create_task(payment_polling_loop())
-    asyncio.create_task(expire_loop())
-    asyncio.create_task(sync_loop())
+    _start_bg_task(payment_polling_loop(), name="payment_polling")
+    _start_bg_task(expire_loop(), name="expire_loop")
+    _start_bg_task(sync_loop(), name="sync_loop")
 
     import os as _os
     _env_cryptobot = _os.environ.get("CRYPTOBOT_TOKEN", "").strip()
@@ -168,6 +186,13 @@ async def _lifespan(app: FastAPI):
     yield
 
     log.info("🛑 Shutting down...")
+    for task in list(_bg_tasks):
+        if not task.done():
+            task.cancel()
+    if _bg_tasks:
+        await asyncio.gather(*_bg_tasks, return_exceptions=True)
+        _bg_tasks.clear()
+
     try:
         if mode == "webhook":
             await _bot.delete_webhook()

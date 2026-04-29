@@ -1,7 +1,8 @@
 import gzip
+import html
 import io
-import re
 import json
+import re
 import subprocess
 import tempfile
 from datetime import datetime, timedelta
@@ -552,7 +553,7 @@ def _render_messages(ticket) -> str:
         sender = (
             '<i class="bi bi-shield-check me-1" style="color:#00d4aa"></i>Поддержка'
             if msg.is_admin
-            else f'<i class="bi bi-person me-1"></i>Пользователь {msg.sender_id}'
+            else f'<i class="bi bi-person me-1"></i>Пользователь {html.escape(str(msg.sender_id))}'
         )
         reply_btn = ""
         if not msg.is_admin:
@@ -562,11 +563,12 @@ def _render_messages(ticket) -> str:
                 f"onclick=\"document.querySelector('[name=text]').value=''\">✏️ Ответить</button>"
                 f"</div>"
             )
+        safe_text = html.escape(str(msg.text)) if msg.text else ""
         msgs_html += (
             f'<div class="mb-3 d-flex {align}">'
             f'<div style="max-width:80%;background:{bg};border-radius:10px;padding:.6rem .9rem;font-size:.85rem;color:#c8d0e0">'
             f'<div style="font-size:.7rem;color:#8892a4;margin-bottom:.3rem">{sender}</div>'
-            f"{msg.text}{reply_btn}</div></div>"
+            f"{safe_text}{reply_btn}</div></div>"
         )
     return msgs_html
 
@@ -1723,8 +1725,9 @@ async def test_marzban(request: Request):
         resp = HTMLResponse(html)
         _toast(resp, "Marzban подключён")
     except Exception as e:
+        safe_err = html.escape(str(e)[:80])
         html = f"""<div class="d-flex align-items-center gap-2" style="color:#ef4444;font-size:.85rem">
-          <i class="bi bi-x-circle-fill"></i><span>Ошибка: {str(e)[:80]}</span>
+          <i class="bi bi-x-circle-fill"></i><span>Ошибка: {safe_err}</span>
         </div>"""
         resp = HTMLResponse(html)
         _toast(resp, "Нет подключения к Marzban", "error")
@@ -1747,15 +1750,17 @@ async def get_marzban_groups(request: Request):
     for g in groups:
         disabled = " (отключена)" if g.get("is_disabled") else ""
         inbounds = ", ".join(g.get("inbound_tags", []))
+        group_name = html.escape(str(g.get("name", "")))
         html += (
             f'<div class="form-check mb-2">'
             f'<input class="form-check-input" type="checkbox" name="group_id" value="{g["id"]}" id="grp{g["id"]}">'
             f'<label class="form-check-label" for="grp{g["id"]}" style="color:#c8d0e0;font-size:.85rem">'
-            f"<b>{g['name']}</b>{disabled}"
-            f'<span style="color:#8892a4;font-size:.75rem;display:block">{inbounds} · {g.get("total_users", 0)} юзеров</span>'
+            f"<b>{group_name}</b>{disabled}"
+            f'<span style="color:#8892a4;font-size:.75rem;display:block">{html.escape(inbounds)} · {g.get("total_users", 0)} юзеров</span>'
             f"</label></div>"
         )
     return HTMLResponse(html)
+
 
 
 @router.post("/telegram/groups", response_class=HTMLResponse)
@@ -2226,11 +2231,13 @@ async def pg_users(request: Request):
         used = round((u.get("used_traffic", 0) or 0) / 1073741824, 2)
         limit = u.get("data_limit", 0) or 0
         limit_str = f"{round(limit / 1073741824, 1)} GB" if limit else "∞"
+        username = html.escape(str(u.get("username", "")))
+        expire = html.escape(str(u.get("expire", "—") or "—"))
         rows += f"""<tr class="user-row">
-          <td><code style="color:var(--accent)">{u.get("username", "")}</code></td>
-          <td><span style="color:{color};font-size:.75rem">{status}</span></td>
+          <td><code style="color:var(--accent)">{username}</code></td>
+          <td><span style="color:{color};font-size:.75rem">{html.escape(str(status))}</span></td>
           <td style="font-size:.78rem;color:#8892a4">{used} / {limit_str}</td>
-          <td style="font-size:.75rem;color:#8892a4">{u.get("expire", "—") or "—"}</td>
+          <td style="font-size:.75rem;color:#8892a4">{expire}</td>
         </tr>"""
 
     return HTMLResponse(f"""
@@ -2258,10 +2265,11 @@ async def pg_groups(request: Request):
     for g in groups:
         disabled = "🔴" if g.get("is_disabled") else "🟢"
         inbounds = ", ".join(g.get("inbound_tags", []))
+        group_name = html.escape(str(g.get("name", "")))
         rows += f"""<tr>
           <td><code style="color:var(--accent)">{g["id"]}</code></td>
-          <td class="text-white">{g["name"]}</td>
-          <td style="font-size:.75rem;color:#8892a4">{inbounds}</td>
+          <td class="text-white">{group_name}</td>
+          <td style="font-size:.75rem;color:#8892a4">{html.escape(inbounds)}</td>
           <td>{disabled}</td>
           <td style="color:#8892a4">{g.get("total_users", 0)}</td>
         </tr>"""
@@ -2296,11 +2304,13 @@ async def pg_nodes(request: Request):
             "connecting": "#eab308",
             "error": "#ef4444",
         }.get(status, "#8892a4")
+        node_name = html.escape(str(n.get("name", "")))
+        node_addr = html.escape(str(n.get("address", "")))
         rows += f"""<tr>
-          <td><code style="color:var(--accent)">{n.get("id", "")}</code></td>
-          <td class="text-white">{n.get("name", "")}</td>
-          <td style="color:#8892a4;font-size:.8rem">{n.get("address", "")}</td>
-          <td><span style="color:{color};font-size:.75rem">{status}</span></td>
+          <td><code style="color:var(--accent)">{html.escape(str(n.get("id", "")))}</code></td>
+          <td class="text-white">{node_name}</td>
+          <td style="color:#8892a4;font-size:.8rem">{node_addr}</td>
+          <td><span style="color:{color};font-size:.75rem">{html.escape(str(status))}</span></td>
         </tr>"""
 
     return HTMLResponse(f"""
@@ -2337,7 +2347,7 @@ async def nodes_data(request: Request):
         data = await PasarguardService().get_nodes()
         nodes = data.get("nodes", []) if isinstance(data, dict) else data
     except Exception as e:
-        return HTMLResponse(f'''<div class="p-3" style="color:var(--danger)">Ошибка: {e}</div>''')
+        return HTMLResponse(f'''<div class="p-3" style="color:var(--danger)">Ошибка: {html.escape(str(e))}</div>''')
 
     if not nodes:
         return HTMLResponse('''<div class="p-3 text-muted">Нод нет</div>''')
@@ -2347,23 +2357,26 @@ async def nodes_data(request: Request):
         status = n.get("status", "")
         color = {"connected": "var(--success)", "connecting": "var(--warning)", "error": "var(--danger)"}.get(status, "var(--muted)")
         pulse = "animation: pulse-glow 2s infinite" if status == "connecting" else ""
+        node_name = html.escape(str(n.get("name", "")))
+        node_addr = html.escape(str(n.get("address", "")))
+        node_id = html.escape(str(n.get("id", "")))
         cards += f'''
         <div class="col-md-6 col-xl-4">
           <div class="card glass p-3 h-100">
             <div class="d-flex align-items-center justify-content-between mb-2">
               <div class="d-flex align-items-center gap-2">
                 <span style="width:10px;height:10px;border-radius:50%;background:{color};box-shadow:0 0 8px {color};{pulse}"></span>
-                <span class="fw-semibold" style="color:var(--text)">{n.get("name", "")}</span>
+                <span class="fw-semibold" style="color:var(--text)">{node_name}</span>
               </div>
-              <span style="font-size:.7rem;color:var(--muted)">#{n.get("id", "")}</span>
+              <span style="font-size:.7rem;color:var(--muted)">#{node_id}</span>
             </div>
-            <div style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem">{n.get("address", "")}</div>
+            <div style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem">{node_addr}</div>
             <div class="d-flex gap-3 mb-2" style="font-size:.75rem;color:var(--muted)">
-              <span><i class="bi bi-hdd-network me-1"></i>{n.get("port", "—")}</span>
-              <span><i class="bi bi-people me-1"></i>{n.get("total_users", 0)}</span>
+              <span><i class="bi bi-hdd-network me-1"></i>{html.escape(str(n.get("port", "—")))}</span>
+              <span><i class="bi bi-people me-1"></i>{html.escape(str(n.get("total_users", 0)))}</span>
             </div>
             <div class="d-flex gap-2 mt-auto">
-              <button class="btn btn-sm btn-outline" hx-post="/panel/nodes/{n.get("id", "")}/reconnect" hx-target="#nodes-grid" hx-swap="innerHTML">
+              <button class="btn btn-sm btn-outline" hx-post="/panel/nodes/{node_id}/reconnect" hx-target="#nodes-grid" hx-swap="innerHTML">
                 <i class="bi bi-arrow-clockwise me-1"></i>Переподключить
               </button>
             </div>
@@ -2380,7 +2393,7 @@ async def reconnect_node(node_id: int, request: Request):
     try:
         await PasarguardService().reconnect_node(node_id)
     except Exception as e:
-        return HTMLResponse(f'''<div class="p-3" style="color:var(--danger)">Ошибка: {e}</div>''')
+        return HTMLResponse(f'''<div class="p-3" style="color:var(--danger)">Ошибка: {html.escape(str(e))}</div>''')
     return await nodes_data(request)
 
 
@@ -2399,7 +2412,7 @@ async def add_node(
         await PasarguardService().add_node(name=name, address=address, port=port, api_port=api_port)
     except Exception as e:
         resp = Response(status_code=400)
-        _toast(resp, f"Ошибка добавления ноды: {str(e)[:100]}", "error")
+        _toast(resp, f"Ошибка добавления ноды: {html.escape(str(e))[:100]}", "error")
         return resp
     return await nodes_data(request)
 
@@ -2412,7 +2425,7 @@ async def delete_node(node_id: int, request: Request):
         await PasarguardService().remove_node(node_id)
     except Exception as e:
         resp = Response(status_code=400)
-        _toast(resp, f"Ошибка удаления ноды: {str(e)[:100]}", "error")
+        _toast(resp, f"Ошибка удаления ноды: {html.escape(str(e))[:100]}", "error")
         return resp
     return await nodes_data(request)
 
@@ -2673,8 +2686,7 @@ async def keyboard_editor(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.post("/keyboard/save")
 async def keyboard_save(request: Request, db: AsyncSession = Depends(get_db)):
-    if not _check_session(request):
-        return {"ok": False, "detail": "Unauthorized"}
+    _require_permission(request, "system")
     import json as _json
 
     body = await request.json()
@@ -2686,8 +2698,7 @@ async def keyboard_save(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.post("/keyboard/styles")
 async def keyboard_styles(request: Request, db: AsyncSession = Depends(get_db)):
-    if not _check_session(request):
-        return {"ok": False, "detail": "Unauthorized"}
+    _require_permission(request, "system")
     body = await request.json()
     styles = body.get("styles", {})
     svc = BotSettingsService(db)

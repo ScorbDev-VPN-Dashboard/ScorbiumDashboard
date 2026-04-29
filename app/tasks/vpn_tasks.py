@@ -185,38 +185,58 @@ async def auto_renew_keys() -> None:
         for key_id, user_id, plan_id, price in data:
             if price <= 0:
                 continue
-            async with AsyncSessionFactory() as session:
-                # Проверяем что у пользователя включено автосписание
-                user_check = await UserService(session).get_by_id(user_id)
-                if not user_check or not bool(user_check.autorenew):
-                    continue
+            try:
+                async with AsyncSessionFactory() as session:
+                    from sqlalchemy import select
+                    from app.models.vpn_key import VpnKey
 
-                user = await UserService(session).deduct_balance(user_id, Decimal(str(price)))
-                if not user:
-                    await notify.send_message(
-                        user_id,
-                        "⚠️ <b>Автопродление не выполнено</b>\n\n"
-                        "Недостаточно средств на балансе. Пополните баланс для продления подписки.",
+                    # Re-fetch key with FOR UPDATE to prevent double-renewal race
+                    key_result = await session.execute(
+                        select(VpnKey)
+                        .where(VpnKey.id == key_id)
+                        .with_for_update()
                     )
-                    continue
+                    current_key = key_result.scalar_one_or_none()
+                    if not current_key or current_key.expires_at > now:
+                        # Key already renewed or removed
+                        continue
 
-                from app.services.plan import PlanService
-                plan = await PlanService(session).get_by_id(plan_id)
-                if not plan:
-                    continue
+                    # Check autorenew is still enabled
+                    user_check = await UserService(session).get_by_id(user_id)
+                    if not user_check or not bool(user_check.autorenew):
+                        continue
 
-                key = await VpnKeyService(session).extend(key_id, plan.duration_days)
-                await session.commit()
+                    # Deduct balance atomically
+                    user = await UserService(session).deduct_balance(user_id, Decimal(str(price)))
+                    if not user:
+                        await notify.send_message(
+                            user_id,
+                            "⚠️ <b>Автопродление не выполнено</b>\n\n"
+                            "Недостаточно средств на балансе. Пополните баланс для продления подписки.",
+                        )
+                        continue
 
-                if key:
-                    exp_str = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
-                    await notify.send_message(
-                        user_id,
-                        f"✅ <b>Подписка автоматически продлена!</b>\n\n"
-                        f"Списано: <b>{price} ₽</b>\n"
-                        f"Действует до: <b>{exp_str}</b>",
-                    )
-                    log.info(f"[auto_renew] key={key_id} user={user_id} renewed for {plan.duration_days} days")
+                    from app.services.plan import PlanService
+                    plan = await PlanService(session).get_by_id(plan_id)
+                    if not plan:
+                        # Refund if plan no longer exists
+                        user_check.balance = user_check.balance + Decimal(str(price))
+                        await session.flush()
+                        continue
 
+                    key = await VpnKeyService(session).extend(key_id, plan.duration_days)
+                    await session.commit()
+
+                    if key:
+                        exp_str = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
+                        await notify.send_message(
+                            user_id,
+                            f"✅ <b>Подписка автоматически продлена!</b>\n\n"
+                            f"Списано: <b>{price} ₽</b>\n"
+                            f"Действует до: <b>{exp_str}</b>",
+                        )
+                        log.info(f"[auto_renew] key={key_id} user={user_id} renewed for {plan.duration_days} days")
+            except Exception as e:
+                log.error(f"[auto_renew] key={key_id} user={user_id} error: {e}")
     except Exception as e:
         log.error(f"[auto_renew] error: {e}")

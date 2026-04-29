@@ -238,10 +238,3 @@ if (urlParams.has('payment')) {
                 window.location.href = '/dashboard';
             } else if (data.status === 'pending') {
                 alert('Платеж обрабатывается. Подписка будет активирована автоматически.');
-            } else {
-                alert('Платеж не завершён. Попробуйте снова.');
-            }
-        });
-}
-</script>
-{% endblock %}

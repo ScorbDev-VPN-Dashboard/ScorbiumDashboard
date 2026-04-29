@@ -81,6 +81,7 @@ class PaymentService:
                 Payment.status == PaymentStatus.PENDING.value,
                 Payment.provider == provider.value,
                 Payment.payment_type == PaymentType.SUBSCRIPTION.value,
+                Payment.created_at <= cutoff,
             )
         )
         for old in old_result.scalars().all():
@@ -107,6 +108,8 @@ class PaymentService:
         currency: str = "RUB",
     ) -> Payment:
         """Создать pending платёж пополнения баланса."""
+        from datetime import datetime, timezone, timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
         # Отменяем старые pending topup от того же провайдера
         old_result = await self.session.execute(
             select(Payment).where(
@@ -114,6 +117,7 @@ class PaymentService:
                 Payment.status == PaymentStatus.PENDING.value,
                 Payment.provider == provider.value,
                 Payment.payment_type == PaymentType.TOPUP.value,
+                Payment.created_at <= cutoff,
             )
         )
         for old in old_result.scalars().all():

@@ -1,3 +1,5 @@
+import asyncio
+import threading
 import uuid
 from decimal import Decimal
 from typing import Optional
@@ -37,9 +39,13 @@ async def _get_yookassa_credentials() -> Optional[dict]:
     return None
 
 
+_yookassa_lock = threading.Lock()
+
+
 def _configure_yookassa_sync(shop_id: int, secret_key: str) -> None:
-    yookassa.Configuration.account_id = shop_id
-    yookassa.Configuration.secret_key = secret_key
+    with _yookassa_lock:
+        yookassa.Configuration.account_id = shop_id
+        yookassa.Configuration.secret_key = secret_key
 
 
 class YookassaService:
@@ -64,7 +70,7 @@ class YookassaService:
             raise YookassaPaymentError("Yookassa is not configured.")
         return cls(shop_id=creds["shop_id"], secret_key=creds["secret_key"])
 
-    def create_payment(
+    async def create_payment(
         self,
         amount: Decimal,
         description: str,
@@ -83,21 +89,23 @@ class YookassaService:
             }
             if payment_method:
                 data["payment_method_data"] = {"type": payment_method}
-            payment = YKPayment.create(data, idempotency_key=str(uuid.uuid4()))
+            payment = await asyncio.to_thread(
+                YKPayment.create, data, idempotency_key=str(uuid.uuid4())
+            )
             log.info(f"Yookassa payment created: {payment.id}")
             return payment
         except Exception as e:
             log.error(f"Yookassa payment creation failed: {e}")
             raise YookassaPaymentError(str(e))
 
-    def create_sbp_payment(
+    async def create_sbp_payment(
         self,
         amount: Decimal,
         description: str,
         return_url: str,
         metadata: Optional[dict] = None,
     ) -> PaymentResponse:
-        return self.create_payment(
+        return await self.create_payment(
             amount=amount,
             description=description,
             return_url=return_url,
@@ -105,22 +113,23 @@ class YookassaService:
             payment_method="sbp",
         )
 
-    def get_payment(self, payment_id: str) -> PaymentResponse:
+    async def get_payment(self, payment_id: str) -> PaymentResponse:
         try:
-            return YKPayment.find_one(payment_id)
+            return await asyncio.to_thread(YKPayment.find_one, payment_id)
         except Exception as e:
             raise YookassaPaymentError(str(e))
 
     @staticmethod
-    def _sync_get_payment(payment_id: str) -> PaymentResponse:
+    async def _sync_get_payment(payment_id: str) -> PaymentResponse:
         """Синхронная проверка платежа — используется в async контексте через await YookassaService.create()."""
         try:
-            return YKPayment.find_one(payment_id)
+            return await asyncio.to_thread(YKPayment.find_one, payment_id)
         except Exception as e:
             raise YookassaPaymentError(str(e))
 
-    def is_succeeded(self, payment_id: str) -> bool:
-        return self.get_payment(payment_id).status == "succeeded"
+    async def is_succeeded(self, payment_id: str) -> bool:
+        payment = await self.get_payment(payment_id)
+        return payment.status == "succeeded"
 
 
 def _configure_yookassa_env() -> bool:

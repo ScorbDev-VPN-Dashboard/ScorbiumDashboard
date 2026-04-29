@@ -1,5 +1,7 @@
+from decimal import Decimal
 from typing import Optional
-from sqlalchemy import func, select
+
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -50,25 +52,29 @@ class UserService:
         return await self.update(user_id, UserUpdate(is_banned=False))
 
     async def add_balance(self, user_id: int, amount) -> Optional[User]:
-        from decimal import Decimal
-        user = await self.get_by_id(user_id)
-        if not user:
-            return None
-        user.balance = (user.balance or Decimal("0")) + Decimal(str(amount))
-        await self.session.flush()
-        return user
+        """Atomic balance addition — race-condition safe."""
+        amount_dec = Decimal(str(amount))
+        result = await self.session.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(balance=User.balance + amount_dec)
+            .returning(User)
+        )
+        return result.scalar_one_or_none()
 
     async def deduct_balance(self, user_id: int, amount) -> Optional[User]:
-        from decimal import Decimal
-        user = await self.get_by_id(user_id)
-        if not user:
-            return None
-        current = user.balance or Decimal("0")
-        if current < Decimal(str(amount)):
-            return None
-        user.balance = current - Decimal(str(amount))
-        await self.session.flush()
-        return user
+        """Atomic balance deduction with built-in check — race-condition safe."""
+        amount_dec = Decimal(str(amount))
+        result = await self.session.execute(
+            update(User)
+            .where(
+                User.id == user_id,
+                User.balance >= amount_dec,
+            )
+            .values(balance=User.balance - amount_dec)
+            .returning(User)
+        )
+        return result.scalar_one_or_none()
 
     async def get_by_referral_code(self, code: str) -> Optional[User]:
         result = await self.session.execute(select(User).where(User.referral_code == code))

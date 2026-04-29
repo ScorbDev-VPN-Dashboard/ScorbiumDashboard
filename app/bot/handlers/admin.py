@@ -121,10 +121,17 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
         today = datetime.now(timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
+        week_ago = today - timedelta(days=7)
+
         new_today_r = await session.execute(
             select(func.count()).select_from(User).where(User.created_at >= today)
         )
         new_today = new_today_r.scalar_one()
+
+        new_week_r = await session.execute(
+            select(func.count()).select_from(User).where(User.created_at >= week_ago)
+        )
+        new_week = new_week_r.scalar_one()
 
         rev_today_r = await session.execute(
             select(
@@ -137,6 +144,18 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
         )
         rev_today_val = rev_today_r.scalar_one()
         rev_today = float(rev_today_val) if rev_today_val else 0.0
+
+        rev_week_r = await session.execute(
+            select(
+                func.coalesce(func.sum(cast(Payment.amount, Numeric)), 0).label("total")
+            ).where(
+                Payment.status == PaymentStatus.SUCCEEDED.value,
+                Payment.payment_type == PaymentType.SUBSCRIPTION.value,
+                Payment.created_at >= week_ago,
+            )
+        )
+        rev_week_val = rev_week_r.scalar_one()
+        rev_week = float(rev_week_val) if rev_week_val else 0.0
 
         from app.services.bot_settings import BotSettingsService
 
@@ -157,14 +176,14 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
             f"[👤] <b>├Пользователи:</b>\n"
             f"  ⎡ Всего: <b>{total_users}</b>\n"
             f"  ├ Новых сегодня: <b>{new_today}</b>\n"
-            f"  ⎣ Новых за неделю: <b>{total_users}</b>\n\n"
+            f"  ⎣ Новых за неделю: <b>{new_week}</b>\n\n"
             f"[🔑] <b>Подписки:</b>\n"
             f"  ⎡ Активных: <b>{active_subs}</b>\n"
             f"  ⎣ Истёкших: <b>{expired_count}</b>\n\n"
             f"[🏦] <b>Финансы:</b>\n"
             f"  ⎡ Выручка всего: <b>{revenue} ₽</b>\n"
             f"  ├ Выручка сегодня: <b>{rev_today:.2f} ₽</b>\n"
-            f"  ⎣ Выручка за неделю: <b>{rev_today:.2f} ₽</b>\n\n"
+            f"  ⎣ Выручка за неделю: <b>{rev_week:.2f} ₽</b>\n\n"
             f"[ℹ️] <b>Прочее:</b>\n"
             f"  ⎡ Открытых тикетов: <b>{open_tickets}</b>\n"
             f"  ⎣ Ожидают оплаты: <b>{pending}</b>"
@@ -212,7 +231,7 @@ async def _show_user_detail(callback: CallbackQuery, user_id: int) -> None:
 
     uname = f"@{username}" if username else f"<code>{user_id}</code>"
     safe_name = (
-        full_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        full_name.replace("&", "&amp;").replace("<", "<").replace(">", ">")
         if full_name
         else "—"
     )
@@ -651,8 +670,8 @@ async def _show_users_page(callback: CallbackQuery, page: int = 0) -> None:
         safe_name = (
             (u.full_name or "—")
             .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
+            .replace("<", "<")
+            .replace(">", ">")
         )
         text += (
             f"{status} <b>{safe_name}</b> ({uname}) — {float(u.balance or 0):.0f}₽\n"
