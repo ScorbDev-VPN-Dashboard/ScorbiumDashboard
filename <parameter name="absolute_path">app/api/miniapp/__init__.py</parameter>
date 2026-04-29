@@ -1,0 +1,5 @@
+<parameter name="content">from fastapi import APIRouter
+from .views import router as miniapp_router
+
+def get_miniapp_router() -> APIRouter:
+    return miniapp_router</parameter>

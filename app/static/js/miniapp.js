@@ -1,6 +1,6 @@
 // MiniApp Core Logic
 const tg=window.Telegram.WebApp;tg.ready();tg.expand();
-const B='/app';
+const B='/miniapp';
 let U=null,plans=[],selPlan=null,cur='home';
 let HAS_YK=false,HAS_SBP=false,HAS_CB=false,HAS_FK=false,STARS=1.5,BOT_UNAME='';
 
