@@ -1279,19 +1279,6 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
         ctx["marzban_ok"] = False
         ctx["marzban_stats"] = None
 
-    from sqlalchemy import func, select
-    from app.models.user import User
-    from app.models.vpn_key import VpnKey
-    from app.models.payment import Payment
-    from app.models.support import SupportTicket
-
-    ctx["db_stats"] = {
-        "users": (await db.execute(select(func.count()).select_from(User))).scalar_one(),
-        "keys": (await db.execute(select(func.count()).select_from(VpnKey))).scalar_one(),
-        "payments": (await db.execute(select(func.count()).select_from(Payment))).scalar_one(),
-        "tickets": (await db.execute(select(func.count()).select_from(SupportTicket))).scalar_one(),
-    }
-
     return templates.TemplateResponse("telegram.html", ctx)
 
 
@@ -2195,6 +2182,20 @@ async def telegram_send_view(
 async def backup_page(request: Request, db: AsyncSession = Depends(get_db)):
     _require_permission(request, "system")
     ctx = await _base_ctx(request, db, "backup")
+
+    from sqlalchemy import func, select
+    from app.models.user import User
+    from app.models.vpn_key import VpnKey
+    from app.models.payment import Payment
+    from app.models.support import SupportTicket
+
+    ctx["db_stats"] = {
+        "users": (await db.execute(select(func.count()).select_from(User))).scalar_one(),
+        "keys": (await db.execute(select(func.count()).select_from(VpnKey))).scalar_one(),
+        "payments": (await db.execute(select(func.count()).select_from(Payment))).scalar_one(),
+        "tickets": (await db.execute(select(func.count()).select_from(SupportTicket))).scalar_one(),
+    }
+
     return templates.TemplateResponse("backup.html", ctx)
 
 

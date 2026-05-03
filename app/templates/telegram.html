@@ -30,7 +30,6 @@
   <button class="tab-btn" onclick="switchTab('miniapp')"><i class="bi bi-grid-3x3-gap me-1"></i>Mini App</button>
   <button class="tab-btn" onclick="switchTab('channel')"><i class="bi bi-broadcast me-1"></i>Канал</button>
   <button class="tab-btn" onclick="switchTab('payments')"><i class="bi bi-credit-card me-1"></i>Платёжные системы</button>
-  <button class="tab-btn" onclick="switchTab('database')"><i class="bi bi-database me-1"></i>База данных</button>
 </div>
 
 <!-- ══ TAB: БОТ ══════════════════════════════════════════════════════════════ -->
@@ -129,6 +128,45 @@
 <!-- ══ TAB: КАСТОМИЗАЦИЯ ═════════════════════════════════════════════════════ -->
 <div id="tab-customize" class="tab-pane">
 <div class="row g-3">
+
+  <!-- Logo upload -->
+  <div class="col-12">
+    <div class="card p-3">
+      <div class="fw-semibold mb-3" style="color:var(--text)"><i class="bi bi-image me-2 text-muted"></i>Логотип панели</div>
+      <div class="d-flex gap-3 align-items-start flex-wrap">
+        <div class="d-flex flex-column align-items-center gap-2">
+          {% if bot_settings.get('custom_logo') %}
+          <img src="{{ bot_settings.get('custom_logo') }}" id="logo-preview" style="width:64px;height:64px;border-radius:14px;object-fit:contain;background:var(--surface);border:1px solid var(--border);" />
+          {% else %}
+          <div id="logo-preview" style="width:64px;height:64px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent-secondary));display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:#fff;border:1px solid var(--border);"><i class="bi bi-shield-lock-fill"></i></div>
+          {% endif %}
+          <span style="font-size:.7rem;color:var(--text-muted)">Предпросмотр</span>
+        </div>
+        <div style="flex:1;min-width:280px">
+          <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:.75rem">
+            Загрузите логотип для отображения в боковой панели и на странице входа. Форматы: PNG, JPG, WebP, SVG, GIF. Макс. 2MB.
+          </p>
+          <form id="logo-upload-form" hx-post="/panel/logo/upload" hx-encoding="multipart/form-data" hx-swap="none"
+                hx-on::after-request="handleLogoUpload(event)">
+            <div class="d-flex gap-2 flex-wrap align-items-end">
+              <div style="flex:1;min-width:200px">
+                <label class="form-label">Файл логотипа</label>
+                <input type="file" name="logo" accept="image/*" class="form-control" id="logo-file-input" required />
+              </div>
+              <button type="submit" class="btn btn-accent"><i class="bi bi-upload me-1"></i>Загрузить</button>
+              {% if bot_settings.get('custom_logo') %}
+              <button type="button" class="btn btn-outline-danger" hx-post="/panel/logo/clear" hx-swap="none"
+                      hx-on::after-request="location.reload()">
+                <i class="bi bi-trash me-1"></i>Удалить
+              </button>
+              {% endif %}
+            </div>
+          </form>
+          <div id="logo-result" style="font-size:.78rem;margin-top:.5rem"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Language selection -->
   <div class="col-12">
@@ -958,66 +996,6 @@
 </div>
 </div>
 
-<!-- ══ TAB: БАЗА ДАННЫХ ════════════════════════════════════════════════════════ -->
-<div id="tab-database" class="tab-pane">
-<div class="row g-3">
-  <div class="col-lg-6">
-    <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-database me-2 text-muted"></i>Статистика базы данных</div>
-      <div class="row g-2 mb-3">
-        <div class="col-6">
-          <div class="vpn-metric">
-            <div style="font-size:1.25rem;font-weight:800;color:var(--text)">{{ db_stats.users }}</div>
-            <div style="font-size:.7rem;color:var(--text-muted)">Пользователи</div>
-          </div>
-        </div>
-        <div class="col-6">
-          <div class="vpn-metric">
-            <div style="font-size:1.25rem;font-weight:800;color:var(--text)">{{ db_stats.keys }}</div>
-            <div style="font-size:.7rem;color:var(--text-muted)">Ключи</div>
-          </div>
-        </div>
-        <div class="col-6">
-          <div class="vpn-metric">
-            <div style="font-size:1.25rem;font-weight:800;color:var(--text)">{{ db_stats.payments }}</div>
-            <div style="font-size:.7rem;color:var(--text-muted)">Платежи</div>
-          </div>
-        </div>
-        <div class="col-6">
-          <div class="vpn-metric">
-            <div style="font-size:1.25rem;font-weight:800;color:var(--text)">{{ db_stats.tickets }}</div>
-            <div style="font-size:.7rem;color:var(--text-muted)">Тикеты</div>
-          </div>
-        </div>
-      </div>
-      <div style="font-size:.75rem;color:var(--text-muted);padding:.75rem;background:var(--surface);border-radius:8px;">
-        <i class="bi bi-info-circle me-1"></i>Данные актуальны на момент загрузки страницы. Обновите страницу для свежих данных.
-      </div>
-    </div>
-  </div>
-
-  <div class="col-lg-6">
-    <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-exclamation-triangle me-2" style="color:var(--warning)"></i>Очистка базы данных</div>
-      <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:1rem;">
-        <i class="bi bi-info-circle me-1"></i>Это действие удалит <strong style="color:var(--text)">все данные пользователей, ключей, платежей и тикетов</strong>. Настройки бота и администраторы будут сохранены.
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label" style="font-size:.8rem;">Подтвердите действие</label>
-        <input type="text" id="db-clear-input" class="form-control" placeholder="Введите CLEAR" autocomplete="off" />
-      </div>
-
-      <button id="db-clear-btn" class="btn btn-danger w-100" disabled onclick="clearDatabase()">
-        <i class="bi bi-trash3 me-1"></i>Очистить базу данных
-      </button>
-
-      <div id="db-clear-result" class="mt-2" style="font-size:.8rem"></div>
-    </div>
-  </div>
-</div>
-</div>
-
 {% endblock %}
 
 {% block scripts %}
@@ -1086,6 +1064,43 @@ function switchLangTab(lang) {
   // sync the default lang selector if it exists
   const sel = document.getElementById('lang-selector');
   if (sel) sel.value = lang;
+}
+
+// ── Logo upload ───────────────────────────────────────────────────────────────
+function handleLogoUpload(event) {
+  const xhr = event.detail.xhr;
+  let data = {};
+  try { data = JSON.parse(xhr.responseText); } catch(e) {}
+  const ok = xhr.status === 200;
+  const result = document.getElementById('logo-result');
+  if (result) {
+    result.innerHTML = ok
+      ? '<span style="color:#22c55e"><i class="bi bi-check-circle-fill me-1"></i>Логотип загружен</span>'
+      : '<span style="color:#ef4444"><i class="bi bi-x-circle-fill me-1"></i>Ошибка загрузки</span>';
+  }
+  showToast(ok ? '✅ Логотип загружен' : '❌ Ошибка', ok ? 'success' : 'error');
+  if (ok) {
+    const input = document.getElementById('logo-file-input');
+    if (input) {
+      const file = input.files[0];
+      if (file) {
+        const preview = document.getElementById('logo-preview');
+        if (preview) {
+          const url = URL.createObjectURL(file);
+          if (preview.tagName === 'IMG') {
+            preview.src = url;
+          } else {
+            const img = document.createElement('img');
+            img.src = url;
+            img.id = 'logo-preview';
+            img.style.cssText = 'width:64px;height:64px;border-radius:14px;object-fit:contain;background:var(--surface);border:1px solid var(--border);';
+            preview.replaceWith(img);
+          }
+        }
+      }
+    }
+    setTimeout(() => location.reload(), 1500);
+  }
 }
 
 // ── Photo upload ──────────────────────────────────────────────────────────────
@@ -1361,44 +1376,6 @@ async function kbSaveStyles() {
   const d = await r.json();
   showToast(d.ok ? '✅ Стили сохранены' : '❌ Ошибка', d.ok ? 'success' : 'error');
   kbUpdatePreview();
-}
-
-// ── Database clear ────────────────────────────────────────────────────────────
-const dbClearInput = document.getElementById('db-clear-input');
-const dbClearBtn = document.getElementById('db-clear-btn');
-if (dbClearInput && dbClearBtn) {
-  dbClearInput.addEventListener('input', function() {
-    dbClearBtn.disabled = this.value !== 'CLEAR';
-  });
-}
-
-async function clearDatabase() {
-  if (!confirm('⚠️ ВЫ УВЕРЕНЫ?\n\nЭто удалит ВСЕ данные пользователей, ключей, платежей и тикетов.\n\nНастройки бота и администраторы будут сохранены.')) return;
-
-  const btn = document.getElementById('db-clear-btn');
-  const result = document.getElementById('db-clear-result');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Очистка...';
-  result.innerHTML = '';
-
-  try {
-    const r = await fetch('/panel/database/clear', {method: 'POST', headers: {'Content-Type': 'application/json'}});
-    const d = await r.json();
-    if (d.ok) {
-      result.innerHTML = '<span style="color:#22c55e"><i class="bi bi-check-circle-fill me-1"></i>' + d.message + '</span>';
-      showToast('База данных очищена', 'success');
-      setTimeout(() => location.reload(), 2000);
-    } else {
-      result.innerHTML = '<span style="color:#ef4444"><i class="bi bi-x-circle-fill me-1"></i>' + (d.message || 'Ошибка') + '</span>';
-      showToast(d.message || 'Ошибка', 'error');
-    }
-  } catch(e) {
-    result.innerHTML = '<span style="color:#ef4444"><i class="bi bi-x-circle-fill me-1"></i>Ошибка сети</span>';
-    showToast('Ошибка сети', 'error');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-trash3 me-1"></i>Очистить базу данных';
-  }
 }
 </script>
 {% endblock %}
