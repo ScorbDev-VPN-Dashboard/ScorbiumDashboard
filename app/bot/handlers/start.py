@@ -430,6 +430,22 @@ async def _show_topup_payment(
             )
         )
 
+    has_freekassa = settings.get("ps_freekassa_enabled", "0") == "1" and bool(
+        settings.get("freekassa_shop_id", "").strip()
+    )
+    if has_freekassa:
+        fk_labels = {
+            "ru": "🟢 FreeKassa",
+            "en": "🟢 FreeKassa",
+            "fa": "🟢 FreeKassa",
+        }
+        builder.row(
+            InlineKeyboardButton(
+                text=fk_labels.get(lang, fk_labels["ru"]),
+                callback_data=f"topup:pay:freekassa:{amount}",
+            )
+        )
+
     # Telegram Stars — всегда доступны
     stars_labels = {
         "ru": f"⭐ Telegram Stars ({stars_amount} ⭐)",

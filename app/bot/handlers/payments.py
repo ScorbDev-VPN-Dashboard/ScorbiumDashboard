@@ -1,3 +1,4 @@
+import asyncio
 from aiogram import Router, F, Bot
 from aiogram.types import CallbackQuery, Message, PreCheckoutQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -15,6 +16,7 @@ from app.services.bot_settings import BotSettingsService
 from app.services.user import UserService
 from app.services.telegram_stars import TelegramStarsService
 from app.services.cryptobot import CryptoBotService
+from app.services.freekassa import FreeKassaService
 from app.services.telegram_notify import TelegramNotifyService
 from app.services.i18n import t, get_lang
 from app.utils.log import log
@@ -141,6 +143,7 @@ async def _provision_and_notify(
         "yookassa_sbp": "🏦",
         "telegram_stars": "⭐",
         "cryptobot": "₿",
+        "freekassa": "🟢",
         "balance": "💰",
     }
     icon = provider_icons.get(str(payment_provider).lower(), "💰")
@@ -1060,6 +1063,251 @@ async def topup_check_crypto(callback: CallbackQuery, bot: Bot) -> None:
     except Exception as e:
         log.error(f"Topup crypto check error: {e}")
         await callback.answer(t("topup_error", lang), show_alert=True)
+
+
+# ── FreeKassa ─────────────────────────────────────────────────────────────────
+
+
+@router.callback_query(F.data.startswith("pay:freekassa:"))
+async def handle_freekassa_payment(callback: CallbackQuery, bot: Bot) -> None:
+    plan_id = int(callback.data.split(":")[2])
+
+    async with AsyncSessionFactory() as session:
+        plan = await PlanService(session).get_by_id(plan_id)
+        lang = await _get_user_lang(callback.from_user.id, session)
+        if not plan or not plan.is_active:
+            await callback.answer(t("no_plans", lang), show_alert=True)
+            return
+
+        settings = await BotSettingsService(session).get_all()
+        fk = FreeKassaService.from_settings(settings)
+        if not fk:
+            await callback.answer(t("payment_error", lang), show_alert=True)
+            return
+
+        try:
+            payment = await PaymentService(session).create_pending(
+                user_id=callback.from_user.id,
+                plan=plan,
+                provider=PaymentProvider.FREEKASSA,
+            )
+            await session.flush()
+            payment_id = payment.id
+
+            order_id = f"fk_{payment_id}_{plan_id}"
+            pay_url = fk.create_payment_url(
+                order_id=order_id,
+                amount=float(plan.price),
+                currency="RUB",
+                lang="ru",
+            )
+
+            payment.external_id = order_id
+            await session.commit()
+
+            builder = InlineKeyboardBuilder()
+            builder.row(
+                InlineKeyboardButton(text=t("payment_go", lang), url=pay_url)
+            )
+            builder.row(
+                InlineKeyboardButton(
+                    text=t("payment_check", lang),
+                    callback_data=f"freekassa:check:{payment_id}:{plan_id}",
+                )
+            )
+            builder.row(
+                InlineKeyboardButton(text=t("back", lang), callback_data="back_main")
+            )
+
+            from app.bot.utils.media import edit_with_photo
+
+            await edit_with_photo(
+                callback,
+                f"🟢 <b>{'Оплата через FreeKassa' if lang == 'ru' else 'FreeKassa Payment'}</b>\n\n"
+                f"{plan.name} — {plan.price} ₽\n\n"
+                f"{'После оплаты нажмите «Проверить оплату».' if lang == 'ru' else 'After payment press Check payment.'}",
+                reply_markup=builder.as_markup(),
+            )
+        except Exception as e:
+            log.error(f"FreeKassa error for user {callback.from_user.id}: {e}")
+            async with AsyncSessionFactory() as s2:
+                kb = await _get_menu_kb(
+                    s2,
+                    lang=lang,
+                    user_id=callback.from_user.id,
+                    is_admin=_is_admin(callback.from_user.id),
+                )
+            from app.bot.utils.media import edit_with_photo
+
+            await edit_with_photo(callback, t("payment_error", lang), reply_markup=kb)
+
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("freekassa:check:"))
+async def handle_freekassa_check(callback: CallbackQuery, bot: Bot) -> None:
+    parts = callback.data.split(":")
+    payment_id = int(parts[2])
+    plan_id = int(parts[3])
+
+    async with AsyncSessionFactory() as session:
+        lang = await _get_user_lang(callback.from_user.id, session)
+        payment = await PaymentService(session).get_by_id(payment_id)
+        if not payment or payment.user_id != callback.from_user.id:
+            await callback.answer("❌", show_alert=True)
+            return
+
+        from app.models.payment import PaymentStatus
+
+        if payment.status == PaymentStatus.SUCCEEDED.value:
+            await callback.answer(t("payment_success", lang), show_alert=True)
+            return
+
+        if not payment.external_id:
+            await callback.answer(t("payment_error", lang), show_alert=True)
+            return
+
+        settings = await BotSettingsService(session).get_all()
+        fk = FreeKassaService.from_settings(settings)
+        if not fk:
+            await callback.answer(t("payment_error", lang), show_alert=True)
+            return
+
+    try:
+        result = await fk.get_orders(payment.external_id)
+        if result and result.get("orders"):
+            order = result["orders"][0]
+            if order.get("orderStatus") == 1:
+                async with AsyncSessionFactory() as sess2:
+                    payment = await PaymentService(sess2).get_by_id(payment_id)
+                    if payment:
+                        payment.status = PaymentStatus.SUCCEEDED.value
+                        await sess2.commit()
+                await callback.answer(t("payment_success", lang), show_alert=True)
+                await _provision_and_notify(
+                    callback.from_user.id, payment_id, plan_id, bot
+                )
+            else:
+                await callback.answer(t("payment_pending", lang), show_alert=True)
+        else:
+            await callback.answer(t("payment_pending", lang), show_alert=True)
+    except Exception as e:
+        log.error(f"FreeKassa check error: {e}")
+        await callback.answer(t("payment_error", lang), show_alert=True)
+
+
+# ── Пополнение баланса через FreeKassa ────────────────────────────────────────
+
+
+@router.callback_query(F.data.startswith("topup:pay:freekassa:"))
+async def topup_freekassa(callback: CallbackQuery, bot: Bot) -> None:
+    from decimal import Decimal
+
+    amount = Decimal(callback.data.split(":")[3])
+
+    async with AsyncSessionFactory() as session:
+        lang = await _get_user_lang(callback.from_user.id, session)
+        settings = await BotSettingsService(session).get_all()
+        fk = FreeKassaService.from_settings(settings)
+        if not fk:
+            await callback.answer(t("topup_error", lang), show_alert=True)
+            return
+
+        try:
+            payment = await PaymentService(session).create_topup_pending(
+                user_id=callback.from_user.id,
+                amount=amount,
+                provider=PaymentProvider.FREEKASSA,
+            )
+            await session.flush()
+            payment_id = payment.id
+
+            order_id = f"fk_topup_{payment_id}"
+            pay_url = fk.create_payment_url(
+                order_id=order_id,
+                amount=float(amount),
+                currency="RUB",
+                lang="ru",
+            )
+
+            payment.external_id = order_id
+            await session.commit()
+
+            builder = InlineKeyboardBuilder()
+            builder.row(InlineKeyboardButton(text=t("payment_go", lang), url=pay_url))
+            builder.row(
+                InlineKeyboardButton(
+                    text=t("payment_check", lang),
+                    callback_data=f"topup:check:freekassa:{payment_id}:{amount}",
+                )
+            )
+            builder.row(
+                InlineKeyboardButton(text=t("back", lang), callback_data="topup:menu")
+            )
+
+            from app.bot.utils.media import edit_with_photo
+
+            await edit_with_photo(
+                callback,
+                f"🟢 <b>{'Пополнение через FreeKassa' if lang == 'ru' else 'FreeKassa top up'}</b>\n\n"
+                f"{amount} ₽\n\n"
+                f"{'После оплаты нажмите «Проверить».' if lang == 'ru' else 'After payment press Check.'}",
+                reply_markup=builder.as_markup(),
+            )
+        except Exception as e:
+            log.error(f"Topup FreeKassa error: {e}")
+            await callback.answer(t("topup_error", lang), show_alert=True)
+
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("topup:check:freekassa:"))
+async def topup_check_freekassa(callback: CallbackQuery, bot: Bot) -> None:
+    parts = callback.data.split(":")
+    payment_id = int(parts[3])
+    amount_str = parts[4]
+
+    async with AsyncSessionFactory() as session:
+        lang = await _get_user_lang(callback.from_user.id, session)
+        from app.models.payment import PaymentStatus
+
+        existing = await PaymentService(session).get_by_id(payment_id)
+        if existing and existing.status == PaymentStatus.SUCCEEDED.value:
+            await callback.answer(
+                f"✅ {'Уже зачислено!' if lang == 'ru' else 'Already credited!'}",
+                show_alert=True,
+            )
+            return
+
+        settings = await BotSettingsService(session).get_all()
+        fk = FreeKassaService.from_settings(settings)
+        if not fk:
+            await callback.answer(t("topup_error", lang), show_alert=True)
+            return
+
+    try:
+        order_id = f"fk_topup_{payment_id}"
+        result = await fk.get_orders(order_id)
+        if result and result.get("orders"):
+            order = result["orders"][0]
+            if order.get("orderStatus") == 1:
+                await _topup_confirm_balance(
+                    callback.from_user.id, amount_str, payment_id, bot
+                )
+                await callback.answer(
+                    f"✅ {'Баланс пополнен!' if lang == 'ru' else 'Balance topped up!'}",
+                    show_alert=True,
+                )
+            else:
+                await callback.answer(t("payment_pending", lang), show_alert=True)
+        else:
+            await callback.answer(t("payment_pending", lang), show_alert=True)
+    except Exception as e:
+        log.error(f"Topup FreeKassa check error: {e}")
+        await callback.answer(t("topup_error", lang), show_alert=True)
+
+
+# ── Fallback ──────────────────────────────────────────────────────────────────
 
 
 @router.callback_query(F.data.startswith("pay:"))

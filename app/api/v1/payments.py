@@ -98,12 +98,34 @@ async def freekassa_webhook(request: Request, db: AsyncSession = Depends(get_db)
         log.warning(f"FreeKassa webhook: invalid sign for order {order_id}")
         return "WRONG SIGN"
 
-    # order_id формат: "fk_{payment_id}_{plan_id}" или просто payment_id
+    # order_id формат:
+    # "fk_{payment_id}_{plan_id}" — подписка
+    # "fk_topup_{payment_id}" — пополнение баланса
+    # "fk_ext_{payment_id}_{plan_id}_{key_id}" — продление
     try:
         parts = order_id.split("_")
         if parts[0] == "fk" and len(parts) >= 3:
-            payment_id = int(parts[1])
-            plan_id = int(parts[2])
+            if parts[1] == "topup":
+                # Пополнение баланса
+                payment_id = int(parts[2])
+                payment = await PaymentService(db).get_by_id(payment_id)
+                if payment and payment.status != PaymentStatus.SUCCEEDED.value:
+                    payment.status = PaymentStatus.SUCCEEDED.value
+                    payment.external_id = str(form.get("intid", ""))
+                    await db.commit()
+                    await UserService(db).add_balance(payment.user_id, payment.amount)
+                    await db.commit()
+                    log.info(f"FreeKassa: topup {payment_id} confirmed via webhook")
+                return "YES"
+            elif parts[1] == "ext" and len(parts) >= 5:
+                # Продление подписки
+                payment_id = int(parts[2])
+                plan_id = int(parts[3])
+                key_id = int(parts[4])
+            else:
+                # Обычная подписка
+                payment_id = int(parts[1])
+                plan_id = int(parts[2])
         else:
             log.error(f"FreeKassa webhook: unknown order_id format: {order_id}")
             return "YES"
@@ -113,13 +135,14 @@ async def freekassa_webhook(request: Request, db: AsyncSession = Depends(get_db)
 
     from app.services.plan import PlanService
     from app.services.vpn_key import VpnKeyService
+    from app.services.user import UserService
     from app.services.telegram_notify import TelegramNotifyService
 
     plan = await PlanService(db).get_by_id(plan_id)
     payment = await PaymentService(db).get_by_id(payment_id)
 
-    if not payment or not plan:
-        log.error(f"FreeKassa webhook: payment {payment_id} or plan {plan_id} not found")
+    if not payment:
+        log.error(f"FreeKassa webhook: payment {payment_id} not found")
         return "YES"
 
     if payment.status == PaymentStatus.SUCCEEDED.value:
@@ -129,16 +152,30 @@ async def freekassa_webhook(request: Request, db: AsyncSession = Depends(get_db)
     payment.external_id = str(form.get("intid", ""))
     await db.flush()
 
-    key = await VpnKeyService(db).provision(user_id=payment.user_id, plan=plan)
-    if key:
-        payment.vpn_key_id = key.id
-    await db.commit()
-
-    success_msg = settings.get("payment_success_message", "✅ Оплата прошла успешно!")
-    if key:
-        text = f"{success_msg}\n\n🔑 <b>Ваш ключ:</b>\n<code>{key.access_url}</code>\n\n📅 Действует <b>{plan.duration_days} дней</b>"
+    # Продление подписки
+    if 'key_id' in locals():
+        key = await VpnKeyService(db).extend(key_id, plan.duration_days)
+        await db.commit()
+        if key:
+            exp = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
+            text = f"✅ Оплата прошла успешно!\n\n🔄 <b>Подписка продлена!</b>\n📅 Новая дата: <b>{exp}</b>\n➕ +{plan.duration_days} дней"
+        else:
+            text = "✅ Оплата прошла, но возникла ошибка продления. Обратитесь в поддержку."
     else:
-        text = f"{success_msg}\n\nНажмите «Мои ключи» для получения ключа."
+        # Новая подписка
+        if not plan:
+            log.error(f"FreeKassa webhook: plan {plan_id} not found")
+            return "YES"
+        key = await VpnKeyService(db).provision(user_id=payment.user_id, plan=plan)
+        if key:
+            payment.vpn_key_id = key.id
+        await db.commit()
+
+        success_msg = settings.get("payment_success_message", "✅ Оплата прошла успешно!")
+        if key:
+            text = f"{success_msg}\n\n🔑 <b>Ваш ключ:</b>\n<code>{key.access_url}</code>\n\n📅 Действует <b>{plan.duration_days} дней</b>"
+        else:
+            text = f"{success_msg}\n\nНажмите «Мои ключи» для получения ключа."
 
     await TelegramNotifyService().send_message(payment.user_id, text)
     log.info(f"FreeKassa: payment {payment_id} confirmed via webhook")

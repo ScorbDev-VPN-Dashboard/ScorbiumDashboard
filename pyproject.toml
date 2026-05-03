@@ -35,7 +35,13 @@ dependencies = [
     "jinja2>=3.1.0",
     "aiofiles>=23.0.0",
     "openpyxl>=3.1.0",
+    # CLI
+    "click>=8.1.0",
+    "rich>=13.0.0",
 ]
+
+[project.scripts]
+scorbium = "app.cli.main:cli"
 
 [project.optional-dependencies]
 dev = [
@@ -46,3 +52,13 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.uv]
+package = true
