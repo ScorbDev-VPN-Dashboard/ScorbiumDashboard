@@ -142,21 +142,11 @@ async def miniapp_index(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/auth")
 async def miniapp_auth(request: Request, db: AsyncSession = Depends(get_db)):
     """Authenticate user via Telegram initData, create if not exists."""
-    try:
-        body = await request.json()
-    except Exception as e:
-        log.warning(f"MiniApp auth: failed to parse JSON body: {e}")
-        return JSONResponse({"ok": False, "error": "Invalid request body"}, status_code=400)
+    tg_user = await _get_tg_user(request)
 
-    init_data = body.get("initData", "")
-    if not init_data:
-        log.warning("MiniApp auth: empty initData in request body")
-        return JSONResponse({"ok": False, "error": "Missing initData"}, status_code=401)
-
-    tg_user = _verify_telegram_data(init_data)
     if not tg_user:
         return JSONResponse(
-            {"ok": False, "error": "Invalid auth", "detail": "HMAC verification failed or initData malformed"},
+            {"ok": False, "error": "Invalid auth", "detail": "HMAC verification failed or missing initData"},
             status_code=401
         )
 

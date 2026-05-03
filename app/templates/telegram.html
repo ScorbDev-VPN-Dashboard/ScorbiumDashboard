@@ -39,7 +39,7 @@
 
     <!-- Bot info -->
     <div class="card p-3 mb-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-robot me-2 text-muted"></i>Информация о боте</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-3"><i class="bi bi-robot me-2 text-muted"></i>Информация о боте</div>
       {% if bot_info %}
       <div class="d-flex align-items-center gap-3 mb-3">
         <div style="width:48px;height:48px;background:rgba(0,212,170,.15);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:#00d4aa"><i class="bi bi-robot"></i></div>
@@ -59,7 +59,7 @@
 
     <!-- Toggle -->
     <div class="card p-3 mb-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-power me-2 text-muted"></i>Управление</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-3"><i class="bi bi-power me-2 text-muted"></i>Управление</div>
       {% set bot_on = bot_settings.get('bot_enabled','1') == '1' %}
       <div class="d-flex align-items-center justify-content-between">
         <div>
@@ -75,7 +75,7 @@
 
     <!-- Direct message -->
     <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-chat-dots me-2 text-muted"></i>Прямое сообщение</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-3"><i class="bi bi-chat-dots me-2 text-muted"></i>Прямое сообщение</div>
       <form hx-post="/panel/telegram/send" hx-swap="none">
         <div class="mb-2"><label class="form-label">Telegram ID</label>
           <input type="number" name="chat_id" class="form-control" placeholder="123456789" required /></div>
@@ -89,7 +89,7 @@
   <div class="col-lg-7">
     <!-- Admins -->
     <div class="card p-3 mb-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-shield-lock me-2 text-muted"></i>Администраторы</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-3"><i class="bi bi-shield-lock me-2 text-muted"></i>Администраторы</div>
       {% for admin_id in admin_ids %}
       <div class="d-flex align-items-center gap-3 p-2 mb-2" style="background:rgba(255,255,255,.03);border-radius:8px">
         <div style="width:36px;height:36px;background:rgba(0,212,170,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#00d4aa"><i class="bi bi-person-badge"></i></div>
@@ -101,7 +101,7 @@
 
     <!-- Referral -->
     <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-diagram-3 me-2 text-muted"></i>Реферальная программа</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-3"><i class="bi bi-diagram-3 me-2 text-muted"></i>Реферальная программа</div>
       <form hx-post="/panel/telegram/bot-settings" hx-swap="none">
         <div class="row g-2">
           <div class="col-6">
@@ -171,7 +171,7 @@
   <!-- Language selection -->
   <div class="col-12">
     <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-translate me-2 text-muted"></i>Язык бота по умолчанию</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-3"><i class="bi bi-translate me-2 text-muted"></i>Язык бота по умолчанию</div>
       <form hx-post="/panel/telegram/bot-settings" hx-swap="none" hx-on::after-request="showToast('Сохранено', 'success')">
         <div class="d-flex gap-3 flex-wrap align-items-end">
           <div>
@@ -192,7 +192,7 @@
   <!-- CryptoBot token -->
   <div class="col-12">
     <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-gift me-2 text-muted"></i>Пробный период</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-3"><i class="bi bi-gift me-2 text-muted"></i>Пробный период</div>
       <form hx-post="/panel/telegram/bot-settings" hx-swap="none" hx-on::after-request="showToast('Сохранено', 'success')">
         <div class="row g-3 align-items-end">
           <div class="col-auto">
@@ -232,7 +232,7 @@
   <!-- Notifications -->
   <div class="col-12">
     <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-bell me-2 text-muted"></i>Уведомления об истечении подписки</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-3"><i class="bi bi-bell me-2 text-muted"></i>Уведомления об истечении подписки</div>
       <form hx-post="/panel/telegram/bot-settings" hx-swap="none" hx-on::after-request="showToast('Сохранено', 'success')">
         <div class="row g-3 align-items-end">
           <div class="col-auto">
@@ -268,7 +268,7 @@
   <!-- CryptoBot token -->
   <div class="col-12">
     <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-currency-bitcoin me-2 text-muted"></i>CryptoBot (оплата криптовалютой)</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-3"><i class="bi bi-currency-bitcoin me-2 text-muted"></i>CryptoBot (оплата криптовалютой)</div>
       <form hx-post="/panel/telegram/bot-settings" hx-swap="none" hx-on::after-request="showToast('Сохранено', 'success')">
         <div class="d-flex gap-3 flex-wrap align-items-end">
           <div style="flex:1;min-width:260px">
@@ -291,7 +291,7 @@
 
   <div class="col-lg-6">
     <div class="card p-3 mb-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-chat-text me-2 text-muted"></i>Тексты бота</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-3"><i class="bi bi-chat-text me-2 text-muted"></i>Тексты бота</div>
       <form hx-post="/panel/telegram/bot-settings" hx-swap="none">
         <div class="mb-3">
           <label class="form-label">Приветствие (/start)</label>
@@ -312,7 +312,7 @@
   </div>
   <div class="col-lg-6">
     <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-exclamation-circle me-2 text-muted"></i>Системные сообщения</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-3"><i class="bi bi-exclamation-circle me-2 text-muted"></i>Системные сообщения</div>
       <form hx-post="/panel/telegram/bot-settings" hx-swap="none">
         <div class="mb-2">
           <label class="form-label">При бане</label>
@@ -382,7 +382,7 @@
 
     <!-- Palette -->
     <div class="card p-3 mb-3">
-      <div class="fw-semibold style="color:var(--text)" mb-2" style="font-size:.82rem">
+      <div class="fw-semibold" style="color:var(--text)" mb-2" style="font-size:.82rem">
         <i class="bi bi-collection me-2 text-muted"></i>Доступные кнопки
         <span style="font-size:.7rem;color:var(--text-muted);font-weight:400;margin-left:.5rem">Перетащи на ряд ↓ или нажми «+»</span>
       </div>
@@ -403,7 +403,7 @@
     <!-- Rows -->
     <div class="card p-3 mb-3">
       <div class="d-flex align-items-center justify-content-between mb-3">
-        <div class="fw-semibold style="color:var(--text)"" style="font-size:.82rem">
+        <div class="fw-semibold" style="color:var(--text)" style="font-size:.82rem">
           <i class="bi bi-layout-three-columns me-2 text-muted"></i>Раскладка
           <span style="font-size:.7rem;color:var(--text-muted);font-weight:400;margin-left:.5rem">макс. 3 кнопки в ряду</span>
         </div>
@@ -422,7 +422,7 @@
 
     <!-- Styles -->
     <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3" style="font-size:.82rem">
+      <div class="fw-semibold" style="color:var(--text)" mb-3" style="font-size:.82rem">
         <i class="bi bi-palette2 me-2 text-muted"></i>Цвет кнопок
       </div>
       <div class="row g-2">
@@ -452,7 +452,7 @@
 <!-- ══ TAB: ФОТО ════════════════════════════════════════════════════════════ -->
 <div id="tab-photos" class="tab-pane">
 <div class="card p-3">
-  <div class="fw-semibold style="color:var(--text)" mb-2"><i class="bi bi-image me-2 text-muted"></i>Фото для разделов бота</div>
+  <div class="fw-semibold" style="color:var(--text)" mb-2"><i class="bi bi-image me-2 text-muted"></i>Фото для разделов бота</div>
   <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:1rem">
     Загрузи фото — оно будет показываться в соответствующем разделе. Фото отправляется через бота и сохраняется как file_id.
   </div>
@@ -504,7 +504,7 @@
   <!-- Default language + info -->
   <div class="col-12">
     <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-translate me-2 text-muted"></i>Язык бота по умолчанию</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-3"><i class="bi bi-translate me-2 text-muted"></i>Язык бота по умолчанию</div>
       <form hx-post="/panel/telegram/bot-settings" hx-swap="none" hx-on::after-request="showToast('Сохранено', 'success')">
         <div class="d-flex gap-3 flex-wrap align-items-end">
           <div>
@@ -525,7 +525,7 @@
   <!-- Language string editor -->
   <div class="col-12">
     <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-pencil-square me-2 text-muted"></i>Редактор строк</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-3"><i class="bi bi-pencil-square me-2 text-muted"></i>Редактор строк</div>
       <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:1rem">
         Переопределите любые строки бота для каждого языка. Пустое поле = используется значение по умолчанию.
       </div>
@@ -610,7 +610,7 @@
 <div class="row g-3">
   <div class="col-lg-6">
     <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-2"><i class="bi bi-grid-3x3-gap-fill me-2 text-muted"></i>Mini App для администраторов</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-2"><i class="bi bi-grid-3x3-gap-fill me-2 text-muted"></i>Mini App для администраторов</div>
       <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.75rem">
         Укажи HTTPS URL — в <code>/admin</code> появится кнопка <b>«🖥 Открыть панель»</b>.
         Видна только администраторам. Требует HTTPS.
@@ -637,7 +637,7 @@
 <div class="row g-3">
   <div class="col-lg-6">
     <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-2"><i class="bi bi-broadcast me-2 text-muted"></i>Обязательная подписка на канал</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-2"><i class="bi bi-broadcast me-2 text-muted"></i>Обязательная подписка на канал</div>
       <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.75rem">
         Бот доступен только подписчикам канала. Бот должен быть администратором канала.
       </div>
@@ -675,7 +675,7 @@
   <div class="col-lg-6">
     <div class="card p-3">
       <div class="d-flex align-items-center justify-content-between mb-2">
-        <div class="fw-semibold style="color:var(--text)""><i class="bi bi-bank me-2 text-muted"></i>ЮКасса</div>
+        <div class="fw-semibold" style="color:var(--text)"><i class="bi bi-bank me-2 text-muted"></i>ЮКасса</div>
         <div class="d-flex align-items-center gap-2">
           <span id="yk-status" class="badge badge-custom {% if ps.yookassa_enabled %}badge-active{% else %}badge-closed{% endif %}">
             {% if ps.yookassa_enabled %}Включена{% else %}Отключена{% endif %}
@@ -741,7 +741,7 @@
   <div class="col-lg-6">
     <div class="card p-3">
       <div class="d-flex align-items-center justify-content-between mb-2">
-        <div class="fw-semibold style="color:var(--text)""><i class="bi bi-currency-bitcoin me-2 text-muted"></i>CryptoBot</div>
+        <div class="fw-semibold" style="color:var(--text)"><i class="bi bi-currency-bitcoin me-2 text-muted"></i>CryptoBot</div>
         <div class="d-flex align-items-center gap-2">
           <span id="cb-status" class="badge badge-custom {% if ps.cryptobot_enabled %}badge-active{% else %}badge-closed{% endif %}">
             {% if ps.cryptobot_enabled %}Включён{% else %}Отключён{% endif %}
@@ -791,7 +791,7 @@
   <div class="col-lg-6">
     <div class="card p-3">
       <div class="d-flex align-items-center justify-content-between mb-2">
-        <div class="fw-semibold style="color:var(--text)""><i class="bi bi-wallet2 me-2 text-muted"></i>FreeKassa</div>
+        <div class="fw-semibold" style="color:var(--text)"><i class="bi bi-wallet2 me-2 text-muted"></i>FreeKassa</div>
         <div class="d-flex align-items-center gap-2">
           <span id="fk-status" class="badge badge-custom {% if ps.freekassa_enabled %}badge-active{% else %}badge-closed{% endif %}">
             {% if ps.freekassa_enabled %}Включена{% else %}Отключена{% endif %}
@@ -871,7 +871,7 @@
   <div class="col-lg-6">
     <div class="card p-3">
       <div class="d-flex align-items-center justify-content-between mb-2">
-        <div class="fw-semibold style="color:var(--text)""><i class="bi bi-lightning-charge me-2 text-muted"></i>AiKassa</div>
+        <div class="fw-semibold" style="color:var(--text)"><i class="bi bi-lightning-charge me-2 text-muted"></i>AiKassa</div>
         <div class="d-flex align-items-center gap-2">
           <span id="ak-status" class="badge badge-custom {% if ps.aikassa_enabled %}badge-active{% else %}badge-closed{% endif %}">
             {% if ps.aikassa_enabled %}Включена{% else %}Отключена{% endif %}
@@ -927,7 +927,7 @@
   <div class="col-lg-6">
     <div class="card p-3">
       <div class="d-flex align-items-center justify-content-between mb-3">
-        <div class="fw-semibold style="color:var(--text)""><i class="bi bi-star-fill me-2" style="color:#f59e0b"></i>Telegram Stars</div>
+        <div class="fw-semibold" style="color:var(--text)"><i class="bi bi-star-fill me-2" style="color:#f59e0b"></i>Telegram Stars</div>
         <span class="badge badge-custom badge-active">Всегда активны</span>
       </div>
       <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.75rem">
@@ -945,7 +945,7 @@
   <!-- Статус всех систем -->
   <div class="col-12">
     <div class="card p-3">
-      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-activity me-2 text-muted"></i>Статус платёжных систем</div>
+      <div class="fw-semibold" style="color:var(--text)" mb-3"><i class="bi bi-activity me-2 text-muted"></i>Статус платёжных систем</div>
       <div class="row g-2">
         <div class="col-auto">
           <div class="d-flex align-items-center gap-2 p-2" style="background:rgba(255,255,255,.04);border-radius:8px;font-size:.8rem">

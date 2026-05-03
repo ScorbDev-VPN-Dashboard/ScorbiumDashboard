@@ -123,6 +123,10 @@ async def _base_ctx(
     role = admin_info["role"] if admin_info else ""
     settings = await BotSettingsService(db).get_all()
     custom_logo = settings.get("custom_logo", "")
+    now = datetime.now(timezone.utc)
+    moscow_tz = timezone(timedelta(hours=3))
+    iran_tz = timezone(timedelta(hours=3, minutes=30))
+    us_east = timezone(timedelta(hours=-5))
     return {
         "request": request,
         "active": active,
@@ -135,8 +139,11 @@ async def _base_ctx(
         "admin_role": role,
         "admin_username": admin_info["sub"] if admin_info else "",
         "has_perm": has_permission,
-        "current_time": datetime.now(timezone.utc).strftime("%H:%M"),
-        "current_date": datetime.now(timezone.utc).strftime("%d %B %Y"),
+        "current_time": now.strftime("%H:%M"),
+        "current_date": now.strftime("%d %B %Y"),
+        "time_moscow": now.astimezone(moscow_tz).strftime("%H:%M"),
+        "time_tehran": now.astimezone(iran_tz).strftime("%H:%M"),
+        "time_us": now.astimezone(us_east).strftime("%H:%M"),
         "csrf_token": request.cookies.get("csrf_token", ""),
         "custom_logo": custom_logo,
     }

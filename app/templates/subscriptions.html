@@ -10,7 +10,7 @@
     <div class="card p-3 d-flex align-items-center gap-3">
       <div style="width:42px;height:42px;background:rgba(0,212,170,.15);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#00d4aa"><i class="bi bi-calendar-check"></i></div>
       <div>
-        <div class="fw-semibold style="color:var(--text)"">{{ subscriptions|selectattr('status.value','equalto','active')|list|length }}</div>
+        <div class="fw-semibold" style="color:var(--text)">{{ subscriptions|selectattr('status.value','equalto','active')|list|length }}</div>
         <div style="font-size:.75rem;color:var(--text-muted)">Активные</div>
       </div>
     </div>
@@ -19,7 +19,7 @@
     <div class="card p-3 d-flex align-items-center gap-3">
       <div style="width:42px;height:42px;background:rgba(239,68,68,.15);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#ef4444"><i class="bi bi-calendar-x"></i></div>
       <div>
-        <div class="fw-semibold style="color:var(--text)"">{{ subscriptions|selectattr('status.value','equalto','expired')|list|length }}</div>
+        <div class="fw-semibold" style="color:var(--text)">{{ subscriptions|selectattr('status.value','equalto','expired')|list|length }}</div>
         <div style="font-size:.75rem;color:var(--text-muted)">Истёкшие</div>
       </div>
     </div>
@@ -28,7 +28,7 @@
     <div class="card p-3 d-flex align-items-center gap-3">
       <div style="width:42px;height:42px;background:rgba(59,130,246,.15);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#3b82f6"><i class="bi bi-collection"></i></div>
       <div>
-        <div class="fw-semibold style="color:var(--text)"">{{ subscriptions|length }}</div>
+        <div class="fw-semibold" style="color:var(--text)">{{ subscriptions|length }}</div>
         <div style="font-size:.75rem;color:var(--text-muted)">Всего</div>
       </div>
     </div>
