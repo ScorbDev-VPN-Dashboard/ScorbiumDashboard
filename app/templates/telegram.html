@@ -30,6 +30,7 @@
   <button class="tab-btn" onclick="switchTab('miniapp')"><i class="bi bi-grid-3x3-gap me-1"></i>Mini App</button>
   <button class="tab-btn" onclick="switchTab('channel')"><i class="bi bi-broadcast me-1"></i>Канал</button>
   <button class="tab-btn" onclick="switchTab('payments')"><i class="bi bi-credit-card me-1"></i>Платёжные системы</button>
+  <button class="tab-btn" onclick="switchTab('database')"><i class="bi bi-database me-1"></i>База данных</button>
 </div>
 
 <!-- ══ TAB: БОТ ══════════════════════════════════════════════════════════════ -->
@@ -957,6 +958,66 @@
 </div>
 </div>
 
+<!-- ══ TAB: БАЗА ДАННЫХ ════════════════════════════════════════════════════════ -->
+<div id="tab-database" class="tab-pane">
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card p-3">
+      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-database me-2 text-muted"></i>Статистика базы данных</div>
+      <div class="row g-2 mb-3">
+        <div class="col-6">
+          <div class="vpn-metric">
+            <div style="font-size:1.25rem;font-weight:800;color:var(--text)">{{ db_stats.users }}</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">Пользователи</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="vpn-metric">
+            <div style="font-size:1.25rem;font-weight:800;color:var(--text)">{{ db_stats.keys }}</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">Ключи</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="vpn-metric">
+            <div style="font-size:1.25rem;font-weight:800;color:var(--text)">{{ db_stats.payments }}</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">Платежи</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="vpn-metric">
+            <div style="font-size:1.25rem;font-weight:800;color:var(--text)">{{ db_stats.tickets }}</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">Тикеты</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:.75rem;color:var(--text-muted);padding:.75rem;background:var(--surface);border-radius:8px;">
+        <i class="bi bi-info-circle me-1"></i>Данные актуальны на момент загрузки страницы. Обновите страницу для свежих данных.
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card p-3">
+      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-exclamation-triangle me-2" style="color:var(--warning)"></i>Очистка базы данных</div>
+      <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:1rem;">
+        <i class="bi bi-info-circle me-1"></i>Это действие удалит <strong style="color:var(--text)">все данные пользователей, ключей, платежей и тикетов</strong>. Настройки бота и администраторы будут сохранены.
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" style="font-size:.8rem;">Подтвердите действие</label>
+        <input type="text" id="db-clear-input" class="form-control" placeholder="Введите CLEAR" autocomplete="off" />
+      </div>
+
+      <button id="db-clear-btn" class="btn btn-danger w-100" disabled onclick="clearDatabase()">
+        <i class="bi bi-trash3 me-1"></i>Очистить базу данных
+      </button>
+
+      <div id="db-clear-result" class="mt-2" style="font-size:.8rem"></div>
+    </div>
+  </div>
+</div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -1300,6 +1361,44 @@ async function kbSaveStyles() {
   const d = await r.json();
   showToast(d.ok ? '✅ Стили сохранены' : '❌ Ошибка', d.ok ? 'success' : 'error');
   kbUpdatePreview();
+}
+
+// ── Database clear ────────────────────────────────────────────────────────────
+const dbClearInput = document.getElementById('db-clear-input');
+const dbClearBtn = document.getElementById('db-clear-btn');
+if (dbClearInput && dbClearBtn) {
+  dbClearInput.addEventListener('input', function() {
+    dbClearBtn.disabled = this.value !== 'CLEAR';
+  });
+}
+
+async function clearDatabase() {
+  if (!confirm('⚠️ ВЫ УВЕРЕНЫ?\n\nЭто удалит ВСЕ данные пользователей, ключей, платежей и тикетов.\n\nНастройки бота и администраторы будут сохранены.')) return;
+
+  const btn = document.getElementById('db-clear-btn');
+  const result = document.getElementById('db-clear-result');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Очистка...';
+  result.innerHTML = '';
+
+  try {
+    const r = await fetch('/panel/database/clear', {method: 'POST', headers: {'Content-Type': 'application/json'}});
+    const d = await r.json();
+    if (d.ok) {
+      result.innerHTML = '<span style="color:#22c55e"><i class="bi bi-check-circle-fill me-1"></i>' + d.message + '</span>';
+      showToast('База данных очищена', 'success');
+      setTimeout(() => location.reload(), 2000);
+    } else {
+      result.innerHTML = '<span style="color:#ef4444"><i class="bi bi-x-circle-fill me-1"></i>' + (d.message || 'Ошибка') + '</span>';
+      showToast(d.message || 'Ошибка', 'error');
+    }
+  } catch(e) {
+    result.innerHTML = '<span style="color:#ef4444"><i class="bi bi-x-circle-fill me-1"></i>Ошибка сети</span>';
+    showToast('Ошибка сети', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-trash3 me-1"></i>Очистить базу данных';
+  }
 }
 </script>
 {% endblock %}

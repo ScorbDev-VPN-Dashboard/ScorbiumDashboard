@@ -9,7 +9,7 @@
     background-size: 200% 200%;
     animation: gradientShift 8s ease infinite;
     border-radius: 20px;
-    padding: 1.75rem 2rem;
+    padding: 1.5rem 1.75rem;
     margin-bottom: 1.5rem;
     position: relative;
     overflow: hidden;
@@ -24,25 +24,50 @@
     border-radius: 50%;
     pointer-events: none;
   }
-  .hero-bar::after {
-    content: '';
-    position: absolute;
-    bottom: -60%; left: -10%;
-    width: 250px; height: 250px;
-    background: radial-gradient(circle, rgba(255,255,255,0.1), transparent 70%);
-    border-radius: 50%;
-    pointer-events: none;
-  }
   @keyframes gradientShift {
     0%, 100% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
   }
-  .hero-greeting { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; position: relative; z-index: 1; }
-  .hero-sub { font-size: .85rem; opacity: .85; margin-top: .25rem; position: relative; z-index: 1; }
-  .hero-stats { display: flex; gap: 1.5rem; margin-top: 1rem; flex-wrap: wrap; position: relative; z-index: 1; }
-  .hero-stat { display: flex; align-items: center; gap: .5rem; }
-  .hero-stat-val { font-size: 1.25rem; font-weight: 800; }
-  .hero-stat-lbl { font-size: .7rem; opacity: .75; }
+  .hero-top {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1.25rem; position: relative; z-index: 1;
+  }
+  .hero-greeting { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.03em; }
+  .hero-date { font-size: .8rem; opacity: .75; margin-top: .15rem; }
+  .hero-badge {
+    background: rgba(255,255,255,.15); backdrop-filter: blur(8px);
+    border-radius: 10px; padding: .4rem .85rem;
+    display: flex; align-items: center; gap: .4rem;
+    font-size: .78rem; font-weight: 600;
+  }
+  .hero-badge i { font-size: .9rem; }
+  .hero-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: .85rem;
+    position: relative; z-index: 1;
+  }
+  .hero-card {
+    background: rgba(255,255,255,.1); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 14px; padding: 1rem;
+    transition: all .3s ease; position: relative; overflow: hidden;
+  }
+  .hero-card:hover {
+    background: rgba(255,255,255,.15); transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,.15);
+  }
+  .hero-card-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: rgba(255,255,255,.15); display: flex;
+    align-items: center; justify-content: center;
+    font-size: 1rem; margin-bottom: .65rem;
+  }
+  .hero-card-val { font-size: 1.5rem; font-weight: 800; line-height: 1.1; }
+  .hero-card-lbl { font-size: .72rem; opacity: .7; margin-top: .2rem; }
+  .hero-card-trend {
+    font-size: .7rem; margin-top: .5rem; opacity: .85;
+    display: flex; align-items: center; gap: .3rem;
+  }
+  .hero-card-trend i { font-size: .75rem; }
 
   .dash-kpi {
     position: relative;
@@ -190,6 +215,15 @@
   }
   .user-name { font-weight: 600; font-size: .82rem; color: var(--text); }
   .user-meta { font-size: .7rem; color: var(--text-muted); }
+
+  @media (max-width: 991px) {
+    .hero-row { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 575px) {
+    .hero-row { grid-template-columns: 1fr; }
+    .hero-top { flex-direction: column; align-items: flex-start; gap: .5rem; }
+    .hero-greeting { font-size: 1.15rem; }
+  }
 </style>
 {% endblock %}
 
@@ -197,20 +231,40 @@
 
 {% set admin = admin_info or {} %}
 <div class="hero-bar fade-in-up">
-  <div class="hero-greeting">Добро пожаловать{% if admin.sub %}, {{ admin.sub }}{% endif %}</div>
-  <div class="hero-sub">Обзор вашего VPN-сервиса за сегодня</div>
-  <div class="hero-stats">
-    <div class="hero-stat">
-      <span class="hero-stat-val">{{ stats.total_users }}</span>
-      <span class="hero-stat-lbl">пользователей</span>
+  <div class="hero-top">
+    <div>
+      <div class="hero-greeting">{% if admin.sub %}{{ admin.sub }}{% else %}Администратор{% endif %}</div>
+      <div class="hero-date">{{ current_date }}</div>
     </div>
-    <div class="hero-stat">
-      <span class="hero-stat-val">{{ stats.active_subscriptions }}</span>
-      <span class="hero-stat-lbl">подписок</span>
+    <div class="hero-badge">
+      <i class="bi bi-lightning-charge-fill"></i>
+      <span>{{ stats.total_users }} пользователей</span>
     </div>
-    <div class="hero-stat">
-      <span class="hero-stat-val">{{ stats.total_revenue | int }} ₽</span>
-      <span class="hero-stat-lbl">выручка</span>
+  </div>
+  <div class="hero-row">
+    <div class="hero-card hero-card-users">
+      <div class="hero-card-icon"><i class="bi bi-people-fill"></i></div>
+      <div class="hero-card-val">{{ stats.total_users }}</div>
+      <div class="hero-card-lbl">Пользователи</div>
+      <div class="hero-card-trend"><i class="bi bi-arrow-up-right"></i> +{{ stats.new_users_today }} сегодня</div>
+    </div>
+    <div class="hero-card hero-card-subs">
+      <div class="hero-card-icon"><i class="bi bi-calendar-check-fill"></i></div>
+      <div class="hero-card-val">{{ stats.active_subscriptions }}</div>
+      <div class="hero-card-lbl">Активные подписки</div>
+      <div class="hero-card-trend"><i class="bi bi-clock"></i> {{ stats.expired_keys }} истекших</div>
+    </div>
+    <div class="hero-card hero-card-rev">
+      <div class="hero-card-icon"><i class="bi bi-graph-up-arrow"></i></div>
+      <div class="hero-card-val">{{ stats.revenue_today | int }} ₽</div>
+      <div class="hero-card-lbl">Выручка сегодня</div>
+      <div class="hero-card-trend"><i class="bi bi-wallet2"></i> {{ stats.total_revenue | int }} ₽ всего</div>
+    </div>
+    <div class="hero-card hero-card-tix">
+      <div class="hero-card-icon"><i class="bi bi-headset"></i></div>
+      <div class="hero-card-val">{{ stats.open_tickets }}</div>
+      <div class="hero-card-lbl">Открытые тикеты</div>
+      <div class="hero-card-trend"><i class="bi bi-hourglass-split"></i> {{ stats.pending_payments }} ожид.</div>
     </div>
   </div>
 </div>

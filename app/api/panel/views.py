@@ -136,6 +136,7 @@ async def _base_ctx(
         "admin_username": admin_info["sub"] if admin_info else "",
         "has_perm": has_permission,
         "current_time": datetime.now(timezone.utc).strftime("%H:%M"),
+        "current_date": datetime.now(timezone.utc).strftime("%d %B %Y"),
         "csrf_token": request.cookies.get("csrf_token", ""),
         "custom_logo": custom_logo,
     }
@@ -1278,6 +1279,19 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
         ctx["marzban_ok"] = False
         ctx["marzban_stats"] = None
 
+    from sqlalchemy import func, select
+    from app.models.user import User
+    from app.models.vpn_key import VpnKey
+    from app.models.payment import Payment
+    from app.models.support import SupportTicket
+
+    ctx["db_stats"] = {
+        "users": (await db.execute(select(func.count()).select_from(User))).scalar_one(),
+        "keys": (await db.execute(select(func.count()).select_from(VpnKey))).scalar_one(),
+        "payments": (await db.execute(select(func.count()).select_from(Payment))).scalar_one(),
+        "tickets": (await db.execute(select(func.count()).select_from(SupportTicket))).scalar_one(),
+    }
+
     return templates.TemplateResponse("telegram.html", ctx)
 
 
@@ -1967,6 +1981,32 @@ async def clear_logo(
     resp = Response(status_code=200)
     _toast(resp, "Логотип удалён. Используется значок по умолчанию.")
     return resp
+
+
+@router.post("/database/clear")
+async def clear_database(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Clear all user data (users, keys, payments, tickets) while preserving settings and admins."""
+    _require_permission(request, "system")
+    from fastapi.responses import JSONResponse
+    from sqlalchemy import text
+
+    try:
+        await db.execute(text("""
+            DELETE FROM ticket_messages;
+            DELETE FROM referrals;
+            DELETE FROM support_tickets;
+            DELETE FROM payments;
+            DELETE FROM vpn_keys;
+            DELETE FROM users;
+        """))
+        await db.commit()
+        return JSONResponse({"ok": True, "message": "База данных успешно очищена"})
+    except Exception as e:
+        await db.rollback()
+        return JSONResponse({"ok": False, "message": f"Ошибка: {str(e)}"}, status_code=500)
 
 
 @router.post("/telegram/bot-settings")
