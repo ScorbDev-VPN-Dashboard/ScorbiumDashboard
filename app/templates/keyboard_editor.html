@@ -381,9 +381,12 @@ function updatePreview() {
 
 // ── Save ──────────────────────────────────────────────────────────────────────
 async function saveLayout() {
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  const csrf = meta ? meta.getAttribute('content') : '';
   const resp = await fetch('/panel/keyboard/save', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
+    credentials: 'same-origin',
     body: JSON.stringify({ layout }),
   });
   const d = await resp.json();
@@ -391,6 +394,8 @@ async function saveLayout() {
 }
 
 async function saveStyles() {
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  const csrf = meta ? meta.getAttribute('content') : '';
   const styles = {};
   ALL_BUTTONS.forEach(b => {
     const sel = document.getElementById('style_' + b.id);
@@ -398,7 +403,8 @@ async function saveStyles() {
   });
   const resp = await fetch('/panel/keyboard/styles', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrf},
+    credentials: 'same-origin',
     body: JSON.stringify({ styles }),
   });
   const d = await resp.json();

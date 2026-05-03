@@ -252,8 +252,10 @@ async function changeBalance(action) {
   const amount = document.getElementById('bal-amount').value;
   if (!amount || parseFloat(amount) <= 0) return;
   const fd = new FormData(); fd.append('amount', amount);
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  const csrf = meta ? meta.getAttribute('content') : '';
   const url = action === 'add' ? '/panel/users/{{ user.id }}/add-balance' : '/panel/users/{{ user.id }}/deduct-balance';
-  const r = await fetch(url, { method: 'POST', body: fd });
+  const r = await fetch(url, { method: 'POST', body: fd, headers:{'X-CSRF-Token':csrf}, credentials:'same-origin' });
   bootstrap.Modal.getInstance(document.getElementById('balanceModal'))?.hide();
   showToast(r.ok ? (action==='add'?`Пополнено ${amount} ₽`:`Снято ${amount} ₽`) : 'Ошибка', r.ok?'success':'error');
   if (r.ok) setTimeout(() => location.reload(), 800);
@@ -262,7 +264,9 @@ async function sendMsg() {
   const text = document.getElementById('msg-text').value.trim();
   if (!text) return;
   const fd = new FormData(); fd.append('chat_id', '{{ user.id }}'); fd.append('text', text);
-  const r = await fetch('/panel/telegram/send', { method: 'POST', body: fd });
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  const csrf = meta ? meta.getAttribute('content') : '';
+  const r = await fetch('/panel/telegram/send', { method: 'POST', body: fd, headers:{'X-CSRF-Token':csrf}, credentials:'same-origin' });
   bootstrap.Modal.getInstance(document.getElementById('msgModal'))?.hide();
   showToast(r.ok ? 'Отправлено' : 'Ошибка', r.ok ? 'success' : 'error');
 }
@@ -284,7 +288,7 @@ async function extendKey() {
   const meta = document.querySelector('meta[name="csrf-token"]');
   const csrf = meta ? meta.getAttribute('content') : '';
   const r = await fetch('/panel/vpn/' + extendKeyId + '/extend', {
-    method: 'POST', body: fd, headers: {'X-CSRF-Token': csrf}
+    method: 'POST', body: fd, headers:{'X-CSRF-Token':csrf}, credentials:'same-origin'
   });
   bootstrap.Modal.getInstance(document.getElementById('extendModal'))?.hide();
   showToast(r.ok ? 'Ключ продлён на ' + days + ' дн.' : 'Ошибка', r.ok ? 'success' : 'error');

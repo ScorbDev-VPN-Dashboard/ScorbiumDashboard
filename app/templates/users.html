@@ -129,7 +129,9 @@ async function sendMsg() {
   const fd = new FormData();
   fd.append('chat_id', uid);
   fd.append('text', text);
-  const r = await fetch('/panel/telegram/send', { method: 'POST', body: fd });
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  const csrf = meta ? meta.getAttribute('content') : '';
+  const r = await fetch('/panel/telegram/send', { method: 'POST', body: fd, headers:{'X-CSRF-Token':csrf}, credentials:'same-origin' });
   bootstrap.Modal.getInstance(document.getElementById('msgModal')).hide();
   showToast(r.ok ? 'Сообщение отправлено' : 'Ошибка отправки', r.ok ? 'success' : 'error');
 }
@@ -149,7 +151,9 @@ async function changeBalance(action) {
   const url = action === 'add'
     ? `/panel/users/${_balUserId}/add-balance`
     : `/panel/users/${_balUserId}/deduct-balance`;
-  const r = await fetch(url, { method: 'POST', body: fd });
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  const csrf = meta ? meta.getAttribute('content') : '';
+  const r = await fetch(url, { method: 'POST', body: fd, headers:{'X-CSRF-Token':csrf}, credentials:'same-origin' });
   bootstrap.Modal.getInstance(document.getElementById('balanceModal')).hide();
   if (r.ok) {
     showToast(action === 'add' ? `Баланс пополнен на ${amount} ₽` : `Снято ${amount} ₽`, 'success');

@@ -1112,8 +1112,10 @@ async function uploadPhoto(key, input) {
   const el = document.getElementById('status_' + key);
   el.textContent = '⏳ Загружаю...'; el.style.color = 'var(--text-muted)';
   const fd = new FormData(); fd.append('key', key); fd.append('photo', file);
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  const csrf = meta ? meta.getAttribute('content') : '';
   try {
-    const r = await fetch('/panel/telegram/photo/upload', {method:'POST', body:fd});
+    const r = await fetch('/panel/telegram/photo/upload', {method:'POST', body:fd, headers:{'X-CSRF-Token':csrf}, credentials:'same-origin'});
     const d = await r.json();
     if (r.ok && d.file_id) { el.textContent = '✅ Сохранено'; el.style.color = '#22c55e'; setTimeout(() => location.reload(), 700); }
     else { el.textContent = '❌ ' + (d.detail||'Ошибка'); el.style.color = '#ef4444'; }
@@ -1136,8 +1138,10 @@ async function psToggle(key, enabled, prefix) {
   const fd = new FormData();
   fd.append('key', key);
   fd.append('enabled', enabled ? '1' : '0');
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  const csrf = meta ? meta.getAttribute('content') : '';
   try {
-    const r = await fetch('/panel/telegram/payment-systems/toggle', {method:'POST', body:fd});
+    const r = await fetch('/panel/telegram/payment-systems/toggle', {method:'POST', body:fd, headers:{'X-CSRF-Token':csrf}, credentials:'same-origin'});
     const d = await r.json();
     if (!d.ok) { showToast(d.message || 'Ошибка', 'error'); return; }
     showToast(d.message, 'success');
@@ -1368,14 +1372,18 @@ function kbMoveRow(ri, d) {
 function kbReset() { kbLayout = JSON.parse(JSON.stringify(KB_DEFAULT)); kbRenderRows(); kbUpdatePreview(); kbUpdatePalette(); }
 
 async function kbSave() {
-  const r = await fetch('/panel/keyboard/save', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({layout: kbLayout})});
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  const csrf = meta ? meta.getAttribute('content') : '';
+  const r = await fetch('/panel/keyboard/save', {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':csrf}, credentials:'same-origin', body: JSON.stringify({layout: kbLayout})});
   const d = await r.json();
   showToast(d.ok ? '✅ Раскладка сохранена' : '❌ Ошибка', d.ok ? 'success' : 'error');
 }
 async function kbSaveStyles() {
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  const csrf = meta ? meta.getAttribute('content') : '';
   const styles = {};
   KB_ALL.forEach(b => { const s = document.getElementById('style_'+b.id); if(s) styles[b.id] = s.value; });
-  const r = await fetch('/panel/keyboard/styles', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({styles})});
+  const r = await fetch('/panel/keyboard/styles', {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':csrf}, credentials:'same-origin', body: JSON.stringify({styles})});
   const d = await r.json();
   showToast(d.ok ? '✅ Стили сохранены' : '❌ Ошибка', d.ok ? 'success' : 'error');
   kbUpdatePreview();
