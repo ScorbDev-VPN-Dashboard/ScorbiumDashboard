@@ -5,24 +5,28 @@
 {% block head %}
 <style>
   .hero-bar {
-    background: linear-gradient(135deg, var(--accent), var(--accent-secondary), #818cf8);
-    background-size: 200% 200%;
-    animation: gradientShift 8s ease infinite;
+    background: linear-gradient(135deg, #0a0e17 0%, #0d1321 40%, #111827 100%);
+    border: 1px solid var(--border);
     border-radius: 20px;
     padding: 1.5rem 1.75rem;
     margin-bottom: 1.5rem;
     position: relative;
     overflow: hidden;
-    color: #fff;
   }
   .hero-bar::before {
     content: '';
-    position: absolute;
-    top: -50%; right: -20%;
-    width: 300px; height: 300px;
-    background: radial-gradient(circle, rgba(255,255,255,0.15), transparent 70%);
-    border-radius: 50%;
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 600px 300px at 10% 20%, rgba(0,212,170,.06), transparent),
+      radial-gradient(ellipse 400px 250px at 85% 80%, rgba(99,102,241,.05), transparent);
     pointer-events: none;
+  }
+  .hero-bar::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,212,170,.3), rgba(99,102,241,.3), transparent);
   }
   @keyframes gradientShift {
     0%, 100% { background-position: 0% 50%; }
@@ -32,13 +36,14 @@
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 1.25rem; position: relative; z-index: 1;
   }
-  .hero-greeting { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.03em; }
-  .hero-date { font-size: .8rem; opacity: .75; margin-top: .15rem; }
+  .hero-greeting { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text); }
+  .hero-date { font-size: .8rem; color: var(--text-muted); margin-top: .15rem; }
   .hero-badge {
-    background: rgba(255,255,255,.15); backdrop-filter: blur(8px);
+    background: rgba(0,212,170,.08);
+    border: 1px solid rgba(0,212,170,.15);
     border-radius: 10px; padding: .4rem .85rem;
     display: flex; align-items: center; gap: .4rem;
-    font-size: .78rem; font-weight: 600;
+    font-size: .78rem; font-weight: 600; color: var(--accent);
   }
   .hero-badge i { font-size: .9rem; }
   .hero-row {
@@ -46,25 +51,41 @@
     position: relative; z-index: 1;
   }
   .hero-card {
-    background: rgba(255,255,255,.1); backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,.15);
+    background: rgba(255,255,255,.02);
+    border: 1px solid var(--border);
     border-radius: 14px; padding: 1rem;
     transition: all .3s ease; position: relative; overflow: hidden;
   }
-  .hero-card:hover {
-    background: rgba(255,255,255,.15); transform: translateY(-2px);
-    box-shadow: 0 8px 32px rgba(0,0,0,.15);
+  .hero-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2px; border-radius: 14px 14px 0 0;
+    opacity: 0; transition: opacity .3s ease;
   }
+  .hero-card:hover {
+    background: rgba(255,255,255,.04);
+    border-color: rgba(255,255,255,.12);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,.2);
+  }
+  .hero-card:hover::before { opacity: 1; }
+  .hero-card-users::before { background: linear-gradient(90deg, var(--accent), rgba(14,165,233,.5)); }
+  .hero-card-subs::before { background: linear-gradient(90deg, var(--success), rgba(16,185,129,.5)); }
+  .hero-card-rev::before { background: linear-gradient(90deg, var(--warning), rgba(245,158,11,.5)); }
+  .hero-card-tix::before { background: linear-gradient(90deg, var(--info), rgba(14,165,233,.5)); }
   .hero-card-icon {
     width: 36px; height: 36px; border-radius: 10px;
-    background: rgba(255,255,255,.15); display: flex;
-    align-items: center; justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     font-size: 1rem; margin-bottom: .65rem;
   }
-  .hero-card-val { font-size: 1.5rem; font-weight: 800; line-height: 1.1; }
-  .hero-card-lbl { font-size: .72rem; opacity: .7; margin-top: .2rem; }
+  .hero-card-users .hero-card-icon { background: rgba(0,212,170,.1); color: var(--accent); }
+  .hero-card-subs .hero-card-icon { background: rgba(16,185,129,.1); color: var(--success); }
+  .hero-card-rev .hero-card-icon { background: rgba(245,158,11,.1); color: var(--warning); }
+  .hero-card-tix .hero-card-icon { background: rgba(14,165,233,.1); color: var(--info); }
+  .hero-card-val { font-size: 1.5rem; font-weight: 800; line-height: 1.1; color: var(--text); }
+  .hero-card-lbl { font-size: .72rem; color: var(--text-muted); margin-top: .2rem; }
   .hero-card-trend {
-    font-size: .7rem; margin-top: .5rem; opacity: .85;
+    font-size: .7rem; margin-top: .5rem; color: var(--text-muted);
     display: flex; align-items: center; gap: .3rem;
   }
   .hero-card-trend i { font-size: .75rem; }

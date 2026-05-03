@@ -23,7 +23,7 @@
           <div class="stat-card">
             <div class="stat-icon" style="background:rgba(16,185,129,.1);color:var(--success)"><i class="bi bi-key-fill"></i></div>
             <div>
-              <div class="stat-value">{{ db_stats.keys }}</div>
+              <div class="stat-value">{{ db_stats.vpn_keys }}</div>
               <div class="stat-label">Ключи VPN</div>
             </div>
           </div>
@@ -168,7 +168,7 @@ async function clearDatabase() {
   result.innerHTML = '';
 
   try {
-    const r = await fetch('/panel/database/clear', {method: 'POST', headers: {'Content-Type': 'application/json'}});
+    const r = await fetch('/panel/database/clear', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin'});
     const d = await r.json();
     if (d.ok) {
       result.innerHTML = '<span style="color:#22c55e"><i class="bi bi-check-circle-fill me-1"></i>' + d.message + '</span>';

@@ -2191,7 +2191,7 @@ async def backup_page(request: Request, db: AsyncSession = Depends(get_db)):
 
     ctx["db_stats"] = {
         "users": (await db.execute(select(func.count()).select_from(User))).scalar_one(),
-        "keys": (await db.execute(select(func.count()).select_from(VpnKey))).scalar_one(),
+        "vpn_keys": (await db.execute(select(func.count()).select_from(VpnKey))).scalar_one(),
         "payments": (await db.execute(select(func.count()).select_from(Payment))).scalar_one(),
         "tickets": (await db.execute(select(func.count()).select_from(SupportTicket))).scalar_one(),
     }
