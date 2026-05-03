@@ -37,6 +37,13 @@ def _verify_telegram_data(init_data: str) -> Optional[dict]:
             log.warning(f"MiniApp auth: init_data too short ({len(init_data) if init_data else 0} chars)")
             return None
 
+        # Decode if double-encoded (header values may be URL-encoded)
+        if '%' in init_data:
+            try:
+                init_data = urllib.parse.unquote(init_data)
+            except Exception:
+                pass
+
         parsed = dict(urllib.parse.parse_qsl(init_data, keep_blank_values=True))
         hash_val = parsed.pop("hash", "")
 
@@ -79,13 +86,14 @@ async def _get_tg_user(request: Request) -> Optional[dict]:
     # 1. Header (primary method after JS fix)
     init_data = request.headers.get("X-Telegram-Init-Data", "")
     if init_data:
+        log.debug(f"MiniApp: X-Telegram-Init-Data header present, length={len(init_data)}")
         return _verify_telegram_data(init_data)
-    
+
     # 2. Query param
     init_data = request.query_params.get("tgWebAppData", "")
     if init_data:
         return _verify_telegram_data(init_data)
-    
+
     # 3. Request body (for POST requests that include initData)
     if request.method == "POST":
         try:
@@ -95,7 +103,7 @@ async def _get_tg_user(request: Request) -> Optional[dict]:
                 return _verify_telegram_data(init_data)
         except Exception:
             pass
-    
+
     # 4. Fallback: accept raw user data (unverified, for emergency only)
     user_data_raw = request.headers.get("X-Telegram-User-Data", "")
     if user_data_raw:
@@ -106,8 +114,8 @@ async def _get_tg_user(request: Request) -> Optional[dict]:
                 return user_data
         except Exception:
             pass
-    
-    log.debug("MiniApp: no auth data found in request")
+
+    log.debug(f"MiniApp: no auth data found. Headers: {list(request.headers.keys())}")
     return None
 
 
