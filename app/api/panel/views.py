@@ -2002,14 +2002,12 @@ async def clear_database(
     from sqlalchemy import text
 
     try:
-        await db.execute(text("""
-            DELETE FROM ticket_messages;
-            DELETE FROM referrals;
-            DELETE FROM support_tickets;
-            DELETE FROM payments;
-            DELETE FROM vpn_keys;
-            DELETE FROM users;
-        """))
+        await db.execute(text("DELETE FROM ticket_messages"))
+        await db.execute(text("DELETE FROM referrals"))
+        await db.execute(text("DELETE FROM support_tickets"))
+        await db.execute(text("DELETE FROM payments"))
+        await db.execute(text("DELETE FROM vpn_keys"))
+        await db.execute(text("DELETE FROM users"))
         await db.commit()
         return JSONResponse({"ok": True, "message": "База данных успешно очищена"})
     except Exception as e:
