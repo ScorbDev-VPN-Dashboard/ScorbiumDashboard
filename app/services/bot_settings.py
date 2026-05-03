@@ -1,9 +1,14 @@
 from typing import Optional
+import time
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bot_settings import BotSettings
 from app.utils.log import log
+
+_CACHE_TTL = 300  # 5 minutes
+_cache: Optional[dict] = None
+_cache_ts: float = 0
 
 DEFAULTS = {
     "welcome_message": "👋 Привет, {name}!\n\nЭто VPN-бот. Выбери действие:",
@@ -107,23 +112,26 @@ class BotSettingsService:
         self.session = session
 
     async def get(self, key: str) -> Optional[str]:
-        result = await self.session.execute(
-            select(BotSettings).where(BotSettings.key == key)
-        )
-        row = result.scalar_one_or_none()
-        if row:
-            return row.value
-        return DEFAULTS.get(key)
+        all_settings = await self.get_all()
+        return all_settings.get(key)
 
     async def get_all(self) -> dict:
+        global _cache, _cache_ts
+        now = time.time()
+        if _cache is not None and (now - _cache_ts) < _CACHE_TTL:
+            return _cache
+
         result = await self.session.execute(select(BotSettings))
         rows = {r.key: r.value for r in result.scalars().all()}
 
         merged = dict(DEFAULTS)
         merged.update(rows)
+        _cache = merged
+        _cache_ts = now
         return merged
 
     async def set(self, key: str, value: str) -> None:
+        global _cache, _cache_ts
         result = await self.session.execute(
             select(BotSettings).where(BotSettings.key == key)
         )
@@ -133,10 +141,15 @@ class BotSettingsService:
         else:
             self.session.add(BotSettings(key=key, value=value))
         await self.session.flush()
+        _cache = None
+        _cache_ts = 0
 
     async def set_many(self, data: dict) -> None:
+        global _cache, _cache_ts
         for key, value in data.items():
             await self.set(key, value)
+        _cache = None
+        _cache_ts = 0
 
     async def is_maintenance_mode(self) -> bool:
         value = await self.get("maintenance_mode")

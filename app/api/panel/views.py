@@ -5,7 +5,7 @@ import json
 import re
 import subprocess
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Optional
@@ -121,6 +121,8 @@ async def _base_ctx(
     open_tickets = await SupportService(db).count_open()
     pending_payments = await PaymentService(db).count_by_status(PaymentStatus.PENDING)
     role = admin_info["role"] if admin_info else ""
+    settings = await BotSettingsService(db).get_all()
+    custom_logo = settings.get("custom_logo", "")
     return {
         "request": request,
         "active": active,
@@ -133,7 +135,9 @@ async def _base_ctx(
         "admin_role": role,
         "admin_username": admin_info["sub"] if admin_info else "",
         "has_perm": has_permission,
-        "current_time": datetime.now().strftime("%H:%M"),
+        "current_time": datetime.now(timezone.utc).strftime("%H:%M"),
+        "csrf_token": request.cookies.get("csrf_token", ""),
+        "custom_logo": custom_logo,
     }
 
 
@@ -182,7 +186,9 @@ async def miniapp_login(request: Request, token: str = ""):
 
 
 @router.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
+async def login_page(request: Request, db: AsyncSession = Depends(get_db)):
+    settings = await BotSettingsService(db).get_all()
+    custom_logo = settings.get("custom_logo", "")
     return templates.TemplateResponse(
         "login.html",
         {
@@ -190,6 +196,7 @@ async def login_page(request: Request):
             "error": None,
             "app_name": config.web.app_name,
             "app_version": config.web.app_version,
+            "custom_logo": custom_logo,
         },
     )
 
@@ -201,11 +208,13 @@ async def login_submit(
     password: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
+    settings = await BotSettingsService(db).get_all()
     _error_ctx = {
         "request": request,
         "error": "Неверный логин или пароль",
         "app_name": config.web.app_name,
         "app_version": config.web.app_version,
+        "custom_logo": settings.get("custom_logo", ""),
     }
 
     # Try DB-based admin auth first
@@ -367,9 +376,12 @@ async def user_detail_page(
     from app.models.vpn_key import VpnKey
 
     user = await UserService(db).get_by_id(user_id)
-    if not user:\n        resp = Response(status_code=404)\n        _toast(resp, "Пользователь не найден", "error")\n        return resp
-
+    if not user:
+        resp = Response(status_code=404)
+        _toast(resp, 'Пользователь не найден', 'error')
+        return resp
     keys_result = await db.execute(
+
         select(VpnKey).where(VpnKey.user_id == user_id).order_by(VpnKey.id.desc())
     )
     pays_result = await db.execute(
@@ -393,6 +405,10 @@ async def deduct_balance(
     db: AsyncSession = Depends(get_db),
 ):
     _require_permission(request, "users.write")
+    if amount <= 0:
+        resp = Response(status_code=400)
+        _toast(resp, "Сумма должна быть больше нуля", "error")
+        return resp
     user = await UserService(db).deduct_balance(user_id, amount)
     if not user:
         resp = Response(status_code=400)
@@ -418,8 +434,8 @@ async def ban_user_view(
     user = await UserService(db).ban(user_id)
     if not user:
         resp = Response(status_code=404)
-    _toast(resp, 'Not found', 'error')
-    return resp
+        _toast(resp, 'Пользователь не найден', 'error')
+        return resp
     await db.commit()
     ban_msg = (
         await BotSettingsService(db).get("ban_message")
@@ -441,8 +457,8 @@ async def unban_user_view(
     user = await UserService(db).unban(user_id)
     if not user:
         resp = Response(status_code=404)
-    _toast(resp, 'Not found', 'error')
-    return resp
+        _toast(resp, 'Пользователь не найден', 'error')
+        return resp
     await db.commit()
     unban_msg = (
         await BotSettingsService(db).get("unban_message")
@@ -467,8 +483,8 @@ async def gift_subscription(
     plan = await PlanService(db).get_by_id(plan_id)
     if not plan:
         resp = Response(status_code=404)
-    _toast(resp, 'Not found', 'error')
-    return resp
+        _toast(resp, 'Тариф не найден', 'error')
+        return resp
     key = await VpnKeyService(db).provision(user_id=user_id, plan=plan)
     await db.commit()
     if key:
@@ -530,6 +546,10 @@ async def add_balance(
     db: AsyncSession = Depends(get_db),
 ):
     _require_permission(request, "users.write")
+    if amount <= 0:
+        resp = Response(status_code=400)
+        _toast(resp, "Сумма должна быть больше нуля", "error")
+        return resp
     await UserService(db).add_balance(user_id, amount)
     notify = TelegramNotifyService()
     await notify.send_message(user_id, f"💰 На ваш баланс зачислено <b>{amount} ₽</b>")
@@ -599,6 +619,14 @@ async def create_plan_view(
     db: AsyncSession = Depends(get_db),
 ):
     _require_permission(request, "plans")
+    if price <= 0:
+        resp = Response(status_code=400)
+        _toast(resp, "Цена должна быть больше нуля", "error")
+        return resp
+    if duration_days < 1:
+        resp = Response(status_code=400)
+        _toast(resp, "Длительность должна быть минимум 1 день", "error")
+        return resp
     import re
 
     slug = re.sub(r"[^a-z0-9]+", "_", name.lower().strip()).strip("_") or "plan"
@@ -659,21 +687,22 @@ async def toggle_plan_view(
     plan = await PlanService(db).toggle_active(plan_id)
     if not plan:
         resp = Response(status_code=404)
-    _toast(resp, 'Not found', 'error')
-    return resp
-    status_label = "active" if plan.is_active is True else "closed"
-    status_text = "Активен" if plan.is_active is True else "Отключён"
-    icon = "pause" if plan.is_active is True else "play"
-    html = f"""<div class="col-md-6 col-xl-4" id="plan-{plan.id}">
+        _toast(resp, 'Тариф не найден', 'error')
+        return resp
+    status_label = "active" if plan.is_active else "closed"
+    status_text = "Активен" if plan.is_active else "Отключён"
+    icon = "pause" if plan.is_active else "play"
+    h = html.escape
+    html_resp = f"""<div class="col-md-6 col-xl-4" id="plan-{plan.id}">
       <div class="card h-100 p-3">
         <div class="d-flex align-items-start justify-content-between mb-2">
-          <div><div class="fw-bold text-white">{plan.name}</div>
-          <code style="font-size:.7rem;color:#8892a4">{plan.slug}</code></div>
+          <div><div class="fw-bold text-white">{h(plan.name)}</div>
+          <code style="font-size:.7rem;color:#8892a4">{h(plan.slug)}</code></div>
           <span class="badge badge-custom badge-{status_label}">{status_text}</span>
         </div>
         <div class="d-flex gap-3 mb-3" style="font-size:.8rem;color:#8892a4">
-          <span><i class="bi bi-clock me-1"></i>{plan.duration_days} дн.</span>
-          <span><i class="bi bi-currency-ruble me-1"></i>{plan.price} {plan.currency}</span>
+          <span><i class="bi bi-clock me-1"></i>{h(str(plan.duration_days))} дн.</span>
+          <span><i class="bi bi-currency-ruble me-1"></i>{h(str(plan.price))} {h(plan.currency)}</span>
         </div>
         <div class="d-flex gap-2 mt-auto">
           <button class="btn btn-sm btn-outline-secondary"
@@ -683,8 +712,8 @@ async def toggle_plan_view(
         </div>
       </div>
     </div>"""
-    resp = HTMLResponse(html)
-    _toast(resp, f"Tариф {'включён' if plan.is_active is True else 'отключён'}")
+    resp = HTMLResponse(html_resp)
+    _toast(resp, f"Тариф {'включён' if plan.is_active else 'отключён'}")
     return resp
 
 
@@ -732,13 +761,14 @@ async def refund_payment_view(
     payment = await PaymentService(db).refund(payment_id)
     if not payment:
         resp = Response(status_code=404)
-    _toast(resp, 'Not found', 'error')
-    return resp
+        _toast(resp, 'Платёж не найден', 'error')
+        return resp
+    h = html.escape
     resp = HTMLResponse(f"""<tr>
       <td><code style="color:#00d4aa">#{payment.id}</code></td>
       <td><a href="/panel/users/{payment.user_id}" style="color:#00d4aa">{payment.user_id}</a></td>
-      <td><span style="color:#8892a4;font-size:.8rem">{payment.provider}</span></td>
-      <td><b>{payment.amount}</b> {payment.currency}</td>
+      <td><span style="color:#8892a4;font-size:.8rem">{h(str(payment.provider))}</span></td>
+      <td><b>{payment.amount}</b> {h(str(payment.currency))}</td>
       <td><span class="badge badge-custom badge-open">Возврат</span></td>
       <td style="color:#8892a4;font-size:.8rem">—</td><td></td></tr>""")
     _toast(resp, f"Возврат платежа #{payment_id} выполнен")
@@ -926,8 +956,8 @@ async def toggle_promo(
     await db.commit()
     if not promo:
         resp = Response(status_code=404)
-    _toast(resp, 'Not found', 'error')
-    return resp
+        _toast(resp, 'Промокод не найден', 'error')
+        return resp
     promos = await PromoService(db).get_all()
     plans = await PlanService(db).get_all(only_active=True)
     resp = templates.TemplateResponse(
@@ -1361,9 +1391,9 @@ async def ps_test_yookassa(request: Request, db: AsyncSession = Depends(get_db))
             {"ok": False, "message": f"Ошибка API: {resp.status_code}"}, status_code=400
         )
     except Exception as e:
-        log.error(f"YooKassa test error: {e}")
+        log.error("YooKassa test error: %s", e)
         return JSONResponse(
-            {"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400
+            {"ok": False, "message": "Ошибка подключения к ЮКассе"}, status_code=400
         )
 
 
@@ -1433,9 +1463,9 @@ async def ps_test_cryptobot(request: Request, db: AsyncSession = Depends(get_db)
             status_code=400,
         )
     except Exception as e:
-        log.error(f"CryptoBot test error: {e}")
+        log.error("CryptoBot test error: %s", e)
         return JSONResponse(
-            {"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400
+            {"ok": False, "message": "Ошибка подключения к CryptoBot"}, status_code=400
         )
 
 
@@ -1567,9 +1597,9 @@ async def ps_test_freekassa(request: Request, db: AsyncSession = Depends(get_db)
             {"ok": True, "message": f"✅ FreeKassa подключена. Баланс: {rub} ₽"}
         )
     except Exception as e:
-        log.error(f"FreeKassa test error: {e}")
+        log.error("FreeKassa test error: %s", e)
         return JSONResponse(
-            {"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400
+            {"ok": False, "message": "Ошибка подключения к FreeKassa"}, status_code=400
         )
 
 
@@ -1649,9 +1679,9 @@ async def ps_test_aikassa(request: Request, db: AsyncSession = Depends(get_db)):
         name = data.get("name", shop_id) if isinstance(data, dict) else shop_id
         return JSONResponse({"ok": True, "message": f"✅ AiKassa подключена: {name}"})
     except Exception as e:
-        log.error(f"AiKassa test error: {e}")
+        log.error("AiKassa test error: %s", e)
         return JSONResponse(
-            {"ok": False, "message": f"Ошибка: {str(e)[:100]}"}, status_code=400
+            {"ok": False, "message": "Ошибка подключения к AiKassa"}, status_code=400
         )
 
 
@@ -1789,6 +1819,9 @@ async def save_marzban_groups(request: Request, db: AsyncSession = Depends(get_d
     return resp
 
 
+_MAX_UPLOAD = 10 * 1024 * 1024  # 10MB
+
+
 @router.post("/telegram/photo/upload")
 async def upload_photo(
     request: Request,
@@ -1811,6 +1844,8 @@ async def upload_photo(
 
     chat_id = admin_ids[0]
     content = await photo.read()
+    if len(content) > _MAX_UPLOAD:
+        return JSONResponse({"detail": "Файл слишком большой (макс. 10MB)"}, status_code=413)
     filename = photo.filename or "photo.jpg"
 
     try:
@@ -1837,7 +1872,8 @@ async def upload_photo(
         return JSONResponse({"file_id": file_id})
 
     except Exception as e:
-        return JSONResponse({"detail": str(e)}, status_code=500)
+        log.error("Photo upload failed: %s", e)
+        return JSONResponse({"detail": "Ошибка загрузки фото"}, status_code=500)
 
 
 @router.post("/telegram/miniapp", response_class=HTMLResponse)
@@ -1867,6 +1903,69 @@ async def clear_photo(
     await db.commit()
     resp = Response(status_code=200)
     _toast(resp, "Фото удалено")
+    return resp
+
+
+@router.post("/logo/upload")
+async def upload_logo(
+    request: Request,
+    logo: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload custom panel logo. Saves to static/img/custom-logo."""
+    _require_permission(request, "system")
+    import shutil
+    from pathlib import Path
+
+    content = await logo.read()
+    if len(content) > 2 * 1024 * 1024:
+        resp = Response(status_code=413)
+        _toast(resp, "Файл слишком большой (макс. 2MB)", "error")
+        return resp
+
+    ext = Path(logo.filename or "").suffix.lower()
+    if ext not in (".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif"):
+        resp = Response(status_code=400)
+        _toast(resp, "Неподдерживаемый формат. Используйте PNG, JPG, WebP, SVG или GIF", "error")
+        return resp
+
+    static_path = Path(__file__).resolve().parent.parent.parent / "static" / "img"
+    static_path.mkdir(parents=True, exist_ok=True)
+    target = static_path / "custom-logo"
+
+    for f in static_path.glob("custom-logo.*"):
+        f.unlink()
+
+    target = target.with_suffix(ext)
+    target.write_bytes(content)
+
+    await BotSettingsService(db).set("custom_logo", f"/static/img/custom-logo{ext}")
+    await db.commit()
+
+    resp = Response(status_code=200)
+    _toast(resp, "Логотип загружен")
+    return resp
+
+
+@router.post("/logo/clear")
+async def clear_logo(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove custom panel logo."""
+    _require_permission(request, "system")
+    import glob as _glob
+    from pathlib import Path
+
+    static_path = Path(__file__).resolve().parent.parent.parent / "static" / "img"
+    for f in static_path.glob("custom-logo.*"):
+        f.unlink()
+
+    await BotSettingsService(db).set("custom_logo", "")
+    await db.commit()
+
+    resp = Response(status_code=200)
+    _toast(resp, "Логотип удалён. Используется значок по умолчанию.")
     return resp
 
 
@@ -2063,27 +2162,17 @@ async def backup_page(request: Request, db: AsyncSession = Depends(get_db)):
 async def backup_export(request: Request, format: str = "sql"):
     _require_permission(request, "system")
     db_cfg = config.database
-    env = {
-        "PGPASSWORD": db_cfg.db_password.get_secret_value(),
-        "PATH": "/usr/bin:/bin:/usr/local/bin",
-    }
+    pg_uri = f"postgresql://{db_cfg.db_user}:{db_cfg.db_password.get_secret_value()}@{db_cfg.db_host}:{db_cfg.db_port}/{db_cfg.db_name}"
     cmd = [
         "pg_dump",
-        "-h",
-        db_cfg.db_host,
-        "-p",
-        str(db_cfg.db_port),
-        "-U",
-        db_cfg.db_user,
-        "-d",
-        db_cfg.db_name,
         "--no-password",
         "--clean",
         "--if-exists",
+        pg_uri,
     ]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, env=env, timeout=120)
+        result = subprocess.run(cmd, capture_output=True, timeout=120)
         if result.returncode != 0:
             err = result.stderr.decode(errors="replace")[:300]
             return Response(content=f"pg_dump error: {err}", status_code=500)
@@ -2096,7 +2185,7 @@ async def backup_export(request: Request, format: str = "sql"):
     except subprocess.TimeoutExpired:
         return Response(content="pg_dump timed out", status_code=500)
 
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
     if format == "gz":
         buf = io.BytesIO()
@@ -2118,6 +2207,9 @@ async def backup_export(request: Request, format: str = "sql"):
     )
 
 
+_MAX_BACKUP = 100 * 1024 * 1024  # 100MB
+
+
 @router.post("/backup/import", response_class=HTMLResponse)
 async def backup_import(
     request: Request,
@@ -2131,6 +2223,10 @@ async def backup_import(
         return resp
 
     content = await file.read()
+    if len(content) > _MAX_BACKUP:
+        resp = Response(status_code=413)
+        _toast(resp, "Файл слишком большой (макс. 100MB)", "error")
+        return resp
     filename = file.filename or ""
 
     # Decompress if gzip
@@ -2154,29 +2250,19 @@ async def backup_import(
     ) + content
 
     db_cfg = config.database
-    env = {
-        "PGPASSWORD": db_cfg.db_password.get_secret_value(),
-        "PATH": "/usr/bin:/bin:/usr/local/bin",
-    }
+    pg_uri = f"postgresql://{db_cfg.db_user}:{db_cfg.db_password.get_secret_value()}@{db_cfg.db_host}:{db_cfg.db_port}/{db_cfg.db_name}"
     cmd = [
         "psql",
-        "-h",
-        db_cfg.db_host,
-        "-p",
-        str(db_cfg.db_port),
-        "-U",
-        db_cfg.db_user,
-        "-d",
-        db_cfg.db_name,
         "--no-password",
         "-v",
         "ON_ERROR_STOP=1",
         "--single-transaction",
+        pg_uri,
     ]
 
     try:
         result = subprocess.run(
-            cmd, input=content, capture_output=True, env=env, timeout=300
+            cmd, input=content, capture_output=True, timeout=300
         )
         if result.returncode != 0:
             err = result.stderr.decode(errors="replace")[:800]
@@ -2228,7 +2314,7 @@ async def pg_users(request: Request):
         data = await PasarguardService().get_users(limit=50)
         users = data.get("users", []) if isinstance(data, dict) else data
     except Exception as e:
-        return HTMLResponse(f'<div style="color:#ef4444">Ошибка: {e}</div>')
+        return HTMLResponse(f'<div style="color:#ef4444">Ошибка: {html.escape(str(e))}</div>')
 
     if not users:
         return HTMLResponse('<div style="color:#8892a4">Нет пользователей</div>')
@@ -2267,7 +2353,7 @@ async def pg_groups(request: Request):
     try:
         groups = await PasarguardService().get_groups()
     except Exception as e:
-        return HTMLResponse(f'<div class="p-3" style="color:#ef4444">Ошибка: {e}</div>')
+        return HTMLResponse(f'<div class="p-3" style="color:#ef4444">Ошибка: {html.escape(str(e))}</div>')
 
     if not groups:
         return HTMLResponse('<div class="p-3" style="color:#8892a4">Групп нет</div>')
@@ -2302,7 +2388,7 @@ async def pg_nodes(request: Request):
         data = await PasarguardService().get_nodes()
         nodes = data.get("nodes", []) if isinstance(data, dict) else data
     except Exception as e:
-        return HTMLResponse(f'<div class="p-3" style="color:#ef4444">Ошибка: {e}</div>')
+        return HTMLResponse(f'<div class="p-3" style="color:#ef4444">Ошибка: {html.escape(str(e))}</div>')
 
     if not nodes:
         return HTMLResponse('<div class="p-3" style="color:#8892a4">Нод нет</div>')
@@ -2453,7 +2539,7 @@ async def export_users(
     _require_permission(request, "export")
     data = await ExportService(db).export_users(fmt=format)
     ext = "xlsx" if format == "xlsx" else "csv"
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if ext == "xlsx" else "text/csv"
     return StreamingResponse(
         io.BytesIO(data),
@@ -2478,7 +2564,7 @@ async def export_payments(
         date_from=date_from, date_to=date_to,
     )
     ext = "xlsx" if format == "xlsx" else "csv"
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if ext == "xlsx" else "text/csv"
     return StreamingResponse(
         io.BytesIO(data),
@@ -2496,7 +2582,7 @@ async def export_subscriptions(
     _require_permission(request, "export")
     data = await ExportService(db).export_subscriptions(fmt=format)
     ext = "xlsx" if format == "xlsx" else "csv"
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if ext == "xlsx" else "text/csv"
     return StreamingResponse(
         io.BytesIO(data),

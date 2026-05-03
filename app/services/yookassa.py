@@ -89,14 +89,18 @@ class YookassaService:
             }
             if payment_method:
                 data["payment_method_data"] = {"type": payment_method}
-            payment = await asyncio.to_thread(
-                YKPayment.create, data, idempotency_key=str(uuid.uuid4())
+            payment = await asyncio.wait_for(
+                asyncio.to_thread(YKPayment.create, data, idempotency_key=str(uuid.uuid4())),
+                timeout=30,
             )
-            log.info(f"Yookassa payment created: {payment.id}")
+            log.info("Yookassa payment created: %s", payment.id)
             return payment
+        except asyncio.TimeoutError:
+            log.error("Yookassa payment creation timed out")
+            raise YookassaPaymentError("Payment service timed out. Please try again.")
         except Exception as e:
-            log.error(f"Yookassa payment creation failed: {e}")
-            raise YookassaPaymentError(str(e))
+            log.error("Yookassa payment creation failed: %s", e)
+            raise YookassaPaymentError("Payment service unavailable. Please try again.")
 
     async def create_sbp_payment(
         self,
@@ -115,17 +119,31 @@ class YookassaService:
 
     async def get_payment(self, payment_id: str) -> PaymentResponse:
         try:
-            return await asyncio.to_thread(YKPayment.find_one, payment_id)
+            return await asyncio.wait_for(
+                asyncio.to_thread(YKPayment.find_one, payment_id),
+                timeout=15,
+            )
+        except asyncio.TimeoutError:
+            log.error("Yookassa payment lookup timed out: %s", payment_id)
+            raise YookassaPaymentError("Payment service timed out.")
         except Exception as e:
-            raise YookassaPaymentError(str(e))
+            log.error("Yookassa payment lookup failed: %s", e)
+            raise YookassaPaymentError("Payment service unavailable.")
 
     @staticmethod
     async def _sync_get_payment(payment_id: str) -> PaymentResponse:
         """Синхронная проверка платежа — используется в async контексте через await YookassaService.create()."""
         try:
-            return await asyncio.to_thread(YKPayment.find_one, payment_id)
+            return await asyncio.wait_for(
+                asyncio.to_thread(YKPayment.find_one, payment_id),
+                timeout=15,
+            )
+        except asyncio.TimeoutError:
+            log.error("Yookassa payment lookup timed out: %s", payment_id)
+            raise YookassaPaymentError("Payment service timed out.")
         except Exception as e:
-            raise YookassaPaymentError(str(e))
+            log.error("Yookassa payment lookup failed: %s", e)
+            raise YookassaPaymentError("Payment service unavailable.")
 
     async def is_succeeded(self, payment_id: str) -> bool:
         payment = await self.get_payment(payment_id)

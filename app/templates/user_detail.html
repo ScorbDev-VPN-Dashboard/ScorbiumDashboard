@@ -13,8 +13,8 @@
           <i class="bi bi-person"></i>
         </div>
         <div>
-          <div class="fw-semibold text-white">{{ user.full_name }}</div>
-          <div style="color:#8892a4;font-size:.8rem">{% if user.username %}@{{ user.username }}{% else %}без username{% endif %}</div>
+          <div class="fw-semibold" style="color:var(--text)">{{ user.full_name }}</div>
+          <div style="color:var(--text-muted);font-size:.8rem">{% if user.username %}@{{ user.username }}{% else %}без username{% endif %}</div>
         </div>
         {% if user.is_banned %}
           <span class="badge badge-custom badge-expired ms-auto">Забанен</span>
@@ -22,15 +22,15 @@
           <span class="badge badge-custom badge-active ms-auto">Активен</span>
         {% endif %}
       </div>
-      <div style="font-size:.82rem;color:#8892a4" class="mb-3">
-        <div class="mb-1"><i class="bi bi-hash me-1"></i>ID: <code class="text-white">{{ user.id }}</code></div>
-        <div class="mb-1"><i class="bi bi-currency-ruble me-1"></i>Баланс: <b class="text-white">{{ "%.2f"|format(user.balance or 0) }} ₽</b></div>
-        <div class="mb-1"><i class="bi bi-link-45deg me-1"></i>Реф. код: <code class="text-white">{{ user.referral_code or '—' }}</code></div>
-        <div class="mb-1"><i class="bi bi-globe me-1"></i>Язык: <span class="text-white">{{ user.language or '—' }}</span></div>
+      <div style="font-size:.82rem;color:var(--text-muted)" class="mb-3">
+        <div class="mb-1"><i class="bi bi-hash me-1"></i>ID: <code style="color:var(--text)">{{ user.id }}</code></div>
+        <div class="mb-1"><i class="bi bi-currency-ruble me-1"></i>Баланс: <b style="color:var(--text)">{{ "%.2f"|format(user.balance or 0) }} ₽</b></div>
+        <div class="mb-1"><i class="bi bi-link-45deg me-1"></i>Реф. код: <code style="color:var(--text)">{{ user.referral_code or '—' }}</code></div>
+        <div class="mb-1"><i class="bi bi-globe me-1"></i>Язык: <span style="color:var(--text)">{{ user.language or '—' }}</span></div>
         <div class="mb-1"><i class="bi bi-arrow-repeat me-1"></i>Автопродление:
-          {% if user.autorenew %}<span class="text-success">Вкл</span>{% else %}<span class="text-muted">Выкл</span>{% endif %}
+          {% if user.autorenew %}<span class="text-success">Вкл</span>{% else %}<span style="color:var(--text-muted)">Выкл</span>{% endif %}
         </div>
-        <div><i class="bi bi-calendar me-1"></i>Регистрация: <span class="text-white">{{ user.created_at.strftime('%d.%m.%Y %H:%M') if user.created_at else '—' }}</span></div>
+        <div><i class="bi bi-calendar me-1"></i>Регистрация: <span style="color:var(--text)">{{ user.created_at.strftime('%d.%m.%Y %H:%M') if user.created_at else '—' }}</span></div>
       </div>
 
       <!-- Actions -->
@@ -61,7 +61,7 @@
 
     <!-- Gift subscription -->
     <div class="card p-3 mb-3">
-      <div class="fw-semibold text-white mb-3"><i class="bi bi-gift me-2 text-muted"></i>Подарить по тарифу</div>
+      <div class="fw-semibold mb-3" style="color:var(--text)"><i class="bi bi-gift me-2 text-muted"></i>Подарить по тарифу</div>
       <form hx-post="/panel/users/{{ user.id }}/gift-subscription" hx-swap="none">
         <select name="plan_id" class="form-select mb-2" required>
           {% for plan in plans %}
@@ -76,7 +76,7 @@
 
     <!-- Gift by days -->
     <div class="card p-3">
-      <div class="fw-semibold text-white mb-3"><i class="bi bi-calendar-heart me-2 text-muted"></i>Подарить по дням</div>
+      <div class="fw-semibold mb-3" style="color:var(--text)"><i class="bi bi-calendar-heart me-2 text-muted"></i>Подарить по дням</div>
       <form hx-post="/panel/users/{{ user.id }}/gift-days" hx-swap="none">
         <div class="mb-2">
           <input type="number" name="days" class="form-control" placeholder="Дней" min="1" max="3650" required />
@@ -109,18 +109,19 @@
               <td><code style="color:#00d4aa">#{{ sub.id }}</code></td>
               <td>{% if sub.plan %}{{ sub.plan.name }}{% else %}—{% endif %}</td>
               <td>
-                {% if sub.status.value == 'active' %}<span class="badge badge-custom badge-active">Активна</span>
-                {% elif sub.status.value == 'expired' %}<span class="badge badge-custom badge-expired">Истекла</span>
+                {% set st = sub.status.value if sub.status.value is defined else sub.status %}
+                {% if st == 'active' %}<span class="badge badge-custom badge-active">Активна</span>
+                {% elif st == 'expired' %}<span class="badge badge-custom badge-expired">Истекла</span>
                 {% else %}<span class="badge badge-custom badge-closed">Отменена</span>{% endif %}
               </td>
-              <td style="color:#8892a4">{{ sub.expires_at.strftime('%d.%m.%Y') if sub.expires_at else '—' }}</td>
+              <td style="color:var(--text-muted)">{{ sub.expires_at.strftime('%d.%m.%Y') if sub.expires_at else '—' }}</td>
               <td>
                 <div class="d-flex gap-1">
                   <button class="btn btn-xs btn-outline-secondary" title="Выдать ключ"
                     hx-post="/panel/subscriptions/{{ sub.id }}/issue-key" hx-swap="none">
                     <i class="bi bi-key"></i>
                   </button>
-                  {% if sub.status.value == 'active' %}
+                  {% if st == 'active' %}
                   <button class="btn btn-xs btn-outline-danger" title="Отменить"
                     hx-post="/panel/subscriptions/{{ sub.id }}/cancel" hx-swap="none"
                     hx-confirm="Отменить подписку?" onclick="setTimeout(()=>location.reload(),600)">
@@ -131,7 +132,7 @@
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="text-center py-3" style="color:#8892a4">Нет подписок</td></tr>
+            <tr><td colspan="5" class="text-center py-3" style="color:var(--text-muted)">Нет подписок</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -153,12 +154,14 @@
               <td><code style="color:#00d4aa">#{{ key.id }}</code></td>
               <td>{{ key.name or '—' }}</td>
               <td>
-                {% if key.status.value == 'active' %}<span class="badge badge-custom badge-active">Активен</span>
-                {% else %}<span class="badge badge-custom badge-expired">Отозван</span>{% endif %}
+                {% set kst = key.status.value if key.status.value is defined else key.status %}
+                {% if kst == 'active' %}<span class="badge badge-custom badge-active">Активен</span>
+                {% elif kst == 'expired' %}<span class="badge badge-custom badge-expired">Истёк</span>
+                {% else %}<span class="badge badge-custom badge-closed">Отозван</span>{% endif %}
               </td>
-              <td><code style="font-size:.7rem;color:#8892a4;word-break:break-all">{{ key.access_url[:50] }}...</code></td>
+              <td><code style="font-size:.7rem;color:var(--text-muted);word-break:break-all">{{ key.access_url[:50] }}...</code></td>
               <td>
-                {% if key.status.value == 'active' %}
+                {% if kst == 'active' %}
                 <button class="btn btn-xs btn-outline-danger" title="Отозвать"
                   hx-post="/panel/vpn/{{ key.id }}/revoke" hx-swap="none"
                   hx-confirm="Отозвать ключ?" onclick="setTimeout(()=>location.reload(),600)">
@@ -168,7 +171,7 @@
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="text-center py-3" style="color:#8892a4">Нет ключей</td></tr>
+            <tr><td colspan="5" class="text-center py-3" style="color:var(--text-muted)">Нет ключей</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -185,17 +188,18 @@
             {% for p in payments %}
             <tr>
               <td><code style="color:#00d4aa">#{{ p.id }}</code></td>
-              <td style="color:#8892a4">{{ p.provider.value }}</td>
+              <td style="color:var(--text-muted)">{{ p.provider.value }}</td>
               <td><b>{{ p.amount }}</b> {{ p.currency }}</td>
               <td>
-                {% if p.status.value == 'succeeded' %}<span class="badge badge-custom badge-active">Успешно</span>
-                {% elif p.status.value == 'pending' %}<span class="badge badge-custom badge-open">Ожидание</span>
-                {% else %}<span class="badge badge-custom badge-expired">{{ p.status.value }}</span>{% endif %}
+                {% set pst = p.status.value if p.status.value is defined else p.status %}
+                {% if pst == 'succeeded' %}<span class="badge badge-custom badge-active">Успешно</span>
+                {% elif pst == 'pending' %}<span class="badge badge-custom badge-open">Ожидание</span>
+                {% else %}<span class="badge badge-custom badge-expired">{{ pst }}</span>{% endif %}
               </td>
-              <td style="color:#8892a4">{{ p.created_at.strftime('%d.%m.%Y') if p.created_at else '—' }}</td>
+              <td style="color:var(--text-muted)">{{ p.created_at.strftime('%d.%m.%Y') if p.created_at else '—' }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="text-center py-3" style="color:#8892a4">Нет платежей</td></tr>
+            <tr><td colspan="5" class="text-center py-3" style="color:var(--text-muted)">Нет платежей</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -210,11 +214,11 @@
   <div class="modal-dialog modal-dialog-centered modal-sm">
     <div class="modal-content" style="background:#1a1f2e;border:1px solid rgba(255,255,255,.08)">
       <div class="modal-header border-0">
-        <h6 class="modal-title text-white"><i class="bi bi-currency-ruble me-2"></i>Баланс</h6>
+        <h6 class="modal-title" style="color:var(--text)"><i class="bi bi-currency-ruble me-2"></i>Баланс</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <p style="color:#8892a4;font-size:.85rem">Текущий: <b class="text-white">{{ "%.2f"|format(user.balance or 0) }} ₽</b></p>
+        <p style="color:var(--text-muted);font-size:.85rem">Текущий: <b style="color:var(--text)">{{ "%.2f"|format(user.balance or 0) }} ₽</b></p>
         <label class="form-label">Сумма (₽)</label>
         <input type="number" id="bal-amount" class="form-control" placeholder="100" min="0.01" step="0.01" />
       </div>
@@ -232,7 +236,7 @@
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content" style="background:#1a1f2e;border:1px solid rgba(255,255,255,.08)">
       <div class="modal-header border-0">
-        <h6 class="modal-title text-white"><i class="bi bi-chat me-2"></i>Написать сообщение</h6>
+        <h6 class="modal-title" style="color:var(--text)"><i class="bi bi-chat me-2"></i>Написать сообщение</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">

@@ -271,6 +271,11 @@ async def _show_user_detail(callback: CallbackQuery, user_id: int) -> None:
         ),
     )
     builder.row(
+        InlineKeyboardButton(
+            text="🔄 Продлить подписку", callback_data=f"adm:extend:{user_id}"
+        ),
+    )
+    builder.row(
         InlineKeyboardButton(text="✉️ Написать", callback_data=f"adm:msg:{user_id}")
     )
     builder.row(InlineKeyboardButton(text="◀️ К списку", callback_data="adm:users"))
@@ -1065,6 +1070,221 @@ async def admin_gift_key_start(callback: CallbackQuery, state: FSMContext) -> No
         parse_mode="HTML",
     )
     await callback.answer()
+
+
+# ── Admin extend subscription ────────────────────────────────────────────────
+
+
+@router.callback_query(F.data.startswith("adm:extend:"))
+async def admin_extend_start(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return
+    if callback.data.startswith("adm:extend:sep"):
+        await callback.answer()
+        return
+    if callback.data.startswith("adm:extend:pick:") or callback.data.startswith("adm:extend:confirm:") or callback.data.startswith("adm:extend:custom:"):
+        return
+    user_id = int(callback.data.split(":")[2])
+
+    async with AsyncSessionFactory() as session:
+        keys = await VpnKeyService(session).get_all_for_user(user_id)
+        plans = await PlanService(session).get_all(only_active=True)
+
+    active_keys = [
+        k for k in keys
+        if str(k.status.value if hasattr(k.status, "value") else k.status) == "active"
+    ]
+    expired_keys = [
+        k for k in keys
+        if str(k.status.value if hasattr(k.status, "value") else k.status) != "active"
+    ]
+
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="━━━ Активные ━━━", callback_data="adm:extend:sep1")
+    )
+    if active_keys:
+        for k in active_keys:
+            name = k.name or f"Подписка #{k.id}"
+            exp = k.expires_at.strftime("%d.%m.%Y") if k.expires_at else "—"
+            builder.row(
+                InlineKeyboardButton(
+                    text=f" {name} (до {exp})",
+                    callback_data=f"adm:extend:pick:{user_id}:{k.id}",
+                )
+            )
+    else:
+        builder.row(InlineKeyboardButton(text="Нет активных", callback_data="adm:extend:sep1"))
+
+    if expired_keys:
+        builder.row(
+            InlineKeyboardButton(text="━━━ Истёкшие ━━━", callback_data="adm:extend:sep2")
+        )
+        for k in expired_keys[:5]:
+            name = k.name or f"Подписка #{k.id}"
+            exp = k.expires_at.strftime("%d.%m.%Y") if k.expires_at else "—"
+            builder.row(
+                InlineKeyboardButton(
+                    text=f" {name} (до {exp})",
+                    callback_data=f"adm:extend:pick:{user_id}:{k.id}",
+                )
+            )
+
+    builder.row(
+        InlineKeyboardButton(text="Отмена", callback_data=f"adm:user:{user_id}")
+    )
+
+    await callback.message.edit_text(
+        f" Продлить подписку\nПользователь: {user_id}\n\nВыберите подписку для продления:",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+class AdminExtendDaysState(StatesGroup):
+    waiting_days = State()
+
+
+@router.callback_query(F.data.startswith("adm:extend:pick:"))
+async def admin_extend_pick(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return
+    parts = callback.data.split(":")
+    user_id = int(parts[3])
+    key_id = int(parts[4])
+
+    await state.update_data(extend_user_id=user_id, extend_key_id=key_id)
+
+    builder = InlineKeyboardBuilder()
+    for days in [7, 30, 90, 365]:
+        builder.row(
+            InlineKeyboardButton(
+                text=f"+{days} дней",
+                callback_data=f"adm:extend:confirm:{user_id}:{key_id}:{days}",
+            )
+        )
+    builder.row(
+        InlineKeyboardButton(text="Своё значение", callback_data=f"adm:extend:custom:{user_id}:{key_id}")
+    )
+    builder.row(
+        InlineKeyboardButton(text="Назад", callback_data=f"adm:extend:{user_id}")
+    )
+
+    await callback.message.edit_text(
+        f" Продлить подписку #{key_id}\n\nВыберите количество дней:",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("adm:extend:custom:"))
+async def admin_extend_custom(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return
+    parts = callback.data.split(":")
+    user_id = int(parts[3])
+    key_id = int(parts[4])
+    await state.update_data(extend_user_id=user_id, extend_key_id=key_id)
+    await state.set_state(AdminExtendDaysState.waiting_days)
+
+    await callback.message.edit_text(
+        f"Введите количество дней для продления подписки #{key_id}:",
+        reply_markup=InlineKeyboardBuilder().row(
+            InlineKeyboardButton(text="Отмена", callback_data=f"adm:extend:{user_id}")
+        ).as_markup(),
+    )
+    await callback.answer()
+
+
+@router.message(AdminExtendDaysState.waiting_days)
+async def admin_extend_days_input(message: Message, state: FSMContext) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+    data = await state.get_data()
+    user_id = data.get("extend_user_id")
+    key_id = data.get("extend_key_id")
+
+    try:
+        days = int(message.text.strip())
+        if days <= 0 or days > 3650:
+            await message.answer("Введите число от 1 до 3650")
+            return
+    except ValueError:
+        await message.answer("Введите корректное число дней")
+        return
+
+    async with AsyncSessionFactory() as session:
+        key = await VpnKeyService(session).get_by_id(key_id)
+        if not key or key.user_id != user_id:
+            await message.answer("Подписка не найдена")
+            await state.clear()
+            return
+
+        old_exp = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
+        extended = await VpnKeyService(session).extend(key_id, days)
+        await session.commit()
+
+    if extended:
+        new_exp = extended.expires_at.strftime("%d.%m.%Y") if extended.expires_at else "—"
+        await message.answer(
+            f"✅ Подписка #{key_id} продлена на {days} дней\n"
+            f"Было: {old_exp} → Стало: {new_exp}",
+            parse_mode="HTML",
+        )
+        try:
+            from app.services.telegram_notify import TelegramNotifyService
+            await TelegramNotifyService().send_message(
+                user_id,
+                f"🔄 Подписка продлена администратором!\n\n"
+                f"+{days} дней\n"
+                f"Новая дата: {new_exp}",
+            )
+        except Exception as e:
+            log.warning(f"Failed to notify user about admin extend: {e}")
+    else:
+        await message.answer("Ошибка продления подписки")
+
+    await state.clear()
+
+
+@router.callback_query(F.data.startswith("adm:extend:confirm:"))
+async def admin_extend_confirm(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return
+    parts = callback.data.split(":")
+    user_id = int(parts[3])
+    key_id = int(parts[4])
+    days = int(parts[5])
+
+    async with AsyncSessionFactory() as session:
+        key = await VpnKeyService(session).get_by_id(key_id)
+        if not key or key.user_id != user_id:
+            await callback.answer("Подписка не найдена", show_alert=True)
+            return
+
+        old_exp = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
+        extended = await VpnKeyService(session).extend(key_id, days)
+        await session.commit()
+
+    if extended:
+        new_exp = extended.expires_at.strftime("%d.%m.%Y") if extended.expires_at else "—"
+        await callback.answer(f"Продлено до {new_exp}!", show_alert=True)
+        try:
+            from app.services.telegram_notify import TelegramNotifyService
+            await TelegramNotifyService().send_message(
+                user_id,
+                f"🔄 Подписка продлена администратором!\n\n"
+                f"+{days} дней\n"
+                f"Новая дата: {new_exp}",
+            )
+        except Exception as e:
+            log.warning(f"Failed to notify user about admin extend: {e}")
+    else:
+        await callback.answer("Ошибка продления", show_alert=True)
+
+    await _show_user_detail(callback, user_id)
 
 
 # ── Message to user ───────────────────────────────────────────────────────────

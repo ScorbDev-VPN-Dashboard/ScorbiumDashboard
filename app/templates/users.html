@@ -11,7 +11,7 @@
         <button class="btn btn-sm btn-outline dropdown-toggle" type="button" data-bs-toggle="dropdown">
           <i class="bi bi-download me-1"></i>Экспорт
         </button>
-        <ul class="dropdown-menu dropdown-menu-dark" style="background:var(--card-bg);border-color:var(--border)">
+        <ul class="dropdown-menu dropdown-menu-dark" style="background:var(--bg-elevated);border-color:var(--border)">
           <li><a class="dropdown-item" href="/panel/export/users?format=csv" style="color:var(--text)">CSV</a></li>
           <li><a class="dropdown-item" href="/panel/export/users?format=xlsx" style="color:var(--text)">Excel</a></li>
         </ul>
@@ -40,10 +40,10 @@
 <!-- ── Message Modal ── -->
 <div class="modal fade" id="msgModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content" style="background:#1a1f2e;border:1px solid rgba(255,255,255,.08)">
+    <div class="modal-content" style="background:var(--bg-elevated);border:1px solid var(--border)">
       <div class="modal-header border-0">
-        <h6 class="modal-title text-white"><i class="bi bi-chat me-2"></i>Отправить сообщение</h6>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <h6 class="modal-title"><i class="bi bi-chat-dots-fill me-2" style="color:var(--accent)"></i>Отправить сообщение</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1)"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="msg-user-id" />
@@ -61,13 +61,13 @@
 <!-- ── Balance Modal ── -->
 <div class="modal fade" id="balanceModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-sm">
-    <div class="modal-content" style="background:#1a1f2e;border:1px solid rgba(255,255,255,.08)">
+    <div class="modal-content" style="background:var(--bg-elevated);border:1px solid var(--border)">
       <div class="modal-header border-0">
-        <h6 class="modal-title text-white"><i class="bi bi-currency-ruble me-2"></i>Управление балансом</h6>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <h6 class="modal-title"><i class="bi bi-wallet2 me-2" style="color:var(--warning)"></i>Баланс</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1)"></button>
       </div>
       <div class="modal-body">
-        <p style="color:#8892a4;font-size:.85rem">Текущий баланс: <b id="bal-current" class="text-white"></b> ₽</p>
+        <p style="font-size:.85rem">Текущий баланс: <b id="bal-current" style="color:var(--text)"></b> ₽</p>
         <label class="form-label">Сумма (₽)</label>
         <input type="number" id="bal-amount" class="form-control" placeholder="100" min="0.01" step="0.01" />
       </div>
@@ -87,10 +87,10 @@
 <!-- ── Gift Subscription Modal ── -->
 <div class="modal fade" id="giftModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-sm">
-    <div class="modal-content" style="background:#1a1f2e;border:1px solid rgba(255,255,255,.08)">
+    <div class="modal-content" style="background:var(--bg-elevated);border:1px solid var(--border)">
       <div class="modal-header border-0">
-        <h6 class="modal-title text-white"><i class="bi bi-gift me-2"></i>Подарить подписку</h6>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <h6 class="modal-title"><i class="bi bi-gift-fill me-2" style="color:var(--accent)"></i>Подарить подписку</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1)"></button>
       </div>
       <form id="giftForm" hx-swap="none">
         <div class="modal-body">

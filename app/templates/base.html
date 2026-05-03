@@ -117,6 +117,12 @@
       background: linear-gradient(135deg, rgba(0, 212, 170, 0.1), rgba(14, 165, 233, 0.05));
       box-shadow: inset 0 0 0 1px var(--border-glow);
     }
+    .nav-item a.active::before {
+      content: ''; position: absolute; left: 0; top: 50%;
+      transform: translateY(-50%); width: 3px; height: 60%;
+      background: var(--accent); border-radius: 0 3px 3px 0;
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
     .nav-item a i { font-size: 1rem; width: 1.1rem; text-align: center; flex-shrink: 0; }
     .nav-badge {
       margin-left: auto; background: var(--danger); color: #fff;
@@ -344,14 +350,54 @@
       .card { border-radius: 12px; }
       .stat-card { padding: 1rem; }
     }
+
+    /* Page loading overlay */
+    .page-loader {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      transition: opacity .4s ease, visibility .4s ease;
+    }
+    .page-loader.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    .loader-ring {
+      width: 48px; height: 48px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    .loader-text {
+      margin-top: 1rem; font-size: .85rem;
+      color: var(--text-muted); font-weight: 500;
+    }
+    .sidebar-logo-img {
+      width: 38px; height: 38px; border-radius: 10px;
+      object-fit: contain; flex-shrink: 0;
+    }
   </style>
   {% block head %}{% endblock %}
 </head>
 <body>
+
+<!-- Page loading overlay -->
+<div class="page-loader" id="pageLoader">
+  <div class="loader-ring"></div>
+  <div class="loader-text">Загрузка...</div>
+</div>
+
+{% if csrf_token %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endif %}
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
+    {% if custom_logo %}
+    <img src="{{ custom_logo }}" alt="Logo" class="sidebar-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+    <span class="logo-icon" style="display:none"><i class="bi bi-shield-lock-fill"></i></span>
+    {% else %}
     <span class="logo-icon"><i class="bi bi-shield-lock-fill"></i></span>
+    {% endif %}
     <span>{{ app_name | default('VPN') | truncate(16, true, '') }}</span>
     <button class="hamburger ms-auto d-md-none" onclick="closeSidebar()" style="display:flex"><i class="bi bi-x-lg"></i></button>
   </div>
@@ -472,6 +518,30 @@
   }
   document.body.addEventListener('showToast', function(e) { showToast(e.detail.msg, e.detail.type || 'success'); });
 
+  // ── CSRF Protection ──
+  (function() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta) {
+      var token = meta.getAttribute('content');
+      document.body.addEventListener('htmx:configRequest', function(e) {
+        e.detail.headers['X-CSRF-Token'] = token;
+      });
+    }
+  })();
+
+  // ── HTMX Error Handling ──
+  document.body.addEventListener('htmx:responseError', function(e) {
+    var msg = 'Ошибка запроса';
+    try {
+      var d = JSON.parse(e.detail.xhr.responseText);
+      msg = d.detail || d.message || msg;
+    } catch(err) {}
+    showToast(msg, 'error');
+  });
+  document.body.addEventListener('htmx:sendError', function() {
+    showToast('Нет соединения с сервером', 'error');
+  });
+
   // ── WebSocket Notifications ──
   (function() {
     let ws = null;
@@ -481,7 +551,7 @@
     function createStatusDot() {
       const dot = document.createElement('span');
       dot.id = 'ws-status';
-      dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block;margin-left:.5rem;transition:background .3s';
+      dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:var(--text-muted);display:inline-block;margin-left:.5rem;transition:background .3s';
       const topbarRight = document.querySelector('.topbar .d-flex.align-items-center.gap-3');
       if (topbarRight) topbarRight.prepend(dot);
       return dot;
@@ -536,6 +606,17 @@
 
     connect();
   })();
+
+  // Hide page loader
+  window.addEventListener('load', function() {
+    var loader = document.getElementById('pageLoader');
+    if (loader) loader.classList.add('hidden');
+  });
+  // Fallback: hide after 3s even if load event didn't fire
+  setTimeout(function() {
+    var loader = document.getElementById('pageLoader');
+    if (loader) loader.classList.add('hidden');
+  }, 3000);
 </script>
 {% block scripts %}{% endblock %}
 </body>

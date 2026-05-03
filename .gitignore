@@ -20,6 +20,7 @@ build/
 *.swo
 *kilo
 *.kiro
+AGENTS.md
 *~
 
 # Logs

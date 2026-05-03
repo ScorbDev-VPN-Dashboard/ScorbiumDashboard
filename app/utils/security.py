@@ -15,10 +15,11 @@ def _secret_key() -> str:
     """Return a dedicated JWT signing secret."""
     import os
     secret = os.environ.get("JWT_SECRET_KEY", "").strip()
-    if secret:
-        return secret
-    log.warning("JWT_SECRET_KEY not set; using web_superadmin_password fallback")
-    return config.web.web_superadmin_password.get_secret_value()
+    if not secret:
+        raise RuntimeError(
+            "JWT_SECRET_KEY is not set. Generate one: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+        )
+    return secret
 
 
 def hash_password(password: str) -> str:

@@ -4,66 +4,277 @@
 
 {% block head %}
 <style>
-  .dash-kpi { position: relative; overflow: hidden; border: 1px solid var(--border); transition: all .3s cubic-bezier(.4,0,.2,1); }
-  .dash-kpi::after { content: ''; position: absolute; top: -50%; right: -30%; width: 200px; height: 200px; border-radius: 50%; opacity: 0; transition: opacity .4s ease; pointer-events: none; }
-  .dash-kpi:hover { transform: translateY(-4px); border-color: var(--border-glow); box-shadow: 0 12px 40px rgba(0,0,0,.2), 0 0 0 1px var(--border-glow); }
+  .hero-bar {
+    background: linear-gradient(135deg, var(--accent), var(--accent-secondary), #818cf8);
+    background-size: 200% 200%;
+    animation: gradientShift 8s ease infinite;
+    border-radius: 20px;
+    padding: 1.75rem 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    color: #fff;
+  }
+  .hero-bar::before {
+    content: '';
+    position: absolute;
+    top: -50%; right: -20%;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(255,255,255,0.15), transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .hero-bar::after {
+    content: '';
+    position: absolute;
+    bottom: -60%; left: -10%;
+    width: 250px; height: 250px;
+    background: radial-gradient(circle, rgba(255,255,255,0.1), transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  @keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .hero-greeting { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; position: relative; z-index: 1; }
+  .hero-sub { font-size: .85rem; opacity: .85; margin-top: .25rem; position: relative; z-index: 1; }
+  .hero-stats { display: flex; gap: 1.5rem; margin-top: 1rem; flex-wrap: wrap; position: relative; z-index: 1; }
+  .hero-stat { display: flex; align-items: center; gap: .5rem; }
+  .hero-stat-val { font-size: 1.25rem; font-weight: 800; }
+  .hero-stat-lbl { font-size: .7rem; opacity: .75; }
+
+  .dash-kpi {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    transition: all .3s cubic-bezier(.4,0,.2,1);
+    background: var(--bg-card);
+    border-radius: 16px;
+    padding: 1.25rem;
+  }
+  .dash-kpi::after {
+    content: '';
+    position: absolute; top: -50%; right: -30%;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    opacity: 0; transition: opacity .4s ease;
+    pointer-events: none;
+  }
+  .dash-kpi:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-glow);
+    box-shadow: 0 12px 40px rgba(0,0,0,.2), 0 0 0 1px var(--border-glow);
+  }
   .dash-kpi:hover::after { opacity: .06; }
   .kpi-users::after { background: radial-gradient(circle, var(--accent), transparent 70%); }
   .kpi-subs::after { background: radial-gradient(circle, var(--success), transparent 70%); }
   .kpi-rev::after { background: radial-gradient(circle, var(--warning), transparent 70%); }
   .kpi-tix::after { background: radial-gradient(circle, var(--info), transparent 70%); }
-  .kpi-icon { width: 54px; height: 54px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; }
-  .chart-area { position: relative; height: 140px; }
-  .quick-tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .9rem 1.1rem; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: .75rem; transition: all .25s ease; font-size: .85rem; font-weight: 500; }
-  .quick-tile:hover { background: var(--surface-hover); border-color: var(--accent); transform: translateX(6px); box-shadow: 0 4px 16px rgba(0,0,0,.15); }
-  .quick-tile i { font-size: 1.2rem; }
-  .mini-kpi { background: var(--surface); border-radius: 12px; padding: 1rem; text-align: center; transition: all .2s; }
-  .mini-kpi:hover { background: var(--surface-hover); }
-  .activity-ring { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
-  .vpn-metric { background: var(--surface); border-radius: 12px; padding: .85rem; text-align: center; transition: all .2s; border: 1px solid transparent; }
+
+  .kpi-icon {
+    width: 48px; height: 48px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; flex-shrink: 0; position: relative;
+  }
+  .kpi-icon::after {
+    content: ''; position: absolute; inset: 0; border-radius: 14px;
+    background: inherit; filter: blur(12px); opacity: .4; z-index: -1;
+  }
+
+  .chart-area { position: relative; height: 160px; }
+
+  .quick-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1rem 1.1rem;
+    color: var(--text);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    transition: all .25s ease;
+    font-size: .85rem;
+    font-weight: 500;
+    position: relative;
+    overflow: hidden;
+  }
+  .quick-tile::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  .quick-tile:hover {
+    background: var(--surface-hover);
+    border-color: var(--accent);
+    transform: translateX(6px);
+    box-shadow: 0 4px 16px rgba(0,0,0,.15);
+  }
+  .quick-tile:hover::before { opacity: 1; }
+  .quick-tile-icon {
+    width: 38px; height: 38px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+  }
+
+  .mini-kpi {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: .9rem;
+    text-align: center;
+    transition: all .2s;
+    border: 1px solid transparent;
+  }
+  .mini-kpi:hover { background: var(--surface-hover); border-color: var(--border); }
+
+  .section-title {
+    font-size: .95rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: .75rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+  }
+  .section-title i { color: var(--accent); }
+
+  .vpn-metric {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: .85rem;
+    text-align: center;
+    transition: all .2s;
+    border: 1px solid transparent;
+  }
   .vpn-metric:hover { background: var(--surface-hover); border-color: var(--border); }
+
+  .ring {
+    width: 40px; height: 40px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; flex-shrink: 0;
+  }
+
+  .payment-row {
+    display: flex;
+    align-items: center;
+    padding: .6rem 0;
+    border-bottom: 1px solid var(--border);
+    gap: .75rem;
+  }
+  .payment-row:last-child { border-bottom: none; }
+  .payment-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .85rem; flex-shrink: 0;
+  }
+  .payment-info { flex: 1; }
+  .payment-amount { font-weight: 700; font-size: .85rem; color: var(--text); }
+  .payment-meta { font-size: .7rem; color: var(--text-muted); }
+
+  .user-row {
+    display: flex;
+    align-items: center;
+    padding: .5rem 0;
+    gap: .75rem;
+  }
+  .user-avatar {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent-glow), rgba(14,165,233,.1));
+    display: flex; align-items: center; justify-content: center;
+    font-size: .8rem; color: var(--accent); flex-shrink: 0;
+    font-weight: 700;
+  }
+  .user-name { font-weight: 600; font-size: .82rem; color: var(--text); }
+  .user-meta { font-size: .7rem; color: var(--text-muted); }
 </style>
 {% endblock %}
 
 {% block content %}
+
+{% set admin = admin_info or {} %}
+<div class="hero-bar fade-in-up">
+  <div class="hero-greeting">Добро пожаловать{% if admin.sub %}, {{ admin.sub }}{% endif %}</div>
+  <div class="hero-sub">Обзор вашего VPN-сервиса за сегодня</div>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <span class="hero-stat-val">{{ stats.total_users }}</span>
+      <span class="hero-stat-lbl">пользователей</span>
+    </div>
+    <div class="hero-stat">
+      <span class="hero-stat-val">{{ stats.active_subscriptions }}</span>
+      <span class="hero-stat-lbl">подписок</span>
+    </div>
+    <div class="hero-stat">
+      <span class="hero-stat-val">{{ stats.total_revenue | int }} ₽</span>
+      <span class="hero-stat-lbl">выручка</span>
+    </div>
+  </div>
+</div>
+
 <div class="row g-3 mb-4">
   <div class="col-6 col-xl-3 fade-in-up stagger-1">
-    <div class="stat-card dash-kpi kpi-users">
-      <div class="kpi-icon" style="background:linear-gradient(135deg, rgba(0,212,170,.15), rgba(14,165,233,.1)); color:var(--accent)"><i class="bi bi-people-fill"></i></div>
-      <div>
-        <div class="stat-value">{{ stats.total_users }}</div>
-        <div class="stat-label">Пользователей</div>
-        <div class="stat-trend up"><i class="bi bi-arrow-up-short"></i>+{{ stats.new_users_today }} сегодня</div>
+    <div class="dash-kpi kpi-users">
+      <div class="d-flex align-items-center gap-3">
+        <div class="kpi-icon" style="background:linear-gradient(135deg, rgba(0,212,170,.15), rgba(14,165,233,.1)); color:var(--accent)"><i class="bi bi-people-fill"></i></div>
+        <div>
+          <div style="font-size:1.5rem;font-weight:800;line-height:1.1;color:var(--text)">{{ stats.total_users }}</div>
+          <div style="font-size:.72rem;color:var(--text-muted)">Пользователей</div>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-1 mt-3" style="font-size:.72rem;font-weight:600">
+        <i class="bi bi-arrow-up-short" style="color:var(--success)"></i>
+        <span style="color:var(--success)">+{{ stats.new_users_today }}</span>
+        <span style="color:var(--text-muted)">сегодня</span>
       </div>
     </div>
   </div>
   <div class="col-6 col-xl-3 fade-in-up stagger-2">
-    <div class="stat-card dash-kpi kpi-subs">
-      <div class="kpi-icon" style="background:linear-gradient(135deg, rgba(16,185,129,.15), rgba(5,150,105,.1)); color:var(--success)"><i class="bi bi-calendar-check-fill"></i></div>
-      <div>
-        <div class="stat-value">{{ stats.active_subscriptions }}</div>
-        <div class="stat-label">Активных подписок</div>
-        <div class="stat-trend down"><i class="bi bi-arrow-down-short"></i>{{ stats.expired_keys }} истекших</div>
+    <div class="dash-kpi kpi-subs">
+      <div class="d-flex align-items-center gap-3">
+        <div class="kpi-icon" style="background:linear-gradient(135deg, rgba(16,185,129,.15), rgba(5,150,105,.1)); color:var(--success)"><i class="bi bi-calendar-check-fill"></i></div>
+        <div>
+          <div style="font-size:1.5rem;font-weight:800;line-height:1.1;color:var(--text)">{{ stats.active_subscriptions }}</div>
+          <div style="font-size:.72rem;color:var(--text-muted)">Активных подписок</div>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-1 mt-3" style="font-size:.72rem;font-weight:600">
+        <i class="bi bi-clock" style="color:var(--warning)"></i>
+        <span style="color:var(--text-muted)">{{ stats.expired_keys }} истекших</span>
       </div>
     </div>
   </div>
   <div class="col-6 col-xl-3 fade-in-up stagger-3">
-    <div class="stat-card dash-kpi kpi-rev">
-      <div class="kpi-icon" style="background:linear-gradient(135deg, rgba(245,158,11,.15), rgba(217,119,6,.1)); color:var(--warning)"><i class="bi bi-currency-ruble"></i></div>
-      <div>
-        <div class="stat-value">{{ stats.total_revenue | int }}</div>
-        <div class="stat-label">Выручка (₽)</div>
-        <div class="stat-trend up"><i class="bi bi-arrow-up-short"></i>+{{ stats.revenue_today | int }} сегодня</div>
+    <div class="dash-kpi kpi-rev">
+      <div class="d-flex align-items-center gap-3">
+        <div class="kpi-icon" style="background:linear-gradient(135deg, rgba(245,158,11,.15), rgba(217,119,6,.1)); color:var(--warning)"><i class="bi bi-currency-ruble"></i></div>
+        <div>
+          <div style="font-size:1.5rem;font-weight:800;line-height:1.1;color:var(--text)">{{ stats.total_revenue | int }}</div>
+          <div style="font-size:.72rem;color:var(--text-muted)">Выручка (₽)</div>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-1 mt-3" style="font-size:.72rem;font-weight:600">
+        <i class="bi bi-arrow-up-short" style="color:var(--success)"></i>
+        <span style="color:var(--success)">+{{ stats.revenue_today | int }}</span>
+        <span style="color:var(--text-muted)">сегодня</span>
       </div>
     </div>
   </div>
   <div class="col-6 col-xl-3 fade-in-up stagger-4">
-    <div class="stat-card dash-kpi kpi-tix">
-      <div class="kpi-icon" style="background:linear-gradient(135deg, rgba(14,165,233,.15), rgba(2,132,199,.1)); color:var(--info)"><i class="bi bi-headset"></i></div>
-      <div>
-        <div class="stat-value">{{ stats.open_tickets }}</div>
-        <div class="stat-label">Открытых тикетов</div>
-        <div class="stat-trend" style="color:var(--text-muted)"><i class="bi bi-clock"></i>{{ stats.pending_payments }} ожид.</div>
+    <div class="dash-kpi kpi-tix">
+      <div class="d-flex align-items-center gap-3">
+        <div class="kpi-icon" style="background:linear-gradient(135deg, rgba(14,165,233,.15), rgba(2,132,199,.1)); color:var(--info)"><i class="bi bi-headset"></i></div>
+        <div>
+          <div style="font-size:1.5rem;font-weight:800;line-height:1.1;color:var(--text)">{{ stats.open_tickets }}</div>
+          <div style="font-size:.72rem;color:var(--text-muted)">Открытых тикетов</div>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-1 mt-3" style="font-size:.72rem;font-weight:600">
+        <i class="bi bi-hourglass-split" style="color:var(--warning)"></i>
+        <span style="color:var(--text-muted)">{{ stats.pending_payments }} ожид.</span>
       </div>
     </div>
   </div>
@@ -74,10 +285,10 @@
     <div class="card p-3">
       <div class="d-flex align-items-center justify-content-between mb-3">
         <div class="d-flex align-items-center gap-2">
-          <div class="activity-ring" style="background:linear-gradient(135deg, var(--accent-glow), rgba(14,165,233,.1)); color:var(--accent)"><i class="bi bi-graph-up"></i></div>
+          <div class="ring" style="background:linear-gradient(135deg, var(--accent-glow), rgba(14,165,233,.1)); color:var(--accent)"><i class="bi bi-graph-up"></i></div>
           <div>
             <div style="font-size:.9rem;font-weight:700;color:var(--text)">Выручка за 7 дней</div>
-            <div style="font-size:.75rem;color:var(--text-muted)">Последняя неделя</div>
+            <div style="font-size:.72rem;color:var(--text-muted)">Последняя неделя</div>
           </div>
         </div>
         <span class="badge badge-custom badge-active">{{ stats.total_revenue | int }} ₽ всего</span>
@@ -88,106 +299,173 @@
   <div class="col-lg-4 fade-in-up stagger-2">
     <div class="card p-3 h-100">
       <div class="d-flex align-items-center gap-2 mb-3">
-        <div class="activity-ring" style="background:linear-gradient(135deg, var(--info-glow), rgba(14,165,233,.1)); color:var(--info)"><i class="bi bi-activity"></i></div>
+        <div class="ring" style="background:linear-gradient(135deg, var(--info-glow), rgba(14,165,233,.1)); color:var(--info)"><i class="bi bi-activity"></i></div>
         <div>
           <div style="font-size:.9rem;font-weight:700;color:var(--text)">Активность</div>
-          <div style="font-size:.75rem;color:var(--text-muted)">Сегодня</div>
+          <div style="font-size:.72rem;color:var(--text-muted)">Сегодня</div>
         </div>
       </div>
       <div class="row g-2 mb-3">
         <div class="col-6">
           <div class="mini-kpi">
-            <div style="font-size:1.6rem;font-weight:800;color:var(--success)">+{{ stats.new_users_today }}</div>
-            <div style="font-size:.72rem;color:var(--text-muted)">Новые юзеры</div>
+            <div style="font-size:1.5rem;font-weight:800;color:var(--success)">+{{ stats.new_users_today }}</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">Новые юзеры</div>
           </div>
         </div>
         <div class="col-6">
           <div class="mini-kpi">
-            <div style="font-size:1.6rem;font-weight:800;color:var(--accent)">{{ recent_payments | length }}</div>
-            <div style="font-size:.72rem;color:var(--text-muted)">Платежи</div>
+            <div style="font-size:1.5rem;font-weight:800;color:var(--accent)">{{ recent_payments | length }}</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">Платежи</div>
           </div>
         </div>
       </div>
       <div class="mini-chart" id="miniSparkline"></div>
     </div>
   </div>
+</div>
 
+{% if marzban_stats %}
 <div class="row g-3 mb-4">
-  {% if marzban_stats %}
   <div class="col-lg-6 fade-in-up">
     <div class="card p-3">
       <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
         <div class="d-flex align-items-center gap-2">
-          <div class="activity-ring" style="background:linear-gradient(135deg, rgba(99,102,241,.15), rgba(139,92,246,.1)); color:#818cf8"><i class="bi bi-hdd-network-fill"></i></div>
+          <div class="ring" style="background:linear-gradient(135deg, rgba(99,102,241,.15), rgba(139,92,246,.1)); color:#818cf8"><i class="bi bi-hdd-network-fill"></i></div>
           <div>
-            <div style="font-size:.9rem;font-weight:700;color:var(--text)">VPN Panel</div>
-            <div style="font-size:.75rem;color:var(--text-muted)">Marzban</div>
+            <div style="font-size:.9rem;font-weight:700;color:var(--text)">VPN Панель</div>
+            <div style="font-size:.72rem;color:var(--text-muted)">Marzban</div>
           </div>
         </div>
         <div class="d-flex align-items-center gap-2">
           <span class="status-dot online"></span>
-          <span style="font-size:.78rem;color:var(--success);font-weight:600">Подключено</span>
+          <span style="font-size:.75rem;color:var(--success);font-weight:600">Подключено</span>
         </div>
       </div>
       <div class="row g-2">
         <div class="col-6 col-md-3">
           <div class="vpn-metric">
-            <div style="font-size:.85rem;color:var(--success);margin-bottom:.3rem"><i class="bi bi-wifi"></i></div>
-            <div style="font-size:1.15rem;font-weight:800;color:var(--text)">{{ marzban_stats.get('users_active', 0) }}</div>
-            <div style="font-size:.68rem;color:var(--text-muted)">Онлайн</div>
+            <div style="font-size:.8rem;color:var(--success);margin-bottom:.3rem"><i class="bi bi-wifi"></i></div>
+            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ marzban_stats.get('users_active', 0) }}</div>
+            <div style="font-size:.65rem;color:var(--text-muted)">Онлайн</div>
           </div>
         </div>
         <div class="col-6 col-md-3">
           <div class="vpn-metric">
-            <div style="font-size:.85rem;color:#818cf8;margin-bottom:.3rem"><i class="bi bi-people"></i></div>
-            <div style="font-size:1.15rem;font-weight:800;color:var(--text)">{{ marzban_stats.get('total_user', 0) }}</div>
-            <div style="font-size:.68rem;color:var(--text-muted)">Всего</div>
+            <div style="font-size:.8rem;color:#818cf8;margin-bottom:.3rem"><i class="bi bi-people"></i></div>
+            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ marzban_stats.get('total_user', 0) }}</div>
+            <div style="font-size:.65rem;color:var(--text-muted)">Всего</div>
           </div>
         </div>
         <div class="col-6 col-md-3">
           <div class="vpn-metric">
-            <div style="font-size:.85rem;color:var(--info);margin-bottom:.3rem"><i class="bi bi-arrow-down-circle"></i></div>
-            <div style="font-size:1.15rem;font-weight:800;color:var(--text)">{{ (marzban_stats.get('incoming_bandwidth', 0) / 1073741824) | round(1) }} GB</div>
-            <div style="font-size:.68rem;color:var(--text-muted)">Входящий</div>
+            <div style="font-size:.8rem;color:var(--info);margin-bottom:.3rem"><i class="bi bi-arrow-down-circle"></i></div>
+            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ (marzban_stats.get('incoming_bandwidth', 0) / 1073741824) | round(1) }} GB</div>
+            <div style="font-size:.65rem;color:var(--text-muted)">Входящий</div>
           </div>
         </div>
         <div class="col-6 col-md-3">
           <div class="vpn-metric">
-            <div style="font-size:.85rem;color:var(--danger);margin-bottom:.3rem"><i class="bi bi-arrow-up-circle"></i></div>
-            <div style="font-size:1.15rem;font-weight:800;color:var(--text)">{{ (marzban_stats.get('outgoing_bandwidth', 0) / 1073741824) | round(1) }} GB</div>
-            <div style="font-size:.68rem;color:var(--text-muted)">Исходящий</div>
+            <div style="font-size:.8rem;color:var(--danger);margin-bottom:.3rem"><i class="bi bi-arrow-up-circle"></i></div>
+            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ (marzban_stats.get('outgoing_bandwidth', 0) / 1073741824) | round(1) }} GB</div>
+            <div style="font-size:.65rem;color:var(--text-muted)">Исходящий</div>
           </div>
         </div>
       </div>
     </div>
   </div>
-  {% endif %}
-  <div class="col-lg-{% if marzban_stats %}6{% else %}12{% endif %} fade-in-up stagger-2">
+  <div class="col-lg-6 fade-in-up stagger-2">
+    <div class="card p-3 h-100">
+      <div class="section-title"><i class="bi bi-lightning-fill"></i> Быстрые действия</div>
+      <div class="row g-2">
+        <div class="col-6">
+          <a href="/panel/support" class="quick-tile" style="width:100%">
+            <div class="quick-tile-icon" style="background:rgba(14,165,233,.12);color:var(--info)"><i class="bi bi-headset"></i></div>
+            <div>
+              <div style="font-weight:600">Тикеты</div>
+              <div style="font-size:.7rem;color:var(--text-muted)">Поддержка</div>
+            </div>
+            {% if stats.open_tickets %}<span class="badge badge-custom badge-open ms-auto">{{ stats.open_tickets }}</span>{% endif %}
+          </a>
+        </div>
+        <div class="col-6">
+          <a href="/panel/broadcasts" class="quick-tile" style="width:100%">
+            <div class="quick-tile-icon" style="background:var(--accent-glow);color:var(--accent)"><i class="bi bi-megaphone"></i></div>
+            <div>
+              <div style="font-weight:600">Рассылка</div>
+              <div style="font-size:.7rem;color:var(--text-muted)">Уведомления</div>
+            </div>
+          </a>
+        </div>
+        <div class="col-6">
+          <a href="/panel/promos" class="quick-tile" style="width:100%">
+            <div class="quick-tile-icon" style="background:var(--success-glow);color:var(--success)"><i class="bi bi-ticket-perforated"></i></div>
+            <div>
+              <div style="font-weight:600">Промокоды</div>
+              <div style="font-size:.7rem;color:var(--text-muted)">Скидки</div>
+            </div>
+          </a>
+        </div>
+        <div class="col-6">
+          <a href="/panel/vpn" class="quick-tile" style="width:100%">
+            <div class="quick-tile-icon" style="background:var(--warning-glow);color:var(--warning)"><i class="bi bi-key"></i></div>
+            <div>
+              <div style="font-weight:600">VPN ключи</div>
+              <div style="font-size:.7rem;color:var(--text-muted)">Подписки</div>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="row g-3 mb-4">
+  <div class="col-12 fade-in-up">
     <div class="card p-3">
-      <div class="d-flex align-items-center gap-2 mb-3">
-        <div class="activity-ring" style="background:linear-gradient(135deg, var(--warning-glow), rgba(245,158,11,.1)); color:var(--warning)"><i class="bi bi-lightning-fill"></i></div>
-        <div>
-          <div style="font-size:.9rem;font-weight:700;color:var(--text)">Быстрые действия</div>
-          <div style="font-size:.75rem;color:var(--text-muted)">Перейти к разделу</div>
+      <div class="section-title"><i class="bi bi-lightning-fill"></i> Быстрые действия</div>
+      <div class="row g-2">
+        <div class="col-6 col-md-3">
+          <a href="/panel/support" class="quick-tile" style="width:100%">
+            <div class="quick-tile-icon" style="background:rgba(14,165,233,.12);color:var(--info)"><i class="bi bi-headset"></i></div>
+            <div>
+              <div style="font-weight:600">Тикеты</div>
+              <div style="font-size:.7rem;color:var(--text-muted)">Поддержка</div>
+            </div>
+            {% if stats.open_tickets %}<span class="badge badge-custom badge-open ms-auto">{{ stats.open_tickets }}</span>{% endif %}
+          </a>
         </div>
-      </div>
-      <div class="d-flex flex-wrap gap-2">
-        <a href="/panel/support" class="quick-tile" style="flex:1 1 calc(50% - .5rem);min-width:140px">
-          <i class="bi bi-headset" style="color:var(--info)"></i><span>Тикеты</span>
-          {% if stats.open_tickets %}<span class="badge badge-custom badge-open ms-auto">{{ stats.open_tickets }}</span>{% endif %}
-        </a>
-        <a href="/panel/broadcasts" class="quick-tile" style="flex:1 1 calc(50% - .5rem);min-width:140px">
-          <i class="bi bi-megaphone" style="color:var(--accent)"></i><span>Рассылка</span>
-        </a>
-        <a href="/panel/promos" class="quick-tile" style="flex:1 1 calc(50% - .5rem);min-width:140px">
-          <i class="bi bi-ticket-perforated" style="color:var(--success)"></i><span>Промокоды</span>
-        </a>
-        <a href="/panel/vpn" class="quick-tile" style="flex:1 1 calc(50% - .5rem);min-width:140px">
-          <i class="bi bi-key" style="color:var(--warning)"></i><span>VPN ключи</span>
-        </a>
+        <div class="col-6 col-md-3">
+          <a href="/panel/broadcasts" class="quick-tile" style="width:100%">
+            <div class="quick-tile-icon" style="background:var(--accent-glow);color:var(--accent)"><i class="bi bi-megaphone"></i></div>
+            <div>
+              <div style="font-weight:600">Рассылка</div>
+              <div style="font-size:.7rem;color:var(--text-muted)">Уведомления</div>
+            </div>
+          </a>
+        </div>
+        <div class="col-6 col-md-3">
+          <a href="/panel/promos" class="quick-tile" style="width:100%">
+            <div class="quick-tile-icon" style="background:var(--success-glow);color:var(--success)"><i class="bi bi-ticket-perforated"></i></div>
+            <div>
+              <div style="font-weight:600">Промокоды</div>
+              <div style="font-size:.7rem;color:var(--text-muted)">Скидки</div>
+            </div>
+          </a>
+        </div>
+        <div class="col-6 col-md-3">
+          <a href="/panel/vpn" class="quick-tile" style="width:100%">
+            <div class="quick-tile-icon" style="background:var(--warning-glow);color:var(--warning)"><i class="bi bi-key"></i></div>
+            <div>
+              <div style="font-weight:600">VPN ключи</div>
+              <div style="font-size:.7rem;color:var(--text-muted)">Подписки</div>
+            </div>
+          </a>
+        </div>
       </div>
     </div>
   </div>
+</div>
+{% endif %}
 
 <div class="row g-3">
   <div class="col-lg-7 fade-in-up">
@@ -196,34 +474,23 @@
         <span><i class="bi bi-people me-2" style="color:var(--accent)"></i>Последние пользователи</span>
         <a href="/panel/users" class="btn btn-accent btn-sm px-3">Все</a>
       </div>
-      <div class="table-responsive">
-        <table class="table mb-0">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Имя</th>
-              <th class="d-none d-sm-table-cell">Username</th>
-              <th>Статус</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for u in recent_users %}
-            <tr>
-              <td><code style="color:var(--accent)">{{ u.id }}</code></td>
-              <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500">{{ u.full_name }}</td>
-              <td class="d-none d-sm-table-cell" style="color:var(--text-muted)">{% if u.username %}@{{ u.username }}{% else %}—{% endif %}</td>
-              <td>
-                {% if u.is_banned %}<span class="badge badge-custom badge-expired">Забанен</span>
-                {% else %}<span class="badge badge-custom badge-active">Активен</span>{% endif %}
-              </td>
-            </tr>
-            {% else %}
-            <tr>
-              <td colspan="4" class="text-center py-4"><div class="empty-state"><i class="bi bi-people"></i><span>Нет пользователей</span></div></td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="p-3">
+        {% for u in recent_users %}
+        <div class="user-row">
+          <div class="user-avatar">{{ u.full_name[:1] | upper if u.full_name else '?' }}</div>
+          <div style="flex:1;min-width:0">
+            <div class="user-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ u.full_name or 'User' }}</div>
+            <div class="user-meta">{% if u.username %}@{{ u.username }}{% else %}ID: {{ u.id }}{% endif %}</div>
+          </div>
+          {% if u.is_banned %}
+          <span class="badge badge-custom badge-expired">Забанен</span>
+          {% else %}
+          <span class="badge badge-custom badge-active">Активен</span>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="empty-state"><i class="bi bi-people"></i><span>Нет пользователей</span></div>
+        {% endfor %}
       </div>
     </div>
   </div>
@@ -233,35 +500,28 @@
         <span><i class="bi bi-credit-card me-2" style="color:var(--warning)"></i>Последние платежи</span>
         <a href="/panel/payments" class="btn btn-accent btn-sm px-3">Все</a>
       </div>
-      <div class="table-responsive">
-        <table class="table mb-0">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Сумма</th>
-              <th>Статус</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for p in recent_payments %}
-            <tr>
-              <td><code style="color:var(--accent)">#{{ p.id }}</code></td>
-              <td style="font-weight:600;color:var(--text)">{{ p.amount }} <span style="color:var(--text-muted);font-size:.75rem">{{ p.currency }}</span></td>
-              <td>
-                {% set st = p.status.value if p.status.value is defined else p.status %}
-                {% if st == 'succeeded' %}<span class="badge badge-custom badge-active">Успешно</span>
-                {% elif st == 'pending' %}<span class="badge badge-custom badge-pending">Ожидание</span>
-                {% elif st == 'failed' %}<span class="badge badge-custom badge-expired">Ошибка</span>
-                {% else %}<span class="badge badge-custom badge-closed">{{ st }}</span>{% endif %}
-              </td>
-            </tr>
-            {% else %}
-            <tr>
-              <td colspan="3" class="text-center py-4"><div class="empty-state"><i class="bi bi-credit-card"></i><span>Нет платежей</span></div></td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="p-3">
+        {% for p in recent_payments %}
+        <div class="payment-row">
+          {% set st = p.status.value if p.status.value is defined else p.status %}
+          {% if st == 'succeeded' %}
+          <div class="payment-icon" style="background:var(--success-glow);color:var(--success)"><i class="bi bi-check-lg"></i></div>
+          {% elif st == 'pending' %}
+          <div class="payment-icon" style="background:var(--warning-glow);color:var(--warning)"><i class="bi bi-hourglass"></i></div>
+          {% else %}
+          <div class="payment-icon" style="background:var(--danger-glow);color:var(--danger)"><i class="bi bi-x-lg"></i></div>
+          {% endif %}
+          <div class="payment-info">
+            <div class="payment-amount">{{ p.amount }} {{ p.currency }}</div>
+            <div class="payment-meta">Платёж #{{ p.id }}</div>
+          </div>
+          {% if st == 'succeeded' %}<span class="badge badge-custom badge-active">Успешно</span>
+          {% elif st == 'pending' %}<span class="badge badge-custom badge-pending">Ожидание</span>
+          {% else %}<span class="badge badge-custom badge-expired">Ошибка</span>{% endif %}
+        </div>
+        {% else %}
+        <div class="empty-state"><i class="bi bi-credit-card"></i><span>Нет платежей</span></div>
+        {% endfor %}
       </div>
     </div>
   </div>
@@ -286,7 +546,7 @@
 
   const revCtx = document.getElementById('revenueChart');
   if (revCtx) {
-    const gradient = revCtx.getContext('2d').createLinearGradient(0, 0, 0, 140);
+    const gradient = revCtx.getContext('2d').createLinearGradient(0, 0, 0, 160);
     gradient.addColorStop(0, 'rgba(0, 212, 170, 0.25)');
     gradient.addColorStop(1, 'rgba(0, 212, 170, 0.0)');
 
@@ -299,14 +559,17 @@
           data: revData,
           backgroundColor: gradient,
           borderColor: '#00d4aa',
-          borderWidth: 2,
+          borderWidth: 2.5,
           tension: 0.4,
           fill: true,
           pointBackgroundColor: '#00d4aa',
-          pointBorderColor: '#070b14',
+          pointBorderColor: isLight ? '#f8fafc' : '#0f1419',
           pointBorderWidth: 2,
-          pointRadius: 4,
-          pointHoverRadius: 6,
+          pointRadius: 3,
+          pointHoverRadius: 7,
+          pointHoverBackgroundColor: '#00d4aa',
+          pointHoverBorderColor: '#fff',
+          pointHoverBorderWidth: 2,
         }]
       },
       options: {
@@ -315,7 +578,7 @@
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: isLight ? '#fff' : '#0f1419',
+            backgroundColor: isLight ? '#fff' : '#131820',
             titleColor: isLight ? '#0f172a' : '#f1f5f9',
             bodyColor: isLight ? '#475569' : '#94a3b8',
             borderColor: isLight ? 'rgba(0,0,0,.08)' : 'rgba(148,163,184,.1)',

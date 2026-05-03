@@ -4,8 +4,8 @@
     <div class="card h-100 p-3">
       <div class="d-flex align-items-start justify-content-between mb-2">
         <div>
-          <div class="fw-bold text-white">{{ plan.name }}</div>
-          <code style="font-size:.7rem;color:#8892a4">{{ plan.slug }}</code>
+          <div class="fw-bold" style="color:var(--text)">{{ plan.name }}</div>
+          <code style="font-size:.7rem;color:var(--text-muted)">{{ plan.slug }}</code>
         </div>
         {% if plan.is_active %}
           <span class="badge badge-custom badge-active">Активен</span>
@@ -14,9 +14,9 @@
         {% endif %}
       </div>
       {% if plan.description %}
-      <p style="font-size:.8rem;color:#8892a4;margin-bottom:.75rem">{{ plan.description }}</p>
+      <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:.75rem">{{ plan.description }}</p>
       {% endif %}
-      <div class="d-flex gap-3 mb-3" style="font-size:.8rem;color:#8892a4">
+      <div class="d-flex gap-3 mb-3" style="font-size:.8rem;color:var(--text-muted)">
         <span><i class="bi bi-clock me-1"></i>{{ plan.duration_days }} дн.</span>
         <span><i class="bi bi-currency-ruble me-1"></i>{{ plan.price }} {{ plan.currency }}</span>
       </div>
@@ -43,7 +43,7 @@
     </div>
   </div>
   {% else %}
-  <div class="col-12 text-center py-5" style="color:#8892a4">
+  <div class="col-12 text-center py-5" style="color:var(--text-muted)">
     <i class="bi bi-tags" style="font-size:2rem;display:block;margin-bottom:.5rem"></i>
     Тарифов пока нет. Создайте первый.
   </div>

@@ -10,8 +10,8 @@
     <div class="card p-3 d-flex align-items-center gap-3">
       <div style="width:42px;height:42px;background:rgba(0,212,170,.15);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#00d4aa"><i class="bi bi-calendar-check"></i></div>
       <div>
-        <div class="fw-semibold text-white">{{ subscriptions|selectattr('status.value','equalto','active')|list|length }}</div>
-        <div style="font-size:.75rem;color:#8892a4">Активные</div>
+        <div class="fw-semibold style="color:var(--text)"">{{ subscriptions|selectattr('status.value','equalto','active')|list|length }}</div>
+        <div style="font-size:.75rem;color:var(--text-muted)">Активные</div>
       </div>
     </div>
   </div>
@@ -19,8 +19,8 @@
     <div class="card p-3 d-flex align-items-center gap-3">
       <div style="width:42px;height:42px;background:rgba(239,68,68,.15);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#ef4444"><i class="bi bi-calendar-x"></i></div>
       <div>
-        <div class="fw-semibold text-white">{{ subscriptions|selectattr('status.value','equalto','expired')|list|length }}</div>
-        <div style="font-size:.75rem;color:#8892a4">Истёкшие</div>
+        <div class="fw-semibold style="color:var(--text)"">{{ subscriptions|selectattr('status.value','equalto','expired')|list|length }}</div>
+        <div style="font-size:.75rem;color:var(--text-muted)">Истёкшие</div>
       </div>
     </div>
   </div>
@@ -28,8 +28,8 @@
     <div class="card p-3 d-flex align-items-center gap-3">
       <div style="width:42px;height:42px;background:rgba(59,130,246,.15);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#3b82f6"><i class="bi bi-collection"></i></div>
       <div>
-        <div class="fw-semibold text-white">{{ subscriptions|length }}</div>
-        <div style="font-size:.75rem;color:#8892a4">Всего</div>
+        <div class="fw-semibold style="color:var(--text)"">{{ subscriptions|length }}</div>
+        <div style="font-size:.75rem;color:var(--text-muted)">Всего</div>
       </div>
     </div>
   </div>
@@ -39,10 +39,10 @@
 <div class="card p-3 mb-3">
   <ul class="nav nav-tabs mb-3" id="createSubTabs" style="border-bottom:1px solid rgba(255,255,255,.08)">
     <li class="nav-item">
-      <button class="nav-link active" id="tab-plan" data-bs-toggle="tab" data-bs-target="#pane-plan" type="button" style="background:transparent;border:none;color:#8892a4;padding:.5rem 1rem">По тарифу</button>
+      <button class="nav-link active" id="tab-plan" data-bs-toggle="tab" data-bs-target="#pane-plan" type="button" style="background:transparent;border:none;color:var(--text-muted);padding:.5rem 1rem">По тарифу</button>
     </li>
     <li class="nav-item">
-      <button class="nav-link" id="tab-days" data-bs-toggle="tab" data-bs-target="#pane-days" type="button" style="background:transparent;border:none;color:#8892a4;padding:.5rem 1rem">По дням</button>
+      <button class="nav-link" id="tab-days" data-bs-toggle="tab" data-bs-target="#pane-days" type="button" style="background:transparent;border:none;color:var(--text-muted);padding:.5rem 1rem">По дням</button>
     </li>
   </ul>
   <div class="tab-content">
@@ -105,7 +105,7 @@
         <button class="btn btn-sm btn-outline dropdown-toggle" type="button" data-bs-toggle="dropdown">
           <i class="bi bi-download me-1"></i>Экспорт
         </button>
-        <ul class="dropdown-menu dropdown-menu-dark" style="background:var(--card-bg);border-color:var(--border)">
+        <ul class="dropdown-menu dropdown-menu-dark" style="background:var(--bg-elevated);border-color:var(--border)">
           <li><a class="dropdown-item" href="/panel/export/subscriptions?format=csv" style="color:var(--text)">CSV</a></li>
           <li><a class="dropdown-item" href="/panel/export/subscriptions?format=xlsx" style="color:var(--text)">Excel</a></li>
         </ul>
@@ -128,27 +128,28 @@
       </thead>
       <tbody>
         {% for sub in subscriptions %}
-        <tr id="sub-row-{{ sub.id }}" class="sub-row" data-status="{{ sub.status.value }}">
+        <tr id="sub-row-{{ sub.id }}" class="sub-row" data-status="{{ sub.status.value if sub.status.value is defined else sub.status }}">
           <td><code style="color:#00d4aa">#{{ sub.id }}</code></td>
           <td><a href="/panel/users/{{ sub.user_id }}" style="color:#00d4aa">{{ sub.user_id }}</a></td>
           <td>
             {% if sub.plan %}
               <span class="badge badge-custom" style="background:rgba(0,212,170,.15);color:#00d4aa">{{ sub.plan.name }}</span>
             {% else %}
-              <span style="color:#8892a4">{{ sub.name or '—' }}</span>
+              <span style="color:var(--text-muted)">{{ sub.name or '—' }}</span>
             {% endif %}
           </td>
           <td>
-            {% if sub.status.value == 'active' %}
+            {% set st = sub.status.value if sub.status.value is defined else sub.status %}
+            {% if st == 'active' %}
               <span class="badge badge-custom badge-active">Активна</span>
-            {% elif sub.status.value == 'expired' %}
+            {% elif st == 'expired' %}
               <span class="badge badge-custom badge-expired">Истекла</span>
             {% else %}
               <span class="badge badge-custom badge-closed">Отозвана</span>
             {% endif %}
           </td>
           <td><b>{{ sub.price or '—' }}</b>{% if sub.price %} ₽{% endif %}</td>
-          <td style="color:#8892a4;font-size:.8rem">
+          <td style="color:var(--text-muted);font-size:.8rem">
             {{ sub.expires_at.strftime('%d.%m.%Y') if sub.expires_at else '—' }}
           </td>
           <td>
@@ -158,7 +159,7 @@
                 onclick="document.getElementById('extendSubId').textContent='{{ sub.id }}';document.getElementById('extendForm').setAttribute('hx-post','/panel/subscriptions/{{ sub.id }}/extend');new bootstrap.Modal(document.getElementById('extendModal')).show()">
                 <i class="bi bi-calendar-plus"></i>
               </button>
-              {% if sub.status.value == 'active' %}
+              {% if st == 'active' %}
               <button class="btn btn-xs btn-outline-danger"
                 title="Отозвать"
                 hx-post="/panel/subscriptions/{{ sub.id }}/cancel"
@@ -171,7 +172,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="text-center py-4" style="color:#8892a4">Подписок нет</td></tr>
+        <tr><td colspan="7" class="text-center py-4" style="color:var(--text-muted)">Подписок нет</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -180,14 +181,14 @@
 
 <div class="modal fade" id="extendModal" tabindex="-1">
   <div class="modal-dialog modal-sm">
-    <div class="modal-content" style="background:#1a1f2e;border:1px solid rgba(255,255,255,.08)">
+    <div class="modal-content" style="background:var(--bg-elevated);border:1px solid var(--border)">
       <div class="modal-header border-0">
-        <h6 class="modal-title text-white">Продлить подписку</h6>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <h6 class="modal-title"><i class="bi bi-calendar-plus me-2" style="color:var(--accent)"></i>Продлить</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1)"></button>
       </div>
       <form id="extendForm" hx-swap="none">
         <div class="modal-body">
-          <p style="color:#8892a4;font-size:.85rem">Подписка #<span id="extendSubId"></span></p>
+          <p style="font-size:.85rem">Подписка #<span id="extendSubId"></span></p>
           <label class="form-label">Количество дней</label>
           <input type="number" name="days" class="form-control" value="30" min="1" max="3650" required />
         </div>

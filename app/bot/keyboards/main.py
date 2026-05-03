@@ -23,7 +23,7 @@ _DEFAULT_LAYOUT = [
     ],
     [{"id": "top_referrers", "label": "🏆 Топ рефереров", "callback": "top_referrers"}],
     [{"id": "support", "label": "💬 Поддержка", "callback": "support"}],
-    [{"id": "user_miniapp", "label": "📱 Mini App", "web_app": True}, {"id": "admin_panel", "label": "🖥 Админ панель", "web_app": True}],
+    [{"id": "miniapp", "label": "📱 Mini App", "web_app": True}, {"id": "admin_panel", "label": "🖥 Админ панель", "web_app": True}],
 ]
 
 

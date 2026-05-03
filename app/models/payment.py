@@ -33,7 +33,7 @@ class Payment(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(
-        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     vpn_key_id = Column(
         Integer, ForeignKey("vpn_keys.id", ondelete="SET NULL"), nullable=True
@@ -45,7 +45,7 @@ class Payment(Base):
     external_id = Column(String(256), nullable=True, unique=True)
     amount = Column(Numeric(10, 2), nullable=False)
     currency = Column(String(8), default="RUB", nullable=False)
-    status = Column(String(16), default=PaymentStatus.PENDING.value, nullable=False)
+    status = Column(String(16), default=PaymentStatus.PENDING.value, nullable=False, index=True)
     meta = Column(Text, nullable=True)
 
     user = relationship("User", back_populates="payments")

@@ -6,7 +6,7 @@
 {% block head %}
 <style>
 .tab-nav { display:flex; gap:.5rem; margin-bottom:1.25rem; flex-wrap:wrap; }
-.tab-btn { padding:.4rem .9rem; border-radius:8px; font-size:.78rem; font-weight:600; border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; transition:all .15s; }
+.tab-btn { padding:.4rem .9rem; border-radius:8px; font-size:.78rem; font-weight:600; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; transition:all .15s; }
 .tab-btn:hover { color:#fff; background:rgba(255,255,255,.05); }
 .tab-btn.active { background:rgba(0,212,170,.2); border-color:var(--accent); color:#fff; }
 .tab-pane { display:none; }
@@ -29,7 +29,7 @@
 <div class="row g-3">
   <div class="col-lg-5">
     <div class="card p-3 mb-3">
-      <div class="fw-semibold text-white mb-3"><i class="bi bi-hdd-network me-2 text-muted"></i>Подключение</div>
+      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-hdd-network me-2 text-muted"></i>Подключение</div>
       <div id="marzban-status" class="mb-3">
         {% if marzban_ok %}
         <div class="d-flex align-items-center gap-2 mb-3" style="color:#22c55e;font-size:.85rem">
@@ -48,8 +48,8 @@
           {% for icon,bg,color,label,val in items %}
           <div class="col-6">
             <div style="background:{{ bg }};border-radius:8px;padding:.5rem .75rem;font-size:.75rem">
-              <div style="color:#8892a4"><i class="bi {{ icon }} me-1" style="color:{{ color }}"></i>{{ label }}</div>
-              <div class="text-white fw-semibold">{{ val }}</div>
+              <div style="color:var(--text-muted)"><i class="bi {{ icon }} me-1" style="color:{{ color }}"></i>{{ label }}</div>
+              <div class="style="color:var(--text)" fw-semibold">{{ val }}</div>
             </div>
           </div>
           {% endfor %}
@@ -68,10 +68,10 @@
     </div>
 
     <div class="card p-3">
-      <div class="fw-semibold text-white mb-2"><i class="bi bi-diagram-3 me-2 text-muted"></i>Группы для новых ключей</div>
-      <div style="font-size:.75rem;color:#8892a4;margin-bottom:.75rem">Группы назначаются при создании подписки</div>
+      <div class="fw-semibold style="color:var(--text)" mb-2"><i class="bi bi-diagram-3 me-2 text-muted"></i>Группы для новых ключей</div>
+      <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.75rem">Группы назначаются при создании подписки</div>
       <form hx-post="/panel/telegram/groups" hx-swap="none">
-        <div id="pg-groups-list" style="min-height:40px;font-size:.8rem;color:#8892a4">
+        <div id="pg-groups-list" style="min-height:40px;font-size:.8rem;color:var(--text-muted)">
           <i class="bi bi-arrow-down-circle me-1"></i>Нажмите «Загрузить»
         </div>
         <div class="d-flex gap-2 mt-3">
@@ -91,7 +91,7 @@
 
   <div class="col-lg-7">
     <div class="card p-3">
-      <div class="fw-semibold text-white mb-3"><i class="bi bi-activity me-2 text-muted"></i>Быстрые действия</div>
+      <div class="fw-semibold style="color:var(--text)" mb-3"><i class="bi bi-activity me-2 text-muted"></i>Быстрые действия</div>
       <div class="row g-2">
         <div class="col-6">
           <button class="btn btn-outline-secondary w-100 text-start"
@@ -120,7 +120,7 @@
       <i class="bi bi-arrow-repeat me-1"></i>Загрузить
     </button>
   </div>
-  <div id="pg-users-table" class="p-3" style="color:#8892a4;font-size:.85rem">
+  <div id="pg-users-table" class="p-3" style="color:var(--text-muted);font-size:.85rem">
     Нажмите «Загрузить» для получения списка пользователей из Marzban.
   </div>
 </div>
@@ -135,7 +135,7 @@
       <i class="bi bi-arrow-repeat me-1"></i>Загрузить
     </button>
   </div>
-  <div id="pg-groups-table" class="p-3" style="color:#8892a4;font-size:.85rem">
+  <div id="pg-groups-table" class="p-3" style="color:var(--text-muted);font-size:.85rem">
     Нажмите «Загрузить» для получения групп.
   </div>
 </div>
@@ -150,7 +150,7 @@
       <i class="bi bi-arrow-repeat me-1"></i>Загрузить
     </button>
   </div>
-  <div id="pg-nodes-table" class="p-3" style="color:#8892a4;font-size:.85rem">
+  <div id="pg-nodes-table" class="p-3" style="color:var(--text-muted);font-size:.85rem">
     Нажмите «Загрузить» для получения нод.
   </div>
 </div>

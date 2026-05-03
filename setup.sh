@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  VPN Dashboard — Setup & Deploy
+#  Improved with: pre-flight checks, port validation, Docker health, .env backup
 # =============================================================================
 set -euo pipefail
 
@@ -10,7 +11,7 @@ CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
 info()    { echo -e "${CYAN}[INFO]${RESET} $*"; }
 success() { echo -e "${GREEN}[OK]${RESET}   $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${RESET} $*"; }
-error()   { echo -e "${RED}[ERR]${RESET}  $*"; exit 1; }
+error()   { echo -e "${RED}[ERR]${RESET}  $*" >&2; exit 1; }
 
 echo -e "${BOLD}${CYAN}"
 echo "╔═══════════════════════════════════════════════════════════╗"
@@ -18,11 +19,104 @@ echo "║       Scorbium Dashboard VPN  — Setup & Deploy            ║"
 echo "╚═══════════════════════════════════════════════════════════╝"
 echo -e "${RESET}"
 
-# ── Зависимости ───────────────────────────────────────────────────────────────
-for cmd in docker curl openssl; do
-    command -v "$cmd" &>/dev/null || error "Не найден '$cmd'. Установите его."
-done
-docker compose version &>/dev/null || error "Нужен Docker Compose v2."
+# ── Pre-flight checks ────────────────────────────────────────────────────────
+
+preflight_checks() {
+    info "Запускаю проверки..."
+
+    # Docker
+    if ! command -v docker &>/dev/null; then
+        error "Docker не установлен. https://docs.docker.com/get-docker/"
+    fi
+    if ! docker info &>/dev/null; then
+        error "Docker не запущен. Выполните: sudo systemctl start docker"
+    fi
+
+    # Docker Compose v2
+    if ! docker compose version &>/dev/null; then
+        error "Docker Compose v2 не найден. Обновите Docker."
+    fi
+
+    # Required tools
+    for cmd in curl openssl; do
+        command -v "$cmd" &>/dev/null || error "Не найден '$cmd'. Установите: sudo apt install $cmd"
+    done
+
+    # Disk space (need at least 2GB free)
+    local avail_kb
+    avail_kb=$(df -k . | awk 'NR==2 {print $4}')
+    local avail_gb=$((avail_kb / 1024 / 1024))
+    if [[ $avail_gb -lt 2 ]]; then
+        error "Недостаточно места на диске: ${avail_gb}GB (нужно минимум 2GB)"
+    fi
+    success "Место на диске: ${avail_gb}GB"
+
+    # Memory (need at least 1GB free)
+    if command -v free &>/dev/null; then
+        local avail_mb
+        avail_mb=$(free -m | awk '/^Mem:/ {print $7}')
+        if [[ $avail_mb -lt 512 ]]; then
+            warn "Доступно RAM: ${avail_mb}MB (рекомендуется 1GB+)"
+        else
+            success "RAM доступно: ${avail_mb}MB"
+        fi
+    fi
+
+    # Port conflicts
+    local ports_to_check=(80 5432 8000)
+    local in_use=()
+    for port in "${ports_to_check[@]}"; do
+        if ss -tlnp 2>/dev/null | grep -q ":${port} " || netstat -tlnp 2>/dev/null | grep -q ":${port} "; then
+            local proc
+            proc=$(ss -tlnp 2>/dev/null | grep ":${port} " | awk '{print $7}' | head -1 || echo "unknown")
+            in_use+=("${port}(${proc})")
+        fi
+    done
+
+    if [[ ${#in_use[@]} -gt 0 ]]; then
+        warn "Порты уже заняты: ${in_use[*]}"
+        info "Порты 80 и 5432 могут конфликтовать с nginx и PostgreSQL."
+        info "Если это контейнеры от предыдущей установки — они будут остановлены."
+        read -rp "Продолжить? [Y/n]: " CONFIRM; CONFIRM=${CONFIRM:-Y}
+        [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && exit 0
+    else
+        success "Порты 80, 5432, 8000 свободны"
+    fi
+
+    # Check for existing containers
+    local existing
+    existing=$(docker ps -a --filter "name=vpn_" --format "{{.Names}}" 2>/dev/null || true)
+    if [[ -n "$existing" ]]; then
+        warn "Найдены существующие контейнеры: $(echo $existing | tr '\n' ', ')"
+        read -rp "Остановить и удалить? [Y/n]: " CONFIRM; CONFIRM=${CONFIRM:-Y}
+        if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
+            info "Останавливаю контейнеры..."
+            docker compose down --remove-orphans 2>/dev/null || true
+            docker compose -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
+            success "Контейнеры остановлены"
+        else
+            exit 0
+        fi
+    fi
+
+    # Check for stale PID files or lock files
+    if [[ -f "setup.lock" ]]; then
+        warn "Найден setup.lock — предыдущая установка могла не завершиться."
+        rm -f setup.lock
+    fi
+
+    success "Все проверки пройдены"
+}
+
+preflight_checks
+
+# ── Backup existing .env ─────────────────────────────────────────────────────
+if [[ -f .env ]]; then
+    BACKUP=".env.backup.$(date +%Y%m%d_%H%M%S)"
+    warn ".env уже существует → ${BACKUP}"
+    cp .env "$BACKUP"
+    success "Бэкап .env сохранён"
+fi
 
 # ── Режим ─────────────────────────────────────────────────────────────────────
 echo ""
@@ -35,26 +129,30 @@ MODE=${MODE:-2}
 # ── Ввод данных ───────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}── Основные ────────────────────────────────────────${RESET}"
-read -rp "Название панели По умолчание(Scorbium Dashboard VPN): " APP_NAME
+read -rp "Название панели [Scorbium Dashboard VPN]: " APP_NAME
 APP_NAME=${APP_NAME:-"Scorbium Dashboard VPN"}
 
 read -rp "Telegram Bot Token: " BOT_TOKEN
 [[ -z "$BOT_TOKEN" ]] && error "Bot Token обязателен"
+# Validate token format (should be digits:string)
+if [[ ! "$BOT_TOKEN" =~ ^[0-9]+:[A-Za-z0-9_-] ]]; then
+    error "Неверный формат токена. Ожидается: 123456789:AAH..."
+fi
 
-read -rp "Telegram Admin IDs (например: 123456789): " ADMIN_IDS_RAW
+read -rp "Telegram Admin IDs (через запятую, например: 123456789): " ADMIN_IDS_RAW
 [[ -z "$ADMIN_IDS_RAW" ]] && error "Admin IDs обязательны"
 ADMIN_IDS="[$(echo "$ADMIN_IDS_RAW" | tr -s ' ,' ',' | sed 's/^,//;s/,$//')]"
 
 read -rp "Логин панели [admin]: " WEB_USER
 WEB_USER=${WEB_USER:-admin}
 
-read -rsp "Пароль панели (мин. 6 символов): " WEB_PASS
+read -rsp "Пароль панели (мин. 8 символов): " WEB_PASS
 echo ""
-# Generate a dedicated JWT secret (32 bytes, hex-encoded)
+[[ ${#WEB_PASS} -lt 8 ]] && error "Пароль слишком короткий (минимум 8 символов)"
+
+# Generate a dedicated JWT secret
 JWT_SECRET_KEY=$(openssl rand -hex 32 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(32))")
 info "Сгенерирован JWT_SECRET_KEY"
-echo ""
-[[ ${#WEB_PASS} -lt 6 ]] && error "Пароль слишком короткий"
 
 echo ""
 echo -e "${BOLD}── База данных ─────────────────────────────────────${RESET}"
@@ -62,12 +160,23 @@ read -rp "Имя БД [vpnbot]: " DB_NAME; DB_NAME=${DB_NAME:-vpnbot}
 read -rp "Пользователь БД [postgres]: " DB_USER; DB_USER=${DB_USER:-postgres}
 read -rsp "Пароль БД [postgres]: " DB_PASS; echo ""; DB_PASS=${DB_PASS:-postgres}
 
+# Validate DB password
+if [[ ${#DB_PASS} -lt 8 ]]; then
+    warn "Пароль БД слабый (${#DB_PASS} символов). Рекомендуется 8+."
+    read -rp "Продолжить с этим паролем? [Y/n]: " CONFIRM; CONFIRM=${CONFIRM:-Y}
+    [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && exit 1
+fi
+
 echo ""
 echo -e "${BOLD}── VPN Panel (Marzban / Pasarguard) ─────────────────${RESET}"
 VPN_PANEL_TYPE=marzban
 echo ""
 read -rp "URL панели (например: https://panel.example.com:8012): " PASAR_URL
 [[ -z "$PASAR_URL" ]] && error "URL панели обязателен"
+# Validate URL format
+if [[ ! "$PASAR_URL" =~ ^https?:// ]]; then
+    error "URL должен начинаться с http:// или https://"
+fi
 read -rp "Логин Marzban [admin]: " PASAR_LOGIN; PASAR_LOGIN=${PASAR_LOGIN:-admin}
 read -rsp "Пароль Marzban: " PASAR_PASS; echo ""
 [[ -z "$PASAR_PASS" ]] && error "Пароль Marzban обязателен"
@@ -83,7 +192,34 @@ if [[ "$MODE" == "1" ]]; then
     echo -e "${BOLD}── Домен и SSL ─────────────────────────────────────${RESET}"
     echo -e "${YELLOW}⚠️  Домен должен уже указывать A-записью на IP этого сервера!${RESET}"
     read -rp "Домен (без https://): " DOMAIN; [[ -z "$DOMAIN" ]] && error "Обязателен"
+
+    # Validate domain format
+    if [[ ! "$DOMAIN" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}$ ]]; then
+        error "Неверный формат домена"
+    fi
+
+    # Check DNS resolution
+    info "Проверяю DNS: ${DOMAIN}..."
+    if command -v dig &>/dev/null; then
+        if ! dig +short "$DOMAIN" | grep -qE '^[0-9]+\.'; then
+            warn "DNS для ${DOMAIN} не найден или не указывает на IP"
+            read -rp "Продолжить? (сертификат может не получиться) [y/N]: " CONFIRM; CONFIRM=${CONFIRM:-N}
+            [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && exit 1
+        else
+            success "DNS OK: $(dig +short "$DOMAIN" | head -1)"
+        fi
+    fi
+
     read -rp "Email для Let's Encrypt: " LE_EMAIL; [[ -z "$LE_EMAIL" ]] && error "Обязателен"
+
+    # Check if port 80 is accessible from outside (needed for certbot)
+    info "Проверяю доступность порта 80 (нужен для SSL)..."
+    if ss -tlnp 2>/dev/null | grep -q ":80 " && ! ss -tlnp | grep ":80 " | grep -q "docker"; then
+        warn "Порт 80 занят чем-то кроме Docker. Certbot не сможет его использовать."
+        read -rp "Продолжить? [Y/n]: " CONFIRM; CONFIRM=${CONFIRM:-Y}
+        [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && exit 1
+    fi
+
     echo ""
     echo "HTTPS порт:"
     echo "  1) 443 (стандартный)"
@@ -94,6 +230,12 @@ if [[ "$MODE" == "1" ]]; then
     else
         HTTPS_PORT=443
     fi
+
+    # Check if HTTPS_PORT is free
+    if ss -tlnp 2>/dev/null | grep -q ":${HTTPS_PORT} " || netstat -tlnp 2>/dev/null | grep -q ":${HTTPS_PORT} "; then
+        error "Порт ${HTTPS_PORT} уже занят. Остановите сервис или выберите другой."
+    fi
+
     TG_PROTOCOL=webhook
     if [[ "$HTTPS_PORT" == "443" ]]; then
         WEBHOOK_URL="https://${DOMAIN}/webhook/bot"
@@ -115,10 +257,7 @@ else
     PANEL_URL="http://localhost/panel/"
 fi
 
-# ── Генерация .env ────────────────────────────────────────────────────────────
-info "Генерирую .env..."
-
-# Читаем версию из pyproject.toml до heredoc
+# ── Read version ──────────────────────────────────────────────────────────────
 if [[ -f "pyproject.toml" ]]; then
     APP_VERSION=$(grep '^version' pyproject.toml | head -1 | sed 's/.*= *"\(.*\)"/\1/')
     [[ -z "$APP_VERSION" ]] && APP_VERSION="1.0.0"
@@ -126,6 +265,9 @@ else
     APP_VERSION="1.0.0"
     warn "pyproject.toml не найден, использую версию ${APP_VERSION}"
 fi
+
+# ── Генерация .env ────────────────────────────────────────────────────────────
+info "Генерирую .env..."
 
 cat > .env <<EOF
 APP_NAME=${APP_NAME}
@@ -135,6 +277,7 @@ SERVER_PORT=8000
 ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
 WEB_SUPERADMIN_USERNAME=${WEB_USER}
 WEB_SUPERADMIN_PASSWORD=${WEB_PASS}
+JWT_SECRET_KEY=${JWT_SECRET_KEY}
 TELEGRAM_BOT_TOKEN=${BOT_TOKEN}
 TELEGRAM_ADMIN_IDS=${ADMIN_IDS}
 TELEGRAM_TYPE_PROTOCOL=${TG_PROTOCOL}
@@ -145,7 +288,6 @@ PASARGUARD_ADMIN_LOGIN=${PASAR_LOGIN}
 PASARGUARD_ADMIN_PASSWORD=${PASAR_PASS}
 PASARGUARD_API_KEY=
 VPN_PANEL_TYPE=marzban
-JWT_SECRET_KEY=${JWT_SECRET_KEY}
 HTTPS_PORT=${HTTPS_PORT}
 DOMAIN=${DOMAIN}
 DB_ENGINE=postgresql
@@ -159,20 +301,18 @@ LOG_ROTATION=1 day
 LOG_RETENTION=30 days
 LOG_LEVEL=INFO
 EOF
-success ".env создан"
 
-# ── Запуск ────────────────────────────────────────────────────────────────────
-echo ""
-read -rp "Запустить? [Y/n]: " START; START=${START:-Y}
-[[ ! "$START" =~ ^[Yy]$ ]] && { info "Запустите вручную."; exit 0; }
+# Secure .env permissions
+chmod 600 .env
+success ".env создан (chmod 600)"
 
+# ── Создание директорий ───────────────────────────────────────────────────────
+mkdir -p logs nginx/ssl certbot_www
+
+# ── Генерация nginx.conf (продакшен) ──────────────────────────────────────────
 if [[ "$MODE" == "1" ]]; then
-    # ── ПРОДАКШЕН ─────────────────────────────────────────────────────────────
-
-    # Настраиваем nginx.conf под домен и порт
     info "Генерирую nginx.conf для ${DOMAIN}:${HTTPS_PORT}..."
 
-    # Redirect: при 443 не добавляем порт в URL
     if [[ "$HTTPS_PORT" == "443" ]]; then
         REDIR='return 301 https://$host$request_uri;'
     else
@@ -280,7 +420,6 @@ http {
             proxy_set_header Host              \$host;
             proxy_set_header X-Forwarded-Proto \$scheme;
         }
-        # WebSocket notifications endpoint
         location /ws/notifications {
             proxy_pass http://vpn_app;
             proxy_http_version 1.1;
@@ -304,48 +443,58 @@ http {
     }
 }
 NGINXEOF
-    success "nginx.conf создан (${DOMAIN}:${HTTPS_PORT})"
+    success "nginx.conf создан"
+fi
 
-    # Останавливаем старые контейнеры
-    docker compose -f docker-compose.prod.yml down 2>/dev/null || true
+# ── Запуск ────────────────────────────────────────────────────────────────────
+echo ""
+read -rp "Запустить? [Y/n]: " START; START=${START:-Y}
+[[ ! "$START" =~ ^[Yy]$ ]] && { info "Запустите вручную: docker compose up -d"; exit 0; }
 
-    # Создаём нужные директории
-    mkdir -p nginx/ssl certbot_www
+touch setup.lock
 
-    # Получаем SSL сертификат (до запуска nginx)
+    if [[ "$MODE" == "1" ]]; then
+    # ── ПРОДАКШЕН ─────────────────────────────────────────────────────────────
+    docker compose -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
+
+    # SSL сертификат
     CERT_PATH="nginx/ssl/live/${DOMAIN}/fullchain.pem"
     if [[ -f "$CERT_PATH" ]]; then
-        success "SSL сертификат уже существует, пропускаю"
+        success "SSL сертификат уже существует"
     else
-        info "Получаю SSL сертификат через certbot standalone..."
+        info "Получаю SSL сертификат..."
 
         if ! command -v certbot &>/dev/null; then
             info "Устанавливаю certbot..."
-            apt-get update -qq
-            apt-get install -y -qq certbot
+            if command -v apt-get &>/dev/null; then
+                apt-get update -qq && apt-get install -y -qq certbot
+            elif command -v yum &>/dev/null; then
+                yum install -y certbot
+            else
+                error "Не удалось установить certbot. Установите вручную."
+            fi
         fi
 
-        # Certbot standalone — поднимает свой HTTP сервер на порту 80
-        # nginx ещё не запущен, поэтому порт свободен
         certbot certonly --standalone \
             --email "${LE_EMAIL}" \
             --agree-tos \
             --no-eff-email \
             -d "${DOMAIN}" || {
             warn "Не удалось получить SSL сертификат."
-            warn "Убедитесь что домен указывает на этот сервер и порт 80 открыт."
-            warn "Запустите вручную: certbot certonly --standalone -d ${DOMAIN}"
+            warn "Убедитесь: домен указывает на сервер, порт 80 открыт."
+            warn "Повторите: certbot certonly --standalone -d ${DOMAIN}"
+            rm -f setup.lock
             exit 1
         }
 
-        # Копируем сертификаты в папку проекта (nginx монтирует ./nginx/ssl)
         info "Копирую сертификаты..."
         mkdir -p "nginx/ssl/live/${DOMAIN}"
         cp "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" "nginx/ssl/live/${DOMAIN}/"
         cp "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" "nginx/ssl/live/${DOMAIN}/"
+        chmod 600 "nginx/ssl/live/${DOMAIN}/privkey.pem"
         success "Сертификаты скопированы"
 
-        # Настраиваем автообновление через cron
+        # Cron для автообновления
         PROJECT_DIR="$(pwd)"
         CRON_FILE="/etc/cron.d/vpn-certbot-renew"
         cat > "$CRON_FILE" <<CRONEOF
@@ -354,62 +503,122 @@ NGINXEOF
   --post-hook "cp /etc/letsencrypt/live/${DOMAIN}/fullchain.pem ${PROJECT_DIR}/nginx/ssl/live/${DOMAIN}/ && cp /etc/letsencrypt/live/${DOMAIN}/privkey.pem ${PROJECT_DIR}/nginx/ssl/live/${DOMAIN}/ && docker compose -f ${PROJECT_DIR}/docker-compose.prod.yml start nginx"
 CRONEOF
         chmod 644 "$CRON_FILE"
-    # Ensure cron file ends with newline (required by cron)
-    echo "" >> "$CRON_FILE"
-        success "Автообновление сертификата настроено (каждый день в 3:00)"
+        echo "" >> "$CRON_FILE"
+        success "Автообновление SSL настроено (каждый день в 3:00)"
     fi
 
-    # Запускаем db + app
+    # DB password sync check
+    if docker volume inspect docker-compose.prod.yml_db_data &>/dev/null 2>&1 || \
+       docker volume ls --format '{{.Name}}' 2>/dev/null | grep -q "vpn_db"; then
+        info "БД уже существует — проверяю синхронизацию пароля..."
+        docker compose -f docker-compose.prod.yml up -d db
+        sleep 3
+        if docker exec vpn_db psql -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT 1" &>/dev/null 2>&1; then
+            success "Пароль БД совпадает"
+        else
+            warn "Пароль БД в .env не совпадает с тем, с которым была создана БД!"
+            warn "Это происходит если вы изменили DB_PASSWORD после первого запуска."
+            echo ""
+            echo "  Варианты:"
+            echo "  1) Сбросить БД (все данные будут удалены):"
+            echo "     docker compose -f docker-compose.prod.yml down -v"
+            echo "     bash setup.sh"
+            echo "  2) Восстановить старый пароль из бэкапа .env"
+            echo ""
+            read -rp "Сбросить БД и пересоздать? [y/N]: " RESET_DB; RESET_DB=${RESET_DB:-N}
+            if [[ "$RESET_DB" =~ ^[Yy]$ ]]; then
+                docker compose -f docker-compose.prod.yml down -v
+                success "БД удалена — будет создана заново"
+            else
+                rm -f setup.lock
+                exit 1
+            fi
+        fi
+    fi
+
+    # Запуск
     info "Запускаю db и app..."
     docker compose -f docker-compose.prod.yml up -d db app
 
-    # Ждём healthy
-    info "Жду готовности app (макс 90 сек)..."
+    info "Жду готовности (макс 90 сек)..."
+    APP_READY=false
     for i in $(seq 1 18); do
         STATUS=$(docker inspect --format='{{.State.Health.Status}}' vpn_app 2>/dev/null || echo "starting")
         if [[ "$STATUS" == "healthy" ]]; then
-            success "App готов"
+            APP_READY=true
+            success "App готов (${i}x5 сек)"
             break
-        fi
-        if [[ $i -eq 18 ]]; then
-            warn "App не стал healthy за 90 сек, продолжаю..."
-            docker compose -f docker-compose.prod.yml logs app --tail=20
         fi
         sleep 5
     done
 
-    # Применяем миграции (auto-fix перед upgrade)
+    if [[ "$APP_READY" != "true" ]]; then
+        warn "App не стал healthy за 90 сек"
+        docker compose -f docker-compose.prod.yml logs app --tail=30
+        read -rp "Продолжить с миграциями? [Y/n]: " CONFIRM; CONFIRM=${CONFIRM:-Y}
+        [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && { rm -f setup.lock; exit 1; }
+    fi
+
+    # Миграции
     info "Применяю миграции БД..."
     docker compose -f docker-compose.prod.yml exec app uv run python fix_alembic.py
     docker compose -f docker-compose.prod.yml exec app uv run alembic upgrade head
     success "Миграции применены"
 
-    # Запускаем nginx с SSL
-    info "Запускаю nginx с SSL..."
+    # Nginx
+    info "Запускаю nginx..."
     docker compose -f docker-compose.prod.yml up -d nginx
-
-    # Проверяем nginx
     sleep 3
+
     NGINX_STATUS=$(docker inspect --format='{{.State.Status}}' vpn_nginx 2>/dev/null || echo "unknown")
     if [[ "$NGINX_STATUS" != "running" ]]; then
-        warn "nginx не запустился, проверьте логи:"
+        warn "nginx не запустился:"
         docker compose -f docker-compose.prod.yml logs nginx --tail=20
+        rm -f setup.lock
+        exit 1
+    fi
+
+    # Verify HTTPS
+    sleep 2
+    if curl -sk "https://${DOMAIN}:${HTTPS_PORT}/health" | grep -q "ok" 2>/dev/null; then
+        success "HTTPS работает: https://${DOMAIN}:${HTTPS_PORT}/health"
     else
-        success "nginx запущен"
+        warn "HTTPS не отвечает. Проверьте: curl -sk https://${DOMAIN}:${HTTPS_PORT}/health"
     fi
 
 else
     # ── РАЗРАБОТКА ────────────────────────────────────────────────────────────
     info "Запускаю в режиме разработки..."
-    docker compose down 2>/dev/null || true
+    docker compose down --remove-orphans 2>/dev/null || true
     docker compose up -d db app nginx
-    info "Жду запуска (15 сек)..."
-    sleep 15
+
+    info "Жду запуска (макс 60 сек)..."
+    APP_READY=false
+    for i in $(seq 1 12); do
+        STATUS=$(docker inspect --format='{{.State.Health.Status}}' vpn_app 2>/dev/null || echo "starting")
+        if [[ "$STATUS" == "healthy" ]]; then
+            APP_READY=true
+            success "App готов (${i}x5 сек)"
+            break
+        fi
+        sleep 5
+    done
+
+    if [[ "$APP_READY" != "true" ]]; then
+        warn "App не стал healthy за 60 сек:"
+        docker compose logs app --tail=20
+        rm -f setup.lock
+        exit 1
+    fi
+
     info "Применяю миграции БД..."
     docker compose exec app uv run python fix_alembic.py
     docker compose exec app uv run alembic upgrade head
     success "Миграции применены"
 fi
+
+# Cleanup
+rm -f setup.lock
 
 # ── Итог ──────────────────────────────────────────────────────────────────────
 echo ""
@@ -422,7 +631,12 @@ echo -e "  👤 Логин:    ${BOLD}${WEB_USER}${RESET}"
 echo -e "  🔑 Пароль:   ${BOLD}${WEB_PASS}${RESET}"
 echo -e "  🛡️  VPN:      ${BOLD}Marzban / Pasarguard${RESET} (${PASAR_URL})"
 echo ""
-echo -e "  Логи:    ${YELLOW}docker compose -f docker-compose.prod.yml logs -f app${RESET}"
-echo -e "  Стоп:    ${YELLOW}docker compose -f docker-compose.prod.yml down${RESET}"
-echo -e "  Обновить: ${YELLOW}git pull && docker compose -f docker-compose.prod.yml build app && docker compose -f docker-compose.prod.yml up -d app${RESET}"
+echo -e "  📋 Логи:    ${YELLOW}docker compose logs -f app${RESET}"
+echo -e "  🛑 Стоп:    ${YELLOW}docker compose down${RESET}"
+echo -e "  🔄 Обновить: ${YELLOW}bash update.sh${RESET}"
+echo ""
+echo -e "  📌 Не забудьте:"
+echo -e "     • Настроить платёжные системы в панели"
+echo -e "     • Загрузить фото для кнопок бота"
+echo -e "     • Проверить подключение к Marzban/Pasarguard"
 echo ""

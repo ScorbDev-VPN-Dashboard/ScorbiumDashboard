@@ -400,7 +400,9 @@ async def extend_key(callback: CallbackQuery) -> None:
     async with AsyncSessionFactory() as session:
         from app.services.plan import PlanService
         from app.services.user import UserService
+        from app.services.bot_settings import BotSettingsService
         from decimal import Decimal
+        from app.core.config import config as _cfg
 
         lang = await _get_lang(callback.from_user.id, session)
         key = await VpnKeyService(session).get_by_id(key_id)
@@ -411,28 +413,59 @@ async def extend_key(callback: CallbackQuery) -> None:
         status_val = (
             key.status.value if hasattr(key.status, "value") else str(key.status)
         )
-        if status_val != "active":
-            await callback.answer("Подписка не активна", show_alert=True)
+        if status_val not in ("active", "expired"):
+            await callback.answer("Подписка недоступна для продления", show_alert=True)
             return
 
         plans = await PlanService(session).get_all(only_active=True)
         user = await UserService(session).get_by_id(callback.from_user.id)
         balance = float(user.balance or 0) if user else 0
+        settings = await BotSettingsService(session).get_all()
 
-    # Показываем выбор плана для продления
+        _yk_toggle = (await BotSettingsService(session).get("ps_yookassa_enabled") or "0") == "1"
+        _sbp_toggle = (await BotSettingsService(session).get("ps_sbp_enabled") or "0") == "1"
+        _yk_shop_db = await BotSettingsService(session).get("yookassa_shop_id_override") or ""
+        _yk_key_db = bool(await BotSettingsService(session).get("yookassa_secret_key_override"))
+        _yk_env = _cfg.yookassa
+        _yk_env_ok = bool(_yk_env and _yk_env.yookassa_shop_id and _yk_env.yookassa_secret_key)
+        _yk_configured = _yk_env_ok or bool(_yk_shop_db and _yk_key_db)
+        has_yookassa = _yk_toggle and _yk_configured
+        has_sbp = _sbp_toggle and _yk_configured
+
+        _cb_toggle = (await BotSettingsService(session).get("ps_cryptobot_enabled") or "0") == "1"
+        has_cryptobot = bool(settings.get("cryptobot_token", "").strip()) and _cb_toggle
+
+        _fk_toggle = (await BotSettingsService(session).get("ps_freekassa_enabled") or "0") == "1"
+        _fk_shop = await BotSettingsService(session).get("freekassa_shop_id") or ""
+        _fk_key = await BotSettingsService(session).get("freekassa_api_key") or ""
+        has_freekassa = _fk_toggle and bool(_fk_shop and _fk_key)
+
+    if not plans:
+        kb_menu = await _get_menu_kb(
+            session, lang=lang, user_id=callback.from_user.id,
+            is_admin=_is_admin(callback.from_user.id),
+        )
+        await callback.answer("Нет доступных тарифов", show_alert=True)
+        return
+
     builder = InlineKeyboardBuilder()
     for plan in plans:
         price = float(plan.price or 0)
         can_pay = balance >= price
-        suffix = " ✅" if can_pay else f" ❌"
-        builder.row(
-            InlineKeyboardButton(
-                text=f"{plan.name} — {price}₽ ({plan.duration_days} дн.){suffix}",
-                callback_data=f"extend:pay:{key_id}:{plan.id}"
-                if can_pay
-                else f"extend:buy:{plan.id}",
+        if can_pay:
+            builder.row(
+                InlineKeyboardButton(
+                    text=f"💰 {plan.name} — {price}₽ ({plan.duration_days} дн.) с баланса",
+                    callback_data=f"extend:pay:{key_id}:{plan.id}",
+                )
             )
-        )
+        else:
+            builder.row(
+                InlineKeyboardButton(
+                    text=f"{plan.name} — {price}₽ ({plan.duration_days} дн.)",
+                    callback_data=f"extend:methods:{key_id}:{plan.id}",
+                )
+            )
 
     builder.row(
         InlineKeyboardButton(text=t("back", lang), callback_data=f"key:detail:{key_id}")
@@ -441,14 +474,429 @@ async def extend_key(callback: CallbackQuery) -> None:
     text = f"🔄 <b>Продлить подписку</b>\n\n"
     text += f"Текущая: {key.name or f'Подписка #{key.id}'}\n"
     text += f"Баланс: <b>{balance:.2f} ₽</b>\n\n"
-    text += "Выберите тариф:"
+    if balance > 0:
+        text += "Выберите тариф для оплаты с баланса или для других способов:"
+    else:
+        text += "Выберите тариф для оплаты:"
 
     try:
         from app.bot.utils.media import edit_with_photo
-
         await edit_with_photo(callback, text, reply_markup=builder.as_markup())
     except Exception:
         pass
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("extend:methods:"))
+async def extend_choose_method(callback: CallbackQuery) -> None:
+    parts = callback.data.split(":")
+    key_id = int(parts[2])
+    plan_id = int(parts[3])
+
+    async with AsyncSessionFactory() as session:
+        from app.services.plan import PlanService
+        from app.services.user import UserService
+        from app.services.bot_settings import BotSettingsService
+        from app.services.telegram_stars import TelegramStarsService
+        from app.core.config import config as _cfg
+
+        lang = await _get_lang(callback.from_user.id, session)
+        plan = await PlanService(session).get_by_id(plan_id)
+        user = await UserService(session).get_by_id(callback.from_user.id)
+        settings = await BotSettingsService(session).get_all()
+        balance = float(user.balance or 0) if user else 0
+
+        if not plan:
+            await callback.answer("Тариф не найден", show_alert=True)
+            return
+
+        _yk_toggle = (await BotSettingsService(session).get("ps_yookassa_enabled") or "0") == "1"
+        _sbp_toggle = (await BotSettingsService(session).get("ps_sbp_enabled") or "0") == "1"
+        _yk_shop_db = await BotSettingsService(session).get("yookassa_shop_id_override") or ""
+        _yk_key_db = bool(await BotSettingsService(session).get("yookassa_secret_key_override"))
+        _yk_env = _cfg.yookassa
+        _yk_env_ok = bool(_yk_env and _yk_env.yookassa_shop_id and _yk_env.yookassa_secret_key)
+        has_yookassa = _yk_toggle and (_yk_env_ok or bool(_yk_shop_db and _yk_key_db))
+        has_sbp = _sbp_toggle and (_yk_env_ok or bool(_yk_shop_db and _yk_key_db))
+
+        _cb_toggle = (await BotSettingsService(session).get("ps_cryptobot_enabled") or "0") == "1"
+        has_cryptobot = bool(settings.get("cryptobot_token", "").strip()) and _cb_toggle
+
+        _fk_toggle = (await BotSettingsService(session).get("ps_freekassa_enabled") or "0") == "1"
+        _fk_shop = await BotSettingsService(session).get("freekassa_shop_id") or ""
+        _fk_key = await BotSettingsService(session).get("freekassa_api_key") or ""
+        has_freekassa = _fk_toggle and bool(_fk_shop and _fk_key)
+
+        _stars_rate = float(await BotSettingsService(session).get("stars_rate") or "1.5")
+        stars = TelegramStarsService.rub_to_stars(float(plan.price), rate=_stars_rate)
+
+    plan_price = float(plan.price)
+
+    builder = InlineKeyboardBuilder()
+    if has_yookassa:
+        builder.row(InlineKeyboardButton(
+            text="💳 Банковская карта",
+            callback_data=f"extend:yookassa:{key_id}:{plan_id}",
+        ))
+    if has_sbp:
+        builder.row(InlineKeyboardButton(
+            text="🏦 СБП",
+            callback_data=f"extend:sbp:{key_id}:{plan_id}",
+        ))
+    if has_freekassa:
+        builder.row(InlineKeyboardButton(
+            text="💸 FreeKassa",
+            callback_data=f"extend:freekassa:{key_id}:{plan_id}",
+        ))
+    builder.row(InlineKeyboardButton(
+        text=f"⭐ Telegram Stars ({stars} ⭐)",
+        callback_data=f"extend:stars:{key_id}:{plan_id}",
+    ))
+    if has_cryptobot:
+        builder.row(InlineKeyboardButton(
+            text="₿ Криптовалюта",
+            callback_data=f"extend:crypto:{key_id}:{plan_id}",
+        ))
+    if balance > 0 and balance >= plan_price:
+        builder.row(InlineKeyboardButton(
+            text=f"💰 С баланса ({balance:.2f} ₽)",
+            callback_data=f"extend:pay:{key_id}:{plan_id}",
+        ))
+    builder.row(InlineKeyboardButton(
+        text="◀️ Назад", callback_data=f"key:extend:{key_id}",
+    ))
+
+    try:
+        from app.bot.utils.media import edit_with_photo
+        await edit_with_photo(
+            callback,
+            f"💳 <b>Оплата продления</b>\n\n{plan.name} — {plan.price} ₽ ({plan.duration_days} дн.)\n\nВыберите способ оплаты:",
+            reply_markup=builder.as_markup(),
+        )
+    except Exception:
+        pass
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("extend:yookassa:"))
+async def extend_yookassa(callback: CallbackQuery, bot) -> None:
+    parts = callback.data.split(":")
+    key_id = int(parts[2])
+    plan_id = int(parts[3])
+
+    async with AsyncSessionFactory() as session:
+        from app.services.plan import PlanService
+        from app.services.yookassa import YookassaService
+        from app.services.payment import PaymentService
+        from app.models.payment import PaymentProvider
+
+        lang = await _get_lang(callback.from_user.id, session)
+        plan = await PlanService(session).get_by_id(plan_id)
+        if not plan:
+            await callback.answer("Тариф не найден", show_alert=True)
+            return
+
+        yk = await YookassaService.create()
+        payment = await PaymentService(session).create_pending(
+            user_id=callback.from_user.id, plan=plan,
+            provider=PaymentProvider.YOOKASSA,
+        )
+        payment.metadata = {"extend_key_id": str(key_id)}
+        await session.flush()
+        payment_id = payment.id
+
+        me = await bot.get_me()
+        return_url = f"https://t.me/{me.username}"
+        yk_payment = await yk.create_payment(
+            amount=plan.price, description=f"VPN продление — {plan.name}",
+            return_url=return_url,
+            metadata={"payment_id": str(payment.id), "plan_id": str(plan.id), "extend_key_id": str(key_id)},
+        )
+        payment.external_id = yk_payment.id
+        await session.commit()
+
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="Оплатить", url=yk_payment.confirmation.confirmation_url))
+    builder.row(InlineKeyboardButton(
+        text="Проверить оплату",
+        callback_data=f"extend:check:yk:{payment_id}:{plan_id}:{key_id}",
+    ))
+    builder.row(InlineKeyboardButton(text="Назад", callback_data=f"extend:methods:{key_id}:{plan_id}"))
+
+    try:
+        from app.bot.utils.media import edit_with_photo
+        await edit_with_photo(
+            callback,
+            f"💳 <b>Продление подписки</b>\n\n{plan.name} — {plan.price} ₽\n\nПосле оплаты нажмите «Проверить».",
+            reply_markup=builder.as_markup(),
+        )
+    except Exception:
+        pass
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("extend:sbp:"))
+async def extend_sbp(callback: CallbackQuery, bot) -> None:
+    parts = callback.data.split(":")
+    key_id = int(parts[2])
+    plan_id = int(parts[3])
+
+    async with AsyncSessionFactory() as session:
+        from app.services.plan import PlanService
+        from app.services.yookassa import YookassaService
+        from app.services.payment import PaymentService
+        from app.models.payment import PaymentProvider
+
+        lang = await _get_lang(callback.from_user.id, session)
+        plan = await PlanService(session).get_by_id(plan_id)
+        if not plan:
+            await callback.answer("Тариф не найден", show_alert=True)
+            return
+
+        yk = await YookassaService.create()
+        payment = await PaymentService(session).create_pending(
+            user_id=callback.from_user.id, plan=plan,
+            provider=PaymentProvider.YOOKASSA_SBP,
+        )
+        payment.metadata = {"extend_key_id": str(key_id)}
+        await session.flush()
+        payment_id = payment.id
+
+        me = await bot.get_me()
+        return_url = f"https://t.me/{me.username}"
+        yk_payment = await yk.create_sbp_payment(
+            amount=plan.price, description=f"VPN продление — {plan.name}",
+            return_url=return_url,
+            metadata={"payment_id": str(payment.id), "plan_id": str(plan.id), "extend_key_id": str(key_id)},
+        )
+        payment.external_id = yk_payment.id
+        await session.commit()
+
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="Оплатить", url=yk_payment.confirmation.confirmation_url))
+    builder.row(InlineKeyboardButton(
+        text="Проверить оплату",
+        callback_data=f"extend:check:yk:{payment_id}:{plan_id}:{key_id}",
+    ))
+    builder.row(InlineKeyboardButton(text="Назад", callback_data=f"extend:methods:{key_id}:{plan_id}"))
+
+    try:
+        from app.bot.utils.media import edit_with_photo
+        await edit_with_photo(
+            callback,
+            f"🏦 <b>Продление через СБП</b>\n\n{plan.name} — {plan.price} ₽\n\nПосле оплаты нажмите «Проверить».",
+            reply_markup=builder.as_markup(),
+        )
+    except Exception:
+        pass
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("extend:stars:"))
+async def extend_stars(callback: CallbackQuery, bot) -> None:
+    parts = callback.data.split(":")
+    key_id = int(parts[2])
+    plan_id = int(parts[3])
+
+    async with AsyncSessionFactory() as session:
+        from app.services.plan import PlanService
+        from app.services.payment import PaymentService
+        from app.services.telegram_stars import TelegramStarsService
+        from app.models.payment import PaymentProvider
+
+        lang = await _get_lang(callback.from_user.id, session)
+        plan = await PlanService(session).get_by_id(plan_id)
+        if not plan:
+            await callback.answer("Тариф не найден", show_alert=True)
+            return
+
+        stars = TelegramStarsService.rub_to_stars(float(plan.price),
+            rate=float(await BotSettingsService(session).get("stars_rate") or "1.5"))
+        payment = await PaymentService(session).create_pending(
+            user_id=callback.from_user.id, plan=plan,
+            provider=PaymentProvider.TELEGRAM_STARS,
+        )
+        payment.metadata = {"extend_key_id": str(key_id)}
+        await session.commit()
+
+    ok = await TelegramStarsService(bot).send_invoice(
+        chat_id=callback.from_user.id,
+        title=f"VPN продление — {plan.name}",
+        description=f"{plan.duration_days} дней",
+        payload=f"extend_stars:{payment.id}:{plan_id}:{key_id}",
+        stars_amount=stars,
+    )
+
+    try:
+        if ok:
+            from app.bot.utils.media import edit_with_photo
+            await edit_with_photo(
+                callback,
+                f"⭐ Оплата продления: {stars} ⭐",
+                reply_markup=InlineKeyboardBuilder().row(
+                    InlineKeyboardButton(text="Назад", callback_data=f"extend:methods:{key_id}:{plan_id}")
+                ).as_markup(),
+            )
+        else:
+            await callback.answer("Ошибка создания инвойса", show_alert=True)
+    except Exception:
+        pass
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("extend:crypto:"))
+async def extend_crypto(callback: CallbackQuery, bot) -> None:
+    parts = callback.data.split(":")
+    key_id = int(parts[2])
+    plan_id = int(parts[3])
+
+    async with AsyncSessionFactory() as session:
+        from app.services.plan import PlanService
+        from app.services.payment import PaymentService
+        from app.services.cryptobot import CryptoBotService
+        from app.services.bot_settings import BotSettingsService
+        from app.models.payment import PaymentProvider
+
+        lang = await _get_lang(callback.from_user.id, session)
+        plan = await PlanService(session).get_by_id(plan_id)
+        settings = await BotSettingsService(session).get_all()
+        if not plan:
+            await callback.answer("Тариф не найден", show_alert=True)
+            return
+
+        crypto = CryptoBotService.from_settings(settings)
+        if not crypto:
+            await callback.answer("CryptoBot не настроен", show_alert=True)
+            return
+
+        usdt_amount = await crypto.rub_to_usdt(float(plan.price))
+        payment = await PaymentService(session).create_pending(
+            user_id=callback.from_user.id, plan=plan,
+            provider=PaymentProvider.CRYPTOBOT,
+        )
+        payment.metadata = {"extend_key_id": str(key_id)}
+        await session.flush()
+
+        invoice = await crypto.create_invoice(
+            amount=usdt_amount, currency="USDT",
+            description=f"VPN продление — {plan.name}",
+            payload=f"extend_crypto:{payment.id}:{plan_id}:{key_id}",
+        )
+        if not invoice:
+            await session.rollback()
+            await callback.answer("Ошибка создания инвойса", show_alert=True)
+            return
+
+        payment.external_id = str(invoice["invoice_id"])
+        await session.commit()
+
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="Оплатить", url=invoice["pay_url"]))
+    builder.row(InlineKeyboardButton(
+        text="Проверить",
+        callback_data=f"extend:check:crypto:{invoice['invoice_id']}:{plan.price}:{payment.id}:{key_id}",
+    ))
+    builder.row(InlineKeyboardButton(text="Назад", callback_data=f"extend:methods:{key_id}:{plan_id}"))
+
+    try:
+        from app.bot.utils.media import edit_with_photo
+        await edit_with_photo(
+            callback,
+            f"₿ <b>Продление криптой</b>\n\n{plan.name} — {plan.price} ₽ (~{usdt_amount} USDT)",
+            reply_markup=builder.as_markup(),
+        )
+    except Exception:
+        pass
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("extend:check:yk:"))
+async def extend_check_yk(callback: CallbackQuery, bot) -> None:
+    parts = callback.data.split(":")
+    payment_id = int(parts[3])
+    plan_id = int(parts[4])
+    key_id = int(parts[5])
+
+    async with AsyncSessionFactory() as session:
+        from app.services.payment import PaymentService
+        from app.services.plan import PlanService
+        from app.services.vpn_key import VpnKeyService
+        from app.models.payment import PaymentStatus
+
+        lang = await _get_lang(callback.from_user.id, session)
+        payment = await PaymentService(session).get_by_id(payment_id)
+        if not payment:
+            await callback.answer("Платёж не найден", show_alert=True)
+            return
+
+        if payment.status == PaymentStatus.SUCCEEDED.value:
+            await callback.answer("Уже оплачено!", show_alert=True)
+            return
+
+        if payment.external_id:
+            from app.services.yookassa import YookassaService
+            yk = await YookassaService.create()
+            yk_payment = await yk.get_payment(payment.external_id)
+            if yk_payment.status == "succeeded":
+                payment.status = PaymentStatus.SUCCEEDED.value
+                await session.commit()
+                plan = await PlanService(session).get_by_id(plan_id)
+                if plan:
+                    extended = await VpnKeyService(session).extend(key_id, plan.duration_days)
+                    await session.commit()
+                    if extended:
+                        exp = extended.expires_at.strftime("%d.%m.%Y") if extended.expires_at else "—"
+                        await callback.answer(f"Продлено до {exp}!", show_alert=True)
+                    else:
+                        await callback.answer("Ошибка продления", show_alert=True)
+            else:
+                await callback.answer("Ожидание оплаты...", show_alert=True)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("extend:check:crypto:"))
+async def extend_check_crypto(callback: CallbackQuery, bot) -> None:
+    parts = callback.data.split(":")
+    inv_id = parts[3]
+    amount_str = parts[4]
+    payment_id = int(parts[5])
+    key_id = int(parts[6])
+
+    async with AsyncSessionFactory() as session:
+        from app.services.bot_settings import BotSettingsService
+        from app.services.cryptobot import CryptoBotService
+        from app.services.payment import PaymentService
+        from app.services.plan import PlanService
+        from app.services.vpn_key import VpnKeyService
+        from app.models.payment import PaymentStatus
+
+        lang = await _get_lang(callback.from_user.id, session)
+        settings = await BotSettingsService(session).get_all()
+        crypto = CryptoBotService.from_settings(settings)
+        if not crypto:
+            await callback.answer("Ошибка", show_alert=True)
+            return
+
+        payment = await PaymentService(session).get_by_id(payment_id)
+        if payment and payment.status == PaymentStatus.SUCCEEDED.value:
+            await callback.answer("Уже оплачено!", show_alert=True)
+            return
+
+        invoice = await crypto.get_invoice(int(inv_id))
+        if invoice and invoice.get("status") == "paid":
+            if payment:
+                payment.status = PaymentStatus.SUCCEEDED.value
+            plan = await PlanService(session).get_by_id(
+                int(payment.plan_id) if payment and payment.plan_id else 0)
+            await session.commit()
+            if plan:
+                extended = await VpnKeyService(session).extend(key_id, plan.duration_days)
+                await session.commit()
+                if extended:
+                    exp = extended.expires_at.strftime("%d.%m.%Y") if extended.expires_at else "—"
+                    await callback.answer(f"Продлено до {exp}!", show_alert=True)
+        else:
+            await callback.answer("Ожидание оплаты...", show_alert=True)
     await callback.answer()
 
 

@@ -29,75 +29,110 @@ async def _get_user_lang(user_id: int, session) -> str:
     return get_lang(settings, user_lang)
 
 
+async def _provision_with_retry(session, user_id: int, plan, max_retries: int = 3):
+    """Retry VPN provisioning with backoff."""
+    for attempt in range(max_retries):
+        try:
+            key = await VpnKeyService(session).provision(user_id=user_id, plan=plan)
+            if key:
+                return key
+        except Exception as e:
+            log.warning(f"[bot provision] attempt {attempt+1}/{max_retries}: {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2 ** attempt)
+    return None
+
+
 async def _provision_and_notify(
     user_id: int, payment_id: int, plan_id: int, bot: Bot
 ) -> None:
-    """Создаём VPN-подписку и уведомляем пользователя."""
-    key = None
-    plan = None
-    text = ""
-    uname = f"<code>{user_id}</code>"
-    full_name = "—"
-    provider_str = "—"
-    amount_str = "—"
+    """Создаём VPN-подписку и уведомляем пользователя.
+    
+    CRITICAL: Extract ALL ORM scalars before closing session to avoid DetachedInstanceError.
+    """
+    import asyncio
+    
+    key_data = None
+    plan_data = None 
+    payment_amount = None
+    payment_currency = "RUB"
+    payment_provider = "—"
 
     async with AsyncSessionFactory() as session:
         plan = await PlanService(session).get_by_id(plan_id)
         if not plan:
+            log.error(f"[provision] Plan {plan_id} not found for payment {payment_id}")
             return
 
-        key = await VpnKeyService(session).provision(user_id=user_id, plan=plan)
+        plan_data = {
+            "name": plan.name,
+            "duration_days": plan.duration_days,
+            "price": str(plan.price),
+        }
+
+        key = await _provision_with_retry(session, user_id, plan)
 
         payment = await PaymentService(session).get_by_id(payment_id)
         if payment and key:
             payment.vpn_key_id = key.id
-
-        settings = await BotSettingsService(session).get_all()
-
-        provider_str = payment.provider if payment else "—"
-        amount_str = str(payment.amount) if payment else str(plan.price)
-        plan_name = plan.name
-        plan_days = plan.duration_days
-        plan_price = str(plan.price)
+        
+        if payment:
+            payment_amount = str(payment.amount)
+            payment_currency = payment.currency or "RUB"
+            payment_provider = payment.provider or "—"
 
         await session.commit()
+
+        if key:
+            key_data = {
+                "id": key.id,
+                "access_url": key.access_url,
+            }
+
+    user_info = {
+        "username": f"<code>{user_id}</code>",
+        "full_name": "—",
+        "lang": "ru",
+    }
 
     async with AsyncSessionFactory() as session:
         settings = await BotSettingsService(session).get_all()
         user = await UserService(session).get_by_id(user_id)
         user_lang = user.language if user and user.language else None
-        lang = get_lang(settings, user_lang)
-        uname = (
+        user_info["lang"] = get_lang(settings, user_lang)
+        user_info["username"] = (
             f"@{user.username}" if user and user.username else f"<code>{user_id}</code>"
         )
-        full_name = user.full_name if user else "—"
+        user_info["full_name"] = user.full_name if user else "—"
 
-        if key and key.access_url:
-            success_msg = settings.get("payment_success_message") or t(
-                "payment_success", lang
+    lang = user_info["lang"]
+    plan_name = plan_data["name"]
+    plan_days = plan_data["duration_days"]
+    plan_price = plan_data["price"]
+
+    if key_data and key_data["access_url"]:
+        success_msg = settings.get("payment_success_message") or t(
+            "payment_success", lang
+        )
+        text = f"{success_msg}\n\n" + t(
+            "subscription_url", lang, url=key_data["access_url"], days=plan_days
+        )
+    else:
+        maintenance_enabled = settings.get("maintenance_mode", "0") == "1"
+        if maintenance_enabled:
+            maintenance_msg = (
+                settings.get("maintenance_message")
+                or "⛔️ Ведутся технические работы. Напишите через час."
             )
-            text = f"{success_msg}\n\n" + t(
-                "subscription_url", lang, url=key.access_url, days=plan_days
-            )
+            text = maintenance_msg
         else:
-            # Check if maintenance mode is actually enabled
-            maintenance_enabled = settings.get("maintenance_mode", "0") == "1"
-            if maintenance_enabled:
-                maintenance_msg = (
-                    settings.get("maintenance_message")
-                    or "⛔️ Ведутся технические работы. Напишите через час."
-                )
-                text = maintenance_msg
-            else:
-                text = "✅ Оплата прошла успешно! Ваш VPN-ключ готовится. Проверьте раздел «Мои ключи» через пару минут."
+            text = "✅ Оплата прошла успешно! Ваш VPN-ключ готовится. Проверьте раздел «Мои ключи» через пару минут."
 
-    # Уведомляем пользователя
     try:
         await bot.send_message(user_id, text, parse_mode="HTML")
     except Exception as e:
         log.warning(f"Failed to notify user {user_id}: {e}")
 
-    # Уведомляем всех админов
     from app.core.config import config as _cfg
 
     notify = TelegramNotifyService()
@@ -108,20 +143,34 @@ async def _provision_and_notify(
         "cryptobot": "₿",
         "balance": "💰",
     }
-    icon = provider_icons.get(str(provider_str).lower(), "💰")
+    icon = provider_icons.get(str(payment_provider).lower(), "💰")
     admin_text = (
         f"✅ <b>Новая оплата!</b>\n\n"
-        f"👤 {full_name} ({uname})\n"
-        f"📦 {plan_name} — {amount_str} ₽\n"
+        f"👤 {user_info['full_name']} ({user_info['username']})\n"
+        f"📦 {plan_name} — {payment_amount or plan_price} {payment_currency}\n"
         f"⏱ {plan_days} дн.\n"
-        f"{icon} {provider_str}\n"
-        f"🔑 Ключ: {'выдан' if key else '❌ ошибка'}"
+        f"{icon} {payment_provider}\n"
+        f"🔑 Ключ: {'выдан' if key_data else '❌ ошибка'}"
     )
     for admin_id in _cfg.telegram.telegram_admin_ids:
         try:
             await notify.send_message(admin_id, admin_text)
         except Exception as e:
             log.warning(f"Failed to notify admin {admin_id}: {e}")
+
+    try:
+        from app.services.notification import notification_manager
+        await notification_manager.broadcast({
+            "type": "new_payment",
+            "data": {
+                "payment_id": payment_id,
+                "user_id": user_id,
+                "amount": payment_amount or plan_price,
+                "currency": payment_currency,
+            },
+        })
+    except Exception as e:
+        log.warning(f"[bot] WebSocket broadcast failed: {e}")
 
 
 # ── Balance ───────────────────────────────────────────────────────────────────
@@ -148,10 +197,8 @@ async def handle_balance_payment(callback: CallbackQuery, bot: Bot) -> None:
             )
             return
 
-    # Отвечаем сразу, чтобы не превысить таймаут Telegram
     await callback.answer("⏳", show_alert=False)
 
-    # Долгие операции — в фоне
     async with AsyncSessionFactory() as session:
         updated = await UserService(session).deduct_balance(
             callback.from_user.id, plan.price
@@ -467,7 +514,7 @@ async def successful_payment(message: Message, bot: Bot) -> None:
     payload = message.successful_payment.invoice_payload
     charge_id = message.successful_payment.telegram_payment_charge_id
 
-    # ── Пополнение баланса через Stars ───────────────────────────────────────
+# ── Пополнение баланса через Stars ───────────────────────────────────────
     if payload.startswith("topup_stars:"):
         try:
             _, payment_id_str, amount_str = payload.split(":")
@@ -484,6 +531,39 @@ async def successful_payment(message: Message, bot: Bot) -> None:
                 payment.external_id = charge_id
                 await session.commit()
         await _topup_confirm_balance(message.from_user.id, amount_str, payment_id, bot)
+        return
+
+    # ── Продление подписки через Stars ────────────────────────────────────────
+    if payload.startswith("extend_stars:"):
+        try:
+            _, payment_id_str, plan_id_str, key_id_str = payload.split(":")
+            payment_id = int(payment_id_str)
+            plan_id = int(plan_id_str)
+            key_id = int(key_id_str)
+        except (ValueError, AttributeError):
+            log.error(f"Invalid extend_stars payload: {payload}")
+            return
+        async with AsyncSessionFactory() as session:
+            payment = await PaymentService(session).get_by_id(payment_id)
+            if payment:
+                from app.models.payment import PaymentStatus
+                payment.status = PaymentStatus.SUCCEEDED.value
+                payment.external_id = charge_id
+                await session.commit()
+                plan = await PlanService(session).get_by_id(plan_id)
+                if plan:
+                    extended = await VpnKeyService(session).extend(key_id, plan.duration_days)
+                    await session.commit()
+        if extended:
+            exp = extended.expires_at.strftime("%d.%m.%Y") if extended.expires_at else "—"
+            try:
+                await bot.send_message(
+                    message.from_user.id,
+                    f"✅ <b>Подписка продлена!</b>\n\nДо: <b>{exp}</b>\n+{plan.duration_days} дней",
+                    parse_mode="HTML",
+                )
+            except Exception as e:
+                log.warning(f"Failed to notify extend user: {e}")
         return
 
     # ── Оплата подписки через Stars ───────────────────────────────────────────
@@ -597,6 +677,9 @@ async def handle_crypto_check(callback: CallbackQuery, bot: Bot) -> None:
     payment_id = int(parts[2])
     plan_id = int(parts[3])
 
+    payment_ok = False
+    external_id = None
+
     async with AsyncSessionFactory() as session:
         lang = await _get_user_lang(callback.from_user.id, session)
         payment = await PaymentService(session).get_by_id(payment_id)
@@ -616,20 +699,25 @@ async def handle_crypto_check(callback: CallbackQuery, bot: Bot) -> None:
             await callback.answer(t("payment_error", lang), show_alert=True)
             return
 
-        try:
-            invoice = await crypto.get_invoice(int(payment.external_id))
-            if invoice and invoice.get("status") == "paid":
-                payment.status = PaymentStatus.SUCCEEDED.value
-                await session.commit()
-                await callback.answer(t("payment_success", lang), show_alert=True)
-                await _provision_and_notify(
-                    callback.from_user.id, payment_id, plan_id, bot
-                )
-            else:
-                await callback.answer(t("payment_pending", lang), show_alert=True)
-        except Exception as e:
-            log.error(f"CryptoBot check error: {e}")
-            await callback.answer(t("payment_error", lang), show_alert=True)
+        external_id = payment.external_id
+
+    try:
+        invoice = await crypto.get_invoice(int(external_id))
+        if invoice and invoice.get("status") == "paid":
+            async with AsyncSessionFactory() as session:
+                payment = await PaymentService(session).get_by_id(payment_id)
+                if payment:
+                    payment.status = PaymentStatus.SUCCEEDED.value
+                    await session.commit()
+            await callback.answer(t("payment_success", lang), show_alert=True)
+            await _provision_and_notify(
+                callback.from_user.id, payment_id, plan_id, bot
+            )
+        else:
+            await callback.answer(t("payment_pending", lang), show_alert=True)
+    except Exception as e:
+        log.error(f"CryptoBot check error: {e}")
+        await callback.answer(t("payment_error", lang), show_alert=True)
 
 
 # ── Пополнение баланса ────────────────────────────────────────────────────────
@@ -638,20 +726,24 @@ async def handle_crypto_check(callback: CallbackQuery, bot: Bot) -> None:
 async def _topup_confirm_balance(
     user_id: int, amount_str: str, payment_id: int, bot: Bot
 ) -> None:
-    """Зачисляем сумму на баланс, подтверждаем платёж в БД и уведомляем пользователя."""
+    """Зачисляем сумму на баланс, подтверждаем платёж в БД и уведомляем пользователя.
+    
+    CRITICAL: Extract ALL ORM scalars before closing session.
+    """
     from decimal import Decimal
 
     amount = Decimal(amount_str)
+    balance = 0.0
+    lang = "ru"
 
     async with AsyncSessionFactory() as session:
-        # Подтверждаем платёж
+
         payment = await PaymentService(session).get_by_id(payment_id)
         if payment:
             from app.models.payment import PaymentStatus
 
             payment.status = PaymentStatus.SUCCEEDED.value
 
-        # Зачисляем на баланс
         user = await UserService(session).add_balance(user_id, amount)
         await session.commit()
 
@@ -683,7 +775,6 @@ async def topup_yookassa(callback: CallbackQuery, bot: Bot) -> None:
             me = await bot.get_me()
             return_url = f"https://t.me/{me.username}"
 
-            # Создаём запись в БД до создания платежа в Yookassa
             payment = await PaymentService(session).create_topup_pending(
                 user_id=callback.from_user.id,
                 amount=amount,
@@ -692,7 +783,6 @@ async def topup_yookassa(callback: CallbackQuery, bot: Bot) -> None:
             await session.flush()
             payment_id = payment.id
 
-            # Создаём платёж в Yookassa
             yk_payment = await yk.create_payment(
                 amount=amount,
                 description="Пополнение баланса",
@@ -929,6 +1019,9 @@ async def topup_check_crypto(callback: CallbackQuery, bot: Bot) -> None:
     amount_str = parts[4]
     payment_id = int(parts[5]) if len(parts) > 5 else 0
 
+    crypto = None
+    lang = "ru"
+
     async with AsyncSessionFactory() as session:
         lang = await _get_user_lang(callback.from_user.id, session)
         if payment_id:
@@ -965,5 +1058,29 @@ async def topup_check_crypto(callback: CallbackQuery, bot: Bot) -> None:
 
 
 @router.callback_query(F.data.startswith("pay:"))
-async def handle_payment_fallback(callback: CallbackQuery) -> None:
-    await callback.answer("❌", show_alert=True)
+async def handle_payment_fallback(callback: CallbackQuery, bot: Bot) -> None:
+    """Fallback for unhandled payment callbacks - shows helpful error."""
+    user_id = callback.from_user.id
+    
+    async with AsyncSessionFactory() as session:
+        lang = await _get_user_lang(user_id, session)
+    
+    payment_type = callback.data.split(":")[1] if ":" in callback.data else "unknown"
+    
+    error_messages = {
+        "ru": "❌ Оплата недоступна. Попробуйте позже или выберите другой способ.",
+        "en": "❌ Payment unavailable. Try later or choose another method.",
+        "fa": "❌ پرداخت در دسترس نیست. بعداً امتحان کنید.",
+    }
+    
+    error_msg = error_messages.get(lang, error_messages["ru"])
+    
+    log.warning(f"[payment_fallback] user={user_id} data={callback.data}")
+    
+    try:
+        await callback.answer(error_msg, show_alert=True)
+    except Exception:
+        try:
+            await bot.send_message(user_id, error_msg)
+        except Exception as e:
+            log.error(f"[payment_fallback] failed to notify user {user_id}: {e}")

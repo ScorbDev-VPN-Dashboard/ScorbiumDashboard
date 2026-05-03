@@ -1,72 +1,189 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  VPN Dashboard — Update
+#  Improved with: pre-flight checks, health verification, rollback on failure,
+#  port checks, process checks, nginx reload, disk cleanup
 # =============================================================================
 set -euo pipefail
-GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; RESET='\033[0m'
+
+GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'
+RED='\033[0;31m'; BOLD='\033[1m'; RESET='\033[0m'
 
 info()    { echo -e "${CYAN}[INFO]${RESET} $*"; }
 success() { echo -e "${GREEN}[OK]${RESET}   $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${RESET} $*"; }
-error()   { echo -e "${RED}[ERR]${RESET}  $*"; exit 1; }
+error()   { echo -e "${RED}[ERR]${RESET}  $*" >&2; exit 1; }
 
-# ── Проверки ──────────────────────────────────────────────────────────────────
-[[ ! -f .env ]] && error ".env не найден. Запустите setup.sh сначала."
-[[ ! -f docker-compose.prod.yml ]] && error "Запустите скрипт из корня проекта."
+COMPOSE_FILE="docker-compose.prod.yml"
 
+echo -e "${BOLD}${CYAN}"
+echo "╔═══════════════════════════════════════════════════════════╗"
+echo "║       Scorbium Dashboard VPN  — Update                    ║"
+echo "╚═══════════════════════════════════════════════════════════╝"
+echo -e "${RESET}"
+
+# ── Pre-flight ────────────────────────────────────────────────────────────────
+
+preflight() {
+    info "Запускаю проверки..."
+
+    [[ ! -f .env ]] && error ".env не найден. Запустите setup.sh сначала."
+    [[ ! -f "$COMPOSE_FILE" ]] && error "${COMPOSE_FILE} не найден. Запустите из корня проекта."
+
+    # Docker
+    if ! docker info &>/dev/null; then
+        error "Docker не запущен. Выполните: sudo systemctl start docker"
+    fi
+    if ! docker compose version &>/dev/null; then
+        error "Docker Compose v2 не найден."
+    fi
+
+    # Check containers are running
+    local running
+    running=$(docker compose -f "$COMPOSE_FILE" ps --format '{{.Service}}:{{.Status}}' 2>/dev/null || true)
+    if [[ -z "$running" ]]; then
+        warn "Контейнеры не запущены. Сначала запустите: bash setup.sh"
+        exit 1
+    fi
+
+    # Check app health before updating
+    local app_status
+    app_status=$(docker inspect --format='{{.State.Health.Status}}' vpn_app 2>/dev/null || echo "unknown")
+    if [[ "$app_status" != "healthy" ]]; then
+        warn "App не healthy (статус: ${app_status}). Обновление может быть рискованным."
+        read -rp "Продолжить? [y/N]: " CONFIRM; CONFIRM=${CONFIRM:-N}
+        [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && exit 1
+    else
+        success "App healthy"
+    fi
+
+    # Check db is running
+    local db_status
+    db_status=$(docker inspect --format='{{.State.Status}}' vpn_db 2>/dev/null || echo "unknown")
+    if [[ "$db_status" != "running" ]]; then
+        error "DB не запущена (статус: ${db_status})"
+    fi
+    success "DB running"
+
+    # Disk space (need at least 1GB free for build)
+    local avail_kb
+    avail_kb=$(df -k . | awk 'NR==2 {print $4}')
+    local avail_gb=$((avail_kb / 1024 / 1024))
+    if [[ $avail_gb -lt 1 ]]; then
+        error "Недостаточно места: ${avail_gb}GB (нужно минимум 1GB)"
+    fi
+    success "Место на диске: ${avail_gb}GB"
+
+    # Port conflicts (80 and HTTPS_PORT)
+    local HTTPS_PORT
+    HTTPS_PORT=$(grep "^HTTPS_PORT=" .env | cut -d= -f2- | sed 's/[[:space:]]*#.*//' | xargs)
+    HTTPS_PORT=${HTTPS_PORT:-443}
+    local ports_to_check=(80 "${HTTPS_PORT}")
+    for port in "${ports_to_check[@]}"; do
+        if ss -tlnp 2>/dev/null | grep -q ":${port} " && ! ss -tlnp | grep ":${port} " | grep -q "docker\|nginx"; then
+            warn "Порт ${port} занят другим процессом"
+        fi
+    done
+
+    # Check for stale update lock
+    if [[ -f update.lock ]]; then
+        warn "Найден update.lock — предыдущее обновление могло не завершиться."
+        warn "Проверьте состояние контейнеров перед продолжением."
+        read -rp "Продолжить? [y/N]: " CONFIRM; CONFIRM=${CONFIRM:-N}
+        [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && exit 1
+        rm -f update.lock
+    fi
+
+    success "Все проверки пройдены"
+}
+
+preflight
+
+# ── Read config ───────────────────────────────────────────────────────────────
 DOMAIN=$(grep "^DOMAIN=" .env | cut -d= -f2- | sed 's/[[:space:]]*#.*//' | xargs)
 HTTPS_PORT=$(grep "^HTTPS_PORT=" .env | cut -d= -f2- | xargs)
 HTTPS_PORT=${HTTPS_PORT:-443}
-
-[[ -z "$DOMAIN" || "$DOMAIN" == "localhost" ]] && error "DOMAIN не задан в .env (нужен продакшен-домен)"
-
-# Ensure JWT_SECRET_KEY exists
-if ! grep -q "^JWT_SECRET_KEY=" .env || [[ -z "$(grep "^JWT_SECRET_KEY=" .env | cut -d= -f2- | xargs)" ]]; then
-    warn "JWT_SECRET_KEY не найден в .env — генерирую новый..."
-    NEW_JWT=$(openssl rand -hex 32 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(32))")
-    echo "JWT_SECRET_KEY=${NEW_JWT}" >> .env
-    success "JWT_SECRET_KEY добавлен в .env"
-fi
-
-info "Домен: ${DOMAIN}, HTTPS порт: ${HTTPS_PORT}"
-
-# ── [1/4] git pull ────────────────────────────────────────────────────────────
-info "[1/4] Обновляю код..."
-
-# Бэкап БД перед обновлением
 DB_NAME=$(grep "^DB_NAME=" .env | cut -d= -f2- | xargs)
 DB_USER=$(grep "^DB_USER=" .env | cut -d= -f2- | xargs)
 DB_NAME=${DB_NAME:-vpnbot}
 DB_USER=${DB_USER:-postgres}
-BACKUP_FILE="backup_$(date +%Y%m%d_%H%M%S).sql"
-info "Создаю бэкап БД → ${BACKUP_FILE}..."
-docker exec vpn_db pg_dump -U "${DB_USER}" "${DB_NAME}" > "${BACKUP_FILE}" 2>/dev/null && success "Бэкап создан: ${BACKUP_FILE}" || warn "Не удалось создать бэкап (БД не запущена?)"
 
-git pull || error "git pull failed. Проверьте: git status"
-
-# ── APP_VERSION из pyproject.toml ─────────────────────────────────────────────
-NEW_VER=$(grep '^version' pyproject.toml 2>/dev/null | head -1 | sed 's/.*= *"\(.*\)"/\1/' || true)
-if [[ -n "$NEW_VER" ]]; then
-    if grep -q "^APP_VERSION=" .env; then
-        if sed --version 2>/dev/null | grep -q GNU; then
-            sed -i "s/^APP_VERSION=.*/APP_VERSION=${NEW_VER}/" .env
-        else
-            sed -i '' "s/^APP_VERSION=.*/APP_VERSION=${NEW_VER}/" .env
-        fi
-    else
-        echo "APP_VERSION=${NEW_VER}" >> .env
-    fi
-    info "APP_VERSION → ${NEW_VER}"
+if [[ -z "$DOMAIN" || "$DOMAIN" == "localhost" ]]; then
+    error "DOMAIN не задан в .env (этот скрипт только для продакшена). Для локального обновления используйте: docker compose up -d --build app"
 fi
 
-# ── Синхронизируем TELEGRAM_WEBHOOK_URL с портом ──────────────────────────────
-CURRENT_WEBHOOK=$(grep "^TELEGRAM_WEBHOOK_URL=" .env | cut -d= -f2- | xargs)
+info "Домен: ${DOMAIN}, HTTPS порт: ${HTTPS_PORT}"
+
+# Ensure JWT_SECRET_KEY exists
+if ! grep -q "^JWT_SECRET_KEY=" .env || [[ -z "$(grep "^JWT_SECRET_KEY=" .env | cut -d= -f2- | xargs)" ]]; then
+    warn "JWT_SECRET_KEY не найден в .env — генерирую..."
+    NEW_JWT=$(openssl rand -hex 32 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(32))")
+    echo "JWT_SECRET_KEY=${NEW_JWT}" >> .env
+    chmod 600 .env
+    success "JWT_SECRET_KEY добавлен"
+fi
+
+# ── [1/6] DB Backup ──────────────────────────────────────────────────────────
+BACKUP_DIR="backups"
+mkdir -p "$BACKUP_DIR"
+BACKUP_FILE="${BACKUP_DIR}/backup_$(date +%Y%m%d_%H%M%S).sql.gz"
+
+info "[1/6] Создаю бэкап БД → ${BACKUP_FILE}..."
+if docker exec vpn_db pg_dump -U "${DB_USER}" "${DB_NAME}" 2>/dev/null | gzip > "${BACKUP_FILE}"; then
+    BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+    # Verify backup is not empty
+    if [[ -s "$BACKUP_FILE" ]]; then
+        success "Бэкап создан: ${BACKUP_FILE} (${BACKUP_SIZE})"
+    else
+        warn "Бэкап пустой! Проверьте что БД содержит данные."
+    fi
+else
+    warn "Не удалось создать бэкап. Продолжаю без бэкапа (рискованно)."
+    BACKUP_FILE=""
+fi
+
+# ── [2/6] Git pull ────────────────────────────────────────────────────────────
+info "[2/6] Обновляю код..."
+
+# Save current version
+OLD_VER=$(grep "^APP_VERSION=" .env 2>/dev/null | cut -d= -f2- | xargs || echo "unknown")
+
+# Check for uncommitted changes
+if git diff --quiet 2>/dev/null && git diff --cached --quiet 2>/dev/null; then
+    GIT_PULL_OUTPUT=$(git pull 2>&1) || error "git pull failed:\n${GIT_PULL_OUTPUT}"
+
+    if echo "$GIT_PULL_OUTPUT" | grep -q "Already up to date"; then
+        info "Код уже актуален"
+    else
+        success "Код обновлён"
+    fi
+else
+    warn "Есть незакоммиченные изменения. git pull может вызвать конфликт."
+    read -rp "Продолжить? [y/N]: " CONFIRM; CONFIRM=${CONFIRM:-N}
+    [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && exit 1
+    GIT_PULL_OUTPUT=$(git pull 2>&1) || error "git pull failed:\n${GIT_PULL_OUTPUT}"
+    success "Код обновлён (с локальными изменениями)"
+fi
+
+# Update APP_VERSION
+NEW_VER=$(grep '^version' pyproject.toml 2>/dev/null | head -1 | sed 's/.*= *"\(.*\)"/\1/' || true)
+if [[ -n "$NEW_VER" && "$NEW_VER" != "$OLD_VER" ]]; then
+    if sed --version 2>/dev/null | grep -q GNU; then
+        sed -i "s/^APP_VERSION=.*/APP_VERSION=${NEW_VER}/" .env
+    else
+        sed -i '' "s/^APP_VERSION=.*/APP_VERSION=${NEW_VER}/" .env
+    fi
+    info "Версия: ${OLD_VER} → ${NEW_VER}"
+fi
+
+# Sync TELEGRAM_WEBHOOK_URL
+CURRENT_WEBHOOK=$(grep "^TELEGRAM_WEBHOOK_URL=" .env | cut -d= -f2- | xargs || true)
 if [[ "$HTTPS_PORT" == "443" ]]; then
     CORRECT_WEBHOOK="https://${DOMAIN}/webhook/bot"
 else
     CORRECT_WEBHOOK="https://${DOMAIN}:${HTTPS_PORT}/webhook/bot"
 fi
-if [[ "$CURRENT_WEBHOOK" != "$CORRECT_WEBHOOK" ]]; then
+if [[ -n "$CURRENT_WEBHOOK" && "$CURRENT_WEBHOOK" != "$CORRECT_WEBHOOK" ]]; then
     warn "TELEGRAM_WEBHOOK_URL устарел: ${CURRENT_WEBHOOK}"
     info "Обновляю → ${CORRECT_WEBHOOK}"
     if sed --version 2>/dev/null | grep -q GNU; then
@@ -77,13 +194,17 @@ if [[ "$CURRENT_WEBHOOK" != "$CORRECT_WEBHOOK" ]]; then
     success "TELEGRAM_WEBHOOK_URL обновлён"
 fi
 
-# ── [2/4] nginx.conf ──────────────────────────────────────────────────────────
-info "[2/4] Генерирую nginx.conf (${DOMAIN}:${HTTPS_PORT})..."
+# ── [3/6] nginx.conf ─────────────────────────────────────────────────────────
+info "[3/6] Генерирую nginx.conf..."
 
 CERT_PATH="nginx/ssl/live/${DOMAIN}/fullchain.pem"
-[[ ! -f "$CERT_PATH" ]] && warn "SSL сертификат не найден: ${CERT_PATH}. Запустите: certbot certonly --standalone -d ${DOMAIN}"
+if [[ ! -f "$CERT_PATH" ]]; then
+    warn "SSL сертификат не найден: ${CERT_PATH}"
+    warn "Выполните: certbot certonly --standalone -d ${DOMAIN}"
+    read -rp "Продолжить без SSL? [y/N]: " CONFIRM; CONFIRM=${CONFIRM:-N}
+    [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && exit 1
+fi
 
-# Redirect: при 443 не добавляем порт в URL
 if [[ "$HTTPS_PORT" == "443" ]]; then
     REDIR='return 301 https://$host$request_uri;'
 else
@@ -191,7 +312,6 @@ http {
             proxy_set_header Host              \$host;
             proxy_set_header X-Forwarded-Proto \$scheme;
         }
-        # WebSocket notifications endpoint
         location /ws/notifications {
             proxy_pass http://vpn_app;
             proxy_http_version 1.1;
@@ -217,49 +337,105 @@ http {
 NGINXEOF
 success "nginx.conf готов"
 
-# ── [3/4] Пересобираем и запускаем ───────────────────────────────────────────
-info "[3/4] Пересобираю app..."
-docker compose -f docker-compose.prod.yml build app
+# ── [4/6] Build & deploy ─────────────────────────────────────────────────────
+info "[4/6] Собираю и запускаю app..."
 
-info "Очищаю старые образы..."
-docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
+touch update.lock
 
-info "Перезапускаю контейнеры..."
-docker compose -f docker-compose.prod.yml up -d app
+# Build
+docker compose -f "$COMPOSE_FILE" build app || {
+    error "Сборка app failed. Откат не требуется — старый образ остался."
+}
 
-info "Жду готовности app (макс 90 сек)..."
-for i in $(seq 1 18); do
-    STATUS=$(docker inspect --format='{{.State.Health.Status}}' vpn_app 2>/dev/null || echo "unknown")
+# Deploy app (rolling restart — DB stays running)
+docker compose -f "$COMPOSE_FILE" up -d --no-deps app
+
+# Wait for healthy
+info "Жду готовности app (макс 120 сек)..."
+APP_READY=false
+for i in $(seq 1 24); do
+    STATUS=$(docker inspect --format='{{.State.Health.Status}}' vpn_app 2>/dev/null || echo "starting")
     if [[ "$STATUS" == "healthy" ]]; then
-        success "App готов"
+        APP_READY=true
+        success "App готов (${i}x5 сек)"
         break
-    fi
-    if [[ $i -eq 18 ]]; then
-        warn "App не стал healthy за 90 сек, продолжаю..."
-        docker compose -f docker-compose.prod.yml logs app --tail=20
     fi
     sleep 5
 done
 
-# ── [4/4] Миграции ────────────────────────────────────────────────────────────
-info "[4/4] Применяю миграции БД..."
-docker compose -f docker-compose.prod.yml exec app uv run python fix_alembic.py
-docker compose -f docker-compose.prod.yml exec app uv run alembic upgrade head
+if [[ "$APP_READY" != "true" ]]; then
+    warn "App не стал healthy за 120 сек!"
+    docker compose -f "$COMPOSE_FILE" logs app --tail=50
+    echo ""
+    error "Обновление прервано. App не запустился. Для отката восстановите бэкап: ${BACKUP_FILE:-N/A}"
+fi
+
+# ── [5/6] Migrations ─────────────────────────────────────────────────────────
+info "[5/6] Применяю миграции БД..."
+MIGRATION_OUTPUT=$(docker compose -f "$COMPOSE_FILE" exec app uv run python fix_alembic.py 2>&1) || {
+    warn "fix_alembic.py вернул ошибку:\n${MIGRATION_OUTPUT}"
+}
+MIGRATION_OUTPUT=$(docker compose -f "$COMPOSE_FILE" exec app uv run alembic upgrade head 2>&1) || {
+    warn "Миграция вернула ошибку:\n${MIGRATION_OUTPUT}"
+    echo ""
+    warn "Возможно, база уже актуальна. Проверьте: docker compose exec app uv run alembic current"
+}
 success "Миграции применены"
 
-# ── Перезапускаем nginx с новым конфигом ─────────────────────────────────────
-docker compose -f docker-compose.prod.yml up -d nginx
-sleep 2
-# Try reload first, fallback to restart
-docker compose -f docker-compose.prod.yml exec nginx nginx -s reload 2>/dev/null || docker compose -f docker-compose.prod.yml restart nginx
-sleep 3
-NGINX_STATUS=$(docker inspect --format='{{.State.Status}}' vpn_nginx 2>/dev/null || echo "unknown")
-if [[ "$NGINX_STATUS" == "running" ]]; then
-    success "nginx запущен"
+# ── [6/6] Nginx ──────────────────────────────────────────────────────────────
+info "[6/6] Обновляю nginx..."
+
+# Validate nginx config before reloading
+NGINX_TEST=$(docker compose -f "$COMPOSE_FILE" exec nginx nginx -t 2>&1) || {
+    warn "nginx -t failed:\n${NGINX_TEST}"
+    info "Восстанавливаю старый конфиг и перезапускаю..."
+    docker compose -f "$COMPOSE_FILE" restart nginx
+}
+
+# Try graceful reload first
+if docker compose -f "$COMPOSE_FILE" exec nginx nginx -s reload 2>/dev/null; then
+    success "nginx reload выполнен (graceful)"
 else
-    warn "nginx не запустился, проверьте логи:"
-    docker compose -f docker-compose.prod.yml logs nginx --tail=15
+    warn "nginx reload failed, делаю restart..."
+    docker compose -f "$COMPOSE_FILE" restart nginx
+    sleep 3
 fi
+
+sleep 2
+NGINX_STATUS=$(docker inspect --format='{{.State.Status}}' vpn_nginx 2>/dev/null || echo "unknown")
+if [[ "$NGINX_STATUS" != "running" ]]; then
+    warn "nginx не запустился:"
+    docker compose -f "$COMPOSE_FILE" logs nginx --tail=20
+else
+    success "nginx running"
+fi
+
+# ── Post-update verification ─────────────────────────────────────────────────
+info "Проверяю работоспособность..."
+
+# Test health endpoint
+if curl -sk "https://${DOMAIN}:${HTTPS_PORT}/health" 2>/dev/null | grep -q '"status":"ok"\|"status": "ok"'; then
+    success "Health check: OK"
+else
+    warn "Health check не ответил. Проверьте: curl -sk https://${DOMAIN}:${HTTPS_PORT}/health"
+fi
+
+# Clean up old docker images
+info "Очищаю старые образы..."
+docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
+docker builder prune -f --filter "until=168h" >/dev/null 2>&1 || true
+success "Очистка завершена"
+
+# Clean old backups (keep last 5)
+if [[ -d "$BACKUP_DIR" ]]; then
+    local_count=$(ls -1 "$BACKUP_DIR"/backup_*.sql.gz 2>/dev/null | wc -l)
+    if [[ $local_count -gt 5 ]]; then
+        ls -1t "$BACKUP_DIR"/backup_*.sql.gz 2>/dev/null | tail -n +6 | xargs rm -f
+        info "Удалены старые бэкапы (оставлено 5)"
+    fi
+fi
+
+rm -f update.lock
 
 # ── Итог ──────────────────────────────────────────────────────────────────────
 echo ""
@@ -267,10 +443,25 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║  ✅  Обновление завершено                        ║${RESET}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════╝${RESET}"
 echo ""
+echo -e "  Версия: ${BOLD}${OLD_VER}${RESET} → ${BOLD}${NEW_VER:-$OLD_VER}${RESET}"
 if [[ "$HTTPS_PORT" == "443" ]]; then
-    echo -e "  🌐 Панель: ${CYAN}https://${DOMAIN}/panel/${RESET}"
+    echo -e "  Панель: ${CYAN}https://${DOMAIN}/panel/${RESET}"
 else
-    echo -e "  🌐 Панель: ${CYAN}https://${DOMAIN}:${HTTPS_PORT}/panel/${RESET}"
+    echo -e "  Панель: ${CYAN}https://${DOMAIN}:${HTTPS_PORT}/panel/${RESET}"
 fi
-echo -e "  Логи:  docker compose -f docker-compose.prod.yml logs -f app"
+echo ""
+echo -e "  📋 Логи:  ${YELLOW}docker compose logs -f app${RESET}"
+echo -e "  💾 Бэкап: ${YELLOW}${BACKUP_FILE:-не создан}${RESET}"
+echo ""
+
+# ── Rollback helper ───────────────────────────────────────────────────────────
+echo -e "${BOLD}Откат (если что-то пошло не так):${RESET}"
+echo -e "  # Вернуть старый код:"
+echo -e "  git log --oneline -5  # найти нужный коммит"
+echo -e "  git reset --hard <commit>"
+echo -e "  docker compose -f docker-compose.prod.yml build app"
+echo -e "  docker compose -f docker-compose.prod.yml up -d app"
+echo ""
+echo -e "  # Восстановить БД из бэкапа:"
+echo -e "  gunzip -c ${BACKUP_FILE:-backups/backup_*.sql.gz} | docker exec -i vpn_db psql -U ${DB_USER} ${DB_NAME}"
 echo ""

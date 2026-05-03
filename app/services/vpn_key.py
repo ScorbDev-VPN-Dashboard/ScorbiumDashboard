@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+import asyncio
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,7 +68,7 @@ class VpnKeyService:
         return result.scalar_one()
 
     async def provision(self, user_id: int, plan: Plan) -> Optional[VpnKey]:
-
+        """Provision VPN key with retry logic and rollback on failure."""
         from app.services.bot_settings import BotSettingsService
 
         async with AsyncSessionFactory() as check_session:
@@ -92,7 +93,6 @@ class VpnKeyService:
 
         try:
             import json as _json
-
             from app.services.bot_settings import BotSettingsService
 
             group_ids: list[int] = []
@@ -107,11 +107,38 @@ class VpnKeyService:
             except Exception as e:
                 log.warning(f"Failed to load vpn_group_ids setting: {e}")
                 group_ids = []
+                
+            marz_user = None
+            last_error = None
+            for attempt in range(3):
+                try:
+                    marz_user = await self._get_panel().create_user(
+                        username=username,
+                        expire_days=plan.duration_days,
+                        data_limit_gb=0,
+                        group_ids=group_ids or None,
+                    )
+                    log.info(f"Marzban provisioned {username} (attempt {attempt+1})")
+                    break
+                except Exception as e:
+                    last_error = e
+                    log.warning(f"Marzban attempt {attempt+1}/3 failed for {username}: {e}")
+                    if attempt < 2:
+                        await asyncio.sleep(0.5 * (attempt + 1))
 
-            # RETRY LOGIC: 3x with backoff\n            for attempt in range(3):\n                try:\n                    marz_user = await self._get_panel().create_user(\n                        username=username,\n                        expire_days=plan.duration_days,\n                        data_limit_gb=0,\n                        group_ids=group_ids or None,\n                    )\n                    log.info(f\"✅ Marzban provisioned user {username} (attempt {attempt+1})\")\n                    break\n                except Exception as e:\n                    log.warning(f\"❌ Marzban attempt {attempt+1}/3 failed for {username}: {e}\")\n                    if attempt == 2:\n                        raise\n                    await asyncio.sleep(0.5 * (attempt + 1))\n            else:\n                log.error(f\"💥 All 3 Marzban attempts failed for {username}\")\n                await self.session.delete(key)\n                await self.session.flush()\n                return None
+            if marz_user is None:
+                log.error(f"All 3 Marzban attempts failed for {username}: {last_error}")
+                await self.session.delete(key)
+                await self.session.flush()
+                return None
+
+        except Exception as e:
+            log.error(f"Marzban/Pasarguard create_user failed for {username}: {e}")
+            await self.session.delete(key)
+            await self.session.flush()
+            return None
 
         sub_token = marz_user.get("subscription_url", "")
-        # Build access URL
         _pg = config.pasarguard
         panel_base = str(_pg.pasarguard_admin_panel).rstrip("/") if _pg else ""
 
@@ -126,7 +153,7 @@ class VpnKeyService:
         key.pasarguard_key_id = username
         key.access_url = access_url
         await self.session.flush()
-        log.info(f"✅ VPN provisioned: user={user_id} key={key.id} marzban={username}")
+        log.info(f"VPN provisioned: user={user_id} key={key.id} marzban={username}")
         return key
 
     async def provision_days(
@@ -158,7 +185,6 @@ class VpnKeyService:
 
         try:
             import json as _json
-
             from app.services.bot_settings import BotSettingsService
 
             group_ids: list[int] = []
@@ -174,12 +200,31 @@ class VpnKeyService:
                 log.warning(f"Failed to load vpn_group_ids setting: {e}")
                 group_ids = []
 
-            marz_user = await self._get_panel().create_user(
-                username=username,
-                expire_days=days,
-                data_limit_gb=0,
-                group_ids=group_ids or None,
-            )
+
+            marz_user = None
+            last_error = None
+            for attempt in range(3):
+                try:
+                    marz_user = await self._get_panel().create_user(
+                        username=username,
+                        expire_days=days,
+                        data_limit_gb=0,
+                        group_ids=group_ids or None,
+                    )
+                    log.info(f"Marzban provisioned {username} (attempt {attempt+1})")
+                    break
+                except Exception as e:
+                    last_error = e
+                    log.warning(f"Marzban attempt {attempt+1}/3 failed for {username}: {e}")
+                    if attempt < 2:
+                        await asyncio.sleep(0.5 * (attempt + 1))
+
+            if marz_user is None:
+                log.error(f"All 3 Marzban attempts failed for {username}: {last_error}")
+                await self.session.delete(key)
+                await self.session.flush()
+                return None
+
         except Exception as e:
             log.error(f"Marzban/Pasarguard create_user failed for {username}: {e}")
             await self.session.delete(key)
@@ -201,7 +246,7 @@ class VpnKeyService:
         key.pasarguard_key_id = username
         key.access_url = access_url
         await self.session.flush()
-        log.info(f"✅ VPN provisioned (days): user={user_id} key={key.id} days={days}")
+        log.info(f"VPN provisioned (days): user={user_id} key={key.id} days={days}")
         return key
 
     async def provision_for_subscription(
@@ -280,7 +325,6 @@ class VpnKeyService:
                 if not marz_user:
                     key.status = VpnKeyStatus.REVOKED.value
                 else:
-                    # Support both active/disabled/expired statuses
                     raw_status = (
                         marz_user.get("_normalized_status")
                         or marz_user.get("status", "")

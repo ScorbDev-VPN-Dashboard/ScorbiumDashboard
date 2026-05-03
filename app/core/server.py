@@ -122,18 +122,27 @@ async def _lifespan(app: FastAPI):
     mode = config.telegram.telegram_type_protocol
 
     if mode == "webhook":
-        await _bot.set_webhook(
-            url=config.telegram.telegram_webhook_url,
-            allowed_updates=_dp.resolve_used_update_types(),
-            drop_pending_updates=True,
-        )
-        log.info(f"🤖 Bot webhook → {config.telegram.telegram_webhook_url}")
+        try:
+            await _bot.set_webhook(
+                url=config.telegram.telegram_webhook_url,
+                allowed_updates=_dp.resolve_used_update_types(),
+                drop_pending_updates=True,
+            )
+            log.info("Bot webhook set -> %s", config.telegram.telegram_webhook_url)
+        except Exception as e:
+            log.error("Failed to set Telegram webhook: %s. App will run without bot.", e)
     else:
-        await _bot.delete_webhook(drop_pending_updates=True)
-        asyncio.create_task(
-            _dp.start_polling(_bot, allowed_updates=_dp.resolve_used_update_types())
-        )
-        log.info("🤖 Bot polling started")
+        try:
+            await _bot.delete_webhook(drop_pending_updates=True)
+        except Exception as e:
+            log.warning("Failed to delete Telegram webhook (non-critical): %s", e)
+        try:
+            asyncio.create_task(
+                _dp.start_polling(_bot, allowed_updates=_dp.resolve_used_update_types())
+            )
+            log.info("Bot polling started")
+        except Exception as e:
+            log.error("Failed to start Telegram polling: %s. App will run without bot.", e)
 
     _start_bg_task(payment_polling_loop(), name="payment_polling")
     _start_bg_task(expire_loop(), name="expire_loop")
@@ -226,9 +235,24 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(RateLimitMiddleware)
 
+    from starlette.middleware.base import BaseHTTPMiddleware as _BHM
+    from app.api.middleware.csrf import CSRFMiddleware, generate_csrf_token as _gct, CSRF_COOKIE as _CC
+
+    class _CSRFInjector(_BHM):
+        async def dispatch(self, request: Request, call_next):
+            resp = await call_next(request)
+            path = request.url.path
+            if path.startswith("/panel") and not path.startswith("/panel/api"):
+                if not request.cookies.get(_CC):
+                    token = _gct()
+                    resp.set_cookie(_CC, token, httponly=False, samesite="lax", max_age=86400)
+            return resp
+    app.add_middleware(_CSRFInjector)
+    app.add_middleware(CSRFMiddleware)
+
     @app.exception_handler(Exception)
     async def _global_exc(request: Request, exc: Exception) -> JSONResponse:
-        log.error(f"Unhandled exception on {request.url}: {exc}")
+        log.error("Unhandled exception on %s: %s", request.url, exc)
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
     @app.exception_handler(403)
@@ -245,7 +269,6 @@ def create_app() -> FastAPI:
             status_code=403,
         )
 
-    from starlette.middleware.base import BaseHTTPMiddleware as _BHM
     class _SecurityHeaders(_BHM):
         async def dispatch(self, request: Request, call_next):
             resp = await call_next(request)
@@ -266,25 +289,6 @@ def create_app() -> FastAPI:
 
     from app.api.web import get_web_router
     app.include_router(get_web_router())
-
-    @app.get('/health')
-    async def health():
-        return {'status': 'ok', 'miniapp': 'fixed', 'version': config.web.app_version}
-
-    @app.websocket('/ws/notifications')
-    async def ws_notifications(websocket: WebSocket):
-        from app.services.notification import notification_manager
-        await websocket.accept()
-        notification_manager.connect(websocket)
-        try:
-            while True:
-                data = await websocket.receive_text()
-                if data == 'ping':
-                    await websocket.send_text('pong')
-        except:
-            pass
-        finally:
-            notification_manager.disconnect(websocket)
 
     static_path = Path(__file__).resolve().parent.parent / "static"
     static_path.mkdir(exist_ok=True)
@@ -328,22 +332,18 @@ def create_app() -> FastAPI:
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/panel/")
 
-
-    
-
-
-    @app.get('/health', include_in_schema=False)
+    @app.get("/health", include_in_schema=False)
     async def health_check():
         from sqlalchemy import text
         from fastapi.responses import JSONResponse
         try:
             from app.core.database import AsyncSessionFactory
             async with AsyncSessionFactory() as session:
-                await session.execute(text('SELECT 1'))
-            return JSONResponse({'status': 'ok', 'db': 'connected'})
+                await session.execute(text("SELECT 1"))
+            return JSONResponse({"status": "ok", "db": "connected"})
         except Exception as e:
-            log.error(f'Health check failed: {e}')
-            return JSONResponse({'status': 'error', 'db': str(e)}, status_code=503)
+            log.error("Health check failed: %s", e)
+            return JSONResponse({"status": "error", "db": "unavailable"}, status_code=503)
 
     return app
 

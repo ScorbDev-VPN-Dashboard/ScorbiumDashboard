@@ -147,47 +147,117 @@ async def freekassa_webhook(request: Request, db: AsyncSession = Depends(get_db)
 
 @router.post("/webhook/yookassa", summary="Yookassa webhook", include_in_schema=False)
 async def yookassa_webhook(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    """Atomic Yookassa webhook: confirm payment + provision key with retry."""
+    import asyncio
+    import json
+
     try:
-        body = await request.json()
-        event = body.get("event")
-        obj = body.get("object", {})
-        external_id = obj.get("id")
-        metadata = obj.get("metadata", {})
-        payment_id = metadata.get("payment_id")
-        plan_id = metadata.get("plan_id")
+        raw_body = await request.body()
+        data = json.loads(raw_body)
+    except Exception as e:
+        log.error(f"Yookassa webhook: invalid JSON body: {e}")
+        return {"status": "error", "message": "invalid body"}
 
-        if event == "payment.succeeded" and payment_id and plan_id:
-            plan = await PlanService(db).get_by_id(int(plan_id))
-            if plan:
-                payment = await PaymentService(db).confirm(int(payment_id), external_id)
+    event = data.get("event")
+    obj = data.get("object", {})
+    external_id = obj.get("id")
+    metadata = obj.get("metadata", {})
+    payment_id = metadata.get("payment_id")
+    plan_id = metadata.get("plan_id")
+    extend_key_id = metadata.get("extend_key_id")
+
+    log.info(f"Yookassa webhook: event={event} payment_id={payment_id} plan_id={plan_id} extend_key_id={extend_key_id}")
+
+    if event == "payment.canceled" and payment_id:
+        try:
+            await PaymentService(db).fail(int(payment_id))
+            await db.commit()
+            log.info(f"Yookassa: payment {payment_id} marked as failed")
+        except Exception as e:
+            log.error(f"Yookassa cancel error: {e}")
+        return {"status": "ok"}
+
+    if event != "payment.succeeded" or not payment_id or not plan_id:
+        return {"status": "ok"}
+
+    try:
+        plan = await PlanService(db).get_by_id(int(plan_id))
+        if not plan:
+            log.warning(f"Yookassa: plan {plan_id} not found")
+            return {"status": "ok"}
+
+        payment = await PaymentService(db).confirm(int(payment_id), external_id)
+        await db.commit()
+
+        if not payment:
+            log.warning(f"Yookassa: payment {payment_id} not found for confirmation")
+            return {"status": "ok"}
+
+        key = None
+        last_error = None
+
+        if extend_key_id:
+            from app.services.vpn_key import VpnKeyService
+            try:
+                key = await VpnKeyService(db).extend(int(extend_key_id), plan.duration_days)
                 await db.commit()
-
-                if payment:
+                log.info(f"Yookassa: key {extend_key_id} extended by {plan.duration_days} days")
+            except Exception as e:
+                last_error = e
+                log.error(f"Yookassa: extend key {extend_key_id} failed: {e}")
+        else:
+            for attempt in range(3):
+                try:
                     from app.services.vpn_key import VpnKeyService
                     key = await VpnKeyService(db).provision(user_id=payment.user_id, plan=plan)
                     if key:
-                        payment.vpn_key_id = key.id
-                    await db.commit()
+                        break
+                except Exception as e:
+                    last_error = e
+                    log.warning(f"Yookassa provision attempt {attempt + 1}/3 failed: {e}")
+                    if attempt < 2:
+                        await asyncio.sleep(1.5 * (attempt + 1))
 
-                    # Уведомляем пользователя
-                    from app.services.telegram_notify import TelegramNotifyService
-                    from app.services.bot_settings import BotSettingsService
-                    settings = await BotSettingsService(db).get_all()
-                    success_msg = settings.get("payment_success_message", "✅ Оплата прошла успешно!")
+            if key:
+                payment.vpn_key_id = key.id
+                await db.commit()
+                log.info(f"Yookassa: payment={payment_id} key={key.id} provisioned")
+            else:
+                log.error(f"Yookassa: payment={payment_id} provisioning failed after 3 retries: {last_error}")
 
-                    if key:
-                        text = f"{success_msg}\n\n🔑 <b>Ваш ключ:</b>\n<code>{key.access_url}</code>\n\n📅 Действует <b>{plan.duration_days} дней</b>"
-                    else:
-                        text = f"{success_msg}\n\nНажмите «Мои ключи» для получения ключа."
+        try:
+            from app.services.telegram_notify import TelegramNotifyService
+            from app.services.bot_settings import BotSettingsService
+            settings = await BotSettingsService(db).get_all()
+            success_msg = settings.get("payment_success_message", "Оплата прошла успешно!")
 
-                    await TelegramNotifyService().send_message(payment.user_id, text)
-                    log.info(f"Yookassa: payment {payment_id} confirmed, key provisioned")
+            if extend_key_id and key:
+                exp = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
+                text = (
+                    f"✅ {success_msg}\n\n"
+                    f"🔄 <b>Подписка продлена!</b>\n"
+                    f"📅 Новая дата: <b>{exp}</b>\n"
+                    f"➕ +{plan.duration_days} дней"
+                )
+            elif key:
+                text = (
+                    f"✅ {success_msg}\n\n"
+                    f"🔑 <b>Ваш VPN ключ:</b>\n<code>{key.access_url}</code>\n\n"
+                    f"📅 Действует <b>{plan.duration_days} дней</b>"
+                )
+            else:
+                text = (
+                    f"✅ {success_msg}\n\n"
+                    f"🔐 Ключ готовится (1-2 минуты). "
+                    f"Нажмите «Мои ключи» или обратитесь в поддержку, если ключ не появился."
+                )
 
-        elif event == "payment.canceled" and payment_id:
-            await PaymentService(db).fail(int(payment_id))
-            await db.commit()
+            await TelegramNotifyService().send_message(payment.user_id, text)
+        except Exception as e:
+            log.warning(f"Yookassa notification error: {e}")
 
         return {"status": "ok"}
+
     except Exception as e:
         log.error(f"Yookassa webhook error: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        return {"status": "ok"}

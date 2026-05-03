@@ -2,7 +2,7 @@
 <tr id="user-row-{{ u.id }}">
   <td><code style="color:#00d4aa">{{ u.id }}</code></td>
   <td>{{ u.full_name }}</td>
-  <td>{% if u.username %}<span style="color:#8892a4">@{{ u.username }}</span>{% else %}—{% endif %}</td>
+  <td>{% if u.username %}<span style="color:var(--text-muted)">@{{ u.username }}</span>{% else %}—{% endif %}</td>
   <td>{{ u.subscriptions_count }}</td>
   <td>{{ u.payments_count }}</td>
   <td>
@@ -14,7 +14,7 @@
       {% else %}
         <span class="badge badge-custom badge-closed">Неактивен</span>
       {% endif %}
-      <div style="font-size:.7rem;color:#8892a4;margin-top:.2rem">💰 {{ "%.2f"|format(u.balance or 0) }} ₽</div>
+      <div style="font-size:.7rem;color:var(--text-muted);margin-top:.2rem">💰 {{ "%.2f"|format(u.balance or 0) }} ₽</div>
     </div>
   </td>
   <td>
@@ -49,5 +49,5 @@
   </td>
 </tr>
 {% else %}
-<tr><td colspan="7" class="text-center py-4" style="color:#8892a4">Пользователи не найдены</td></tr>
+<tr><td colspan="7" class="text-center py-4" style="color:var(--text-muted)">Пользователи не найдены</td></tr>
 {% endfor %}

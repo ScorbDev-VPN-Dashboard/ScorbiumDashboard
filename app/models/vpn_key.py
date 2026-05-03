@@ -25,7 +25,7 @@ class VpnKey(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(
-        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     plan_id = Column(
         Integer, ForeignKey("plans.id", ondelete="SET NULL"), nullable=True
@@ -34,11 +34,12 @@ class VpnKey(Base):
     access_url = Column(Text, nullable=False)
     name = Column(String(128), nullable=True)
     price = Column(Numeric(10, 2), nullable=True)
-    expires_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
     status = Column(
         String(16),
         default=VpnKeyStatus.ACTIVE.value,
         nullable=False,
+        index=True,
     )
 
     user = relationship("User", back_populates="vpn_keys")
