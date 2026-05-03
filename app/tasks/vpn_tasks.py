@@ -72,6 +72,7 @@ async def notify_expiring_soon() -> None:
     try:
         async with AsyncSessionFactory() as session:
             settings = await BotSettingsService(session).get_all()
+            photo = await BotSettingsService(session).get("photo_status") or None
 
         # Check if notifications enabled
         if settings.get("notify_expiry_enabled", "1") != "1":
@@ -155,7 +156,10 @@ async def notify_expiring_soon() -> None:
                 except Exception:
                     msg = f"⚠️ Подписка «{name}» истекает через {days_before} дн. ({exp_str})"
 
-            await notify.send_message(user_id, msg)
+            if photo:
+                await notify.send_photo(user_id, photo, msg)
+            else:
+                await notify.send_message(user_id, msg)
             total_sent += 1
 
         if total_sent:
@@ -173,6 +177,7 @@ async def auto_renew_keys() -> None:
     from app.services.user import UserService
     from app.services.vpn_key import VpnKeyService
     from app.services.telegram_notify import TelegramNotifyService
+    from app.services.bot_settings import BotSettingsService
     from decimal import Decimal
 
     now = datetime.now(timezone.utc)
@@ -202,6 +207,7 @@ async def auto_renew_keys() -> None:
                 }
                 for k in keys
             ]
+            photo = await BotSettingsService(session).get("photo_status") or None
 
         notify = TelegramNotifyService()
         
@@ -262,13 +268,16 @@ async def auto_renew_keys() -> None:
                     if key:
                         await session.commit()
                         exp_str = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
-                        await notify.send_message(
-                            user_id,
+                        renew_msg = (
                             f"✅ <b>Подписка автоматически продлена!</b>\n\n"
                             f"📦 {name}\n"
                             f"Списано: <b>{price} ₽</b>\n"
-                            f"Действует до: <b>{exp_str}</b>",
+                            f"Действует до: <b>{exp_str}</b>"
                         )
+                        if photo:
+                            await notify.send_photo(user_id, photo, renew_msg)
+                        else:
+                            await notify.send_message(user_id, renew_msg)
                         log.info(f"[auto_renew] key={key_id} user={user_id} renewed for {plan.duration_days} days")
                     else:
                         # Extension failed - refund

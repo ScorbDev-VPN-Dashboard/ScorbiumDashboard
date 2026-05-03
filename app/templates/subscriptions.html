@@ -153,18 +153,20 @@
             {{ sub.expires_at.strftime('%d.%m.%Y') if sub.expires_at else '—' }}
           </td>
           <td>
-            <div class="d-flex gap-1 flex-wrap">
-              <button class="btn btn-xs btn-outline-secondary"
-                title="Продлить"
-                onclick="document.getElementById('extendSubId').textContent='{{ sub.id }}';document.getElementById('extendForm').setAttribute('hx-post','/panel/subscriptions/{{ sub.id }}/extend');new bootstrap.Modal(document.getElementById('extendModal')).show()">
-                <i class="bi bi-calendar-plus"></i>
+            <div class="d-flex gap-1">
+              <button class="btn btn-xs btn-outline-accent" title="Скопировать URL" onclick="copyKeyUrl('{{ sub.access_url or '' }}')">
+                <i class="bi bi-clipboard"></i>
               </button>
+              {% if st != 'revoked' %}
+              <button class="btn btn-xs btn-outline-accent" title="Продлить" onclick="openExtendModal({{ sub.id }}, '{{ sub.plan.name if sub.plan else sub.name or "" }}')">
+                <i class="bi bi-clock-history"></i>
+              </button>
+              {% endif %}
               {% if st == 'active' %}
-              <button class="btn btn-xs btn-outline-danger"
-                title="Отозвать"
+              <button class="btn btn-xs btn-outline-danger" title="Отозвать"
                 hx-post="/panel/subscriptions/{{ sub.id }}/cancel"
                 hx-swap="none"
-                onclick="return confirm('Отозвать подписку #{{ sub.id }}?')">
+                hx-confirm="Отозвать подписку?">
                 <i class="bi bi-x-circle"></i>
               </button>
               {% endif %}
@@ -180,21 +182,26 @@
 </div>
 
 <div class="modal fade" id="extendModal" tabindex="-1">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content" style="background:var(--bg-elevated);border:1px solid var(--border)">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content" style="background:#1a1f2e;border:1px solid rgba(255,255,255,.08)">
       <div class="modal-header border-0">
-        <h6 class="modal-title"><i class="bi bi-calendar-plus me-2" style="color:var(--accent)"></i>Продлить</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:invert(1)"></button>
+        <h6 class="modal-title" style="color:var(--text)"><i class="bi bi-clock-history me-2"></i>Продлить подписку</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <form id="extendForm" hx-swap="none">
         <div class="modal-body">
-          <p style="font-size:.85rem">Подписка #<span id="extendSubId"></span></p>
-          <label class="form-label">Количество дней</label>
-          <input type="number" name="days" class="form-control" value="30" min="1" max="3650" required />
+          <p style="font-size:.85rem;color:var(--text-muted)" id="extendSubInfo"></p>
+          <div class="d-flex gap-2 mb-3">
+            <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" onclick="setExtendDays(7)">7 дн.</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" onclick="setExtendDays(30)">30 дн.</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" onclick="setExtendDays(90)">90 дн.</button>
+          </div>
+          <label class="form-label" style="font-size:.8rem">Или введите свои дни</label>
+          <input type="number" name="days" id="extendDays" class="form-control" placeholder="Дней" min="1" max="3650" />
         </div>
-        <div class="modal-footer border-0">
+        <div class="modal-footer border-0 gap-2">
           <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
-          <button type="submit" class="btn btn-sm btn-accent">Продлить</button>
+          <button type="submit" class="btn btn-sm btn-accent"><i class="bi bi-check me-1"></i>Продлить</button>
         </div>
       </form>
     </div>
@@ -208,14 +215,23 @@
 </style>
 
 <script>
-document.getElementById('extendModal').addEventListener('show.bs.modal', function(e) {
-  const subId = e.relatedTarget.getAttribute('data-sub-id');
-  document.getElementById('extendSubId').textContent = subId;
+function copyKeyUrl(url) {
+  if (!url) { showToast('URL недоступен', 'error'); return; }
+  navigator.clipboard.writeText(url).then(() => showToast('URL скопирован', 'success')).catch(() => showToast('Не удалось скопировать', 'error'));
+}
+let extendSubId = null;
+function openExtendModal(subId, subName) {
+  extendSubId = subId;
+  document.getElementById('extendSubInfo').textContent = 'Подписка #' + subId + (subName ? ' (' + subName + ')' : '');
   document.getElementById('extendForm').setAttribute('hx-post', '/panel/subscriptions/' + subId + '/extend');
-  htmx.process(document.getElementById('extendForm'));
-});
-document.getElementById('extendForm').addEventListener('submit', function() {
+  document.getElementById('extendDays').value = '';
+  new bootstrap.Modal(document.getElementById('extendModal')).show();
+}
+function setExtendDays(d) { document.getElementById('extendDays').value = d; }
+document.getElementById('extendForm').addEventListener('htmx:afterRequest', function(e) {
   bootstrap.Modal.getInstance(document.getElementById('extendModal'))?.hide();
+  showToast(e.detail.successful ? 'Подписка продлена' : 'Ошибка', e.detail.successful ? 'success' : 'error');
+  if (e.detail.successful) setTimeout(() => location.reload(), 800);
 });
 
 function filterSubs(status, btn) {

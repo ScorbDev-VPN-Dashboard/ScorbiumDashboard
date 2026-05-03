@@ -335,6 +335,7 @@ async def about_project(callback: CallbackQuery) -> None:
 async def connect_menu(callback: CallbackQuery) -> None:
     async with AsyncSessionFactory() as session:
         lang = await _get_lang(callback.from_user.id, session)
+        photo = await BotSettingsService(session).get("photo_connect")
 
     builder = InlineKeyboardBuilder()
     builder.row(
@@ -352,7 +353,7 @@ async def connect_menu(callback: CallbackQuery) -> None:
         from app.bot.utils.media import edit_with_photo
 
         await edit_with_photo(
-            callback, t("connect_title", lang), reply_markup=builder.as_markup()
+            callback, t("connect_title", lang), reply_markup=builder.as_markup(), photo=photo or None
         )
     except Exception:
         pass
@@ -367,6 +368,7 @@ async def connect_guide(callback: CallbackQuery) -> None:
 
     async with AsyncSessionFactory() as session:
         lang = await _get_lang(callback.from_user.id, session)
+        photo = await BotSettingsService(session).get("photo_connect")
 
     guide = CONNECT_GUIDES.get(platform)
     if not guide:
@@ -384,7 +386,7 @@ async def connect_guide(callback: CallbackQuery) -> None:
     try:
         from app.bot.utils.media import edit_with_photo
 
-        await edit_with_photo(callback, guide, reply_markup=builder.as_markup())
+        await edit_with_photo(callback, guide, reply_markup=builder.as_markup(), photo=photo or None)
     except Exception:
         pass
     await callback.answer()

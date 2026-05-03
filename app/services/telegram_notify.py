@@ -44,6 +44,32 @@ class TelegramNotifyService:
             log.error("Telegram notify error for %s: %s", chat_id, e)
             return False
 
+    async def send_photo(
+        self,
+        chat_id: int,
+        photo: str,
+        caption: str,
+        parse_mode: str = "HTML",
+        disable_notification: bool = False,
+    ) -> bool:
+        payload = {
+            "chat_id": chat_id,
+            "photo": photo,
+            "caption": caption,
+            "parse_mode": parse_mode,
+            "disable_notification": disable_notification,
+        }
+        try:
+            client = await self._get_client()
+            resp = await client.post(f"{self._base}/sendPhoto", json=payload)
+            if resp.status_code == 200:
+                return True
+            log.warning("Telegram photo send failed for %s: %s", chat_id, resp.text)
+            return False
+        except Exception as e:
+            log.error("Telegram notify photo error for %s: %s", chat_id, e)
+            return False
+
     async def broadcast(
         self,
         user_ids: list[int],

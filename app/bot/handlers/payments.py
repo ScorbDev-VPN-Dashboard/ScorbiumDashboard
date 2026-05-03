@@ -735,6 +735,7 @@ async def _topup_confirm_balance(
     amount = Decimal(amount_str)
     balance = 0.0
     lang = "ru"
+    photo = None
 
     async with AsyncSessionFactory() as session:
 
@@ -752,10 +753,14 @@ async def _topup_confirm_balance(
         u = await UserService(session).get_by_id(user_id)
         user_lang = u.language if u and u.language else None
         lang = get_lang(settings, user_lang)
+        photo = await BotSettingsService(session).get("photo_status") or None
 
     text = t("topup_success", lang, amount=amount, balance=balance)
     try:
-        await bot.send_message(user_id, text, parse_mode="HTML")
+        if photo:
+            await bot.send_photo(user_id, photo=photo, caption=text, parse_mode="HTML")
+        else:
+            await bot.send_message(user_id, text, parse_mode="HTML")
     except Exception as e:
         log.warning(f"Failed to notify topup user {user_id}: {e}")
 

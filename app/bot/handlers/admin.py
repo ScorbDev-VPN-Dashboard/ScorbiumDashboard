@@ -104,7 +104,7 @@ def _back_admin_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
+async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup, str | None]:
     from datetime import datetime, timezone, timedelta
     from sqlalchemy import select, func, cast, Numeric
     from app.models.payment import Payment, PaymentStatus, PaymentType
@@ -117,6 +117,7 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
         open_tickets = await SupportService(session).count_open()
         revenue = await PaymentService(session).total_revenue()
         pending = await PaymentService(session).count_by_status(PaymentStatus.PENDING)
+        photo = await BotSettingsService(session).get("photo_status") or None
 
         today = datetime.now(timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -189,7 +190,7 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup]:
             f"  ⎣ Ожидают оплаты: <b>{pending}</b>"
         )
 
-    return text, admin_kb(panel_url=panel_url, maintenance=maintenance)
+    return text, admin_kb(panel_url=panel_url, maintenance=maintenance), photo
 
 
 async def _show_user_detail(callback: CallbackQuery, user_id: int) -> None:
@@ -388,8 +389,11 @@ async def admin_panel(message: Message) -> None:
     if not _is_admin(message.from_user.id):
         await message.answer("⛔ Нет доступа.")
         return
-    text, kb = await _admin_main_text()
-    await message.answer(text, reply_markup=kb, parse_mode="HTML")
+    text, kb, photo = await _admin_main_text()
+    if photo:
+        await message.answer_photo(photo=photo, caption=text, reply_markup=kb, parse_mode="HTML")
+    else:
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 @router.callback_query(F.data == "adm:back")
@@ -397,7 +401,7 @@ async def admin_back(callback: CallbackQuery, state: FSMContext) -> None:
     if not _is_admin(callback.from_user.id):
         return
     await state.clear()
-    text, kb = await _admin_main_text()
+    text, kb, _ = await _admin_main_text()
     try:
         await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     except Exception:
@@ -423,6 +427,7 @@ async def admin_stats(callback: CallbackQuery) -> None:
         open_tickets = await SupportService(session).count_open()
         revenue = await PaymentService(session).total_revenue()
         pending = await PaymentService(session).count_by_status(PaymentStatus.PENDING)
+        photo = await BotSettingsService(session).get("photo_status") or None
 
         today = datetime.now(timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -489,9 +494,18 @@ async def admin_stats(callback: CallbackQuery) -> None:
         f"  ⎡ Открытых тикетов: <b>{open_tickets}</b>\n"
         f"  ⎣ Ожидают оплаты: <b>{pending}</b>"
     )
-    await callback.message.edit_text(
-        text, reply_markup=_back_admin_kb(), parse_mode="HTML"
-    )
+    if photo:
+        try:
+            await callback.message.delete()
+            await callback.message.answer_photo(
+                photo=photo, caption=text, reply_markup=_back_admin_kb(), parse_mode="HTML"
+            )
+        except Exception:
+            await callback.message.answer(text, reply_markup=_back_admin_kb(), parse_mode="HTML")
+    else:
+        await callback.message.edit_text(
+            text, reply_markup=_back_admin_kb(), parse_mode="HTML"
+        )
     await callback.answer()
 
 
@@ -514,7 +528,7 @@ async def admin_maintenance(callback: CallbackQuery) -> None:
         status = "🔴 ВКЛЮЧЕН" if new_state else "🟢 ВЫКЛЮЧЕН"
         await callback.answer(f"🔧 ТЕХ.РЕЖИМ: {status}", show_alert=True)
 
-    text, kb = await _admin_main_text()
+    text, kb, _ = await _admin_main_text()
     try:
         await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     except Exception:
@@ -891,7 +905,7 @@ async def admin_addbal_confirm(message: Message, state: FSMContext) -> None:
         await message.answer(f"✅ Баланс пользователя {user_id} пополнен на {amount} ₽")
     else:
         await message.answer("❌ Пользователь не найден")
-    text, kb = await _admin_main_text()
+    text, kb, _ = await _admin_main_text()
     await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
@@ -923,7 +937,7 @@ async def admin_deductbal_confirm(message: Message, state: FSMContext) -> None:
         await message.answer(f"✅ С баланса пользователя {user_id} снято {amount} ₽")
     else:
         await message.answer("❌ Пользователь не найден или недостаточно средств")
-    text, kb = await _admin_main_text()
+    text, kb, _ = await _admin_main_text()
     await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
@@ -1322,7 +1336,7 @@ async def admin_msg_send(message: Message, state: FSMContext) -> None:
     await message.answer(
         f"{'✅ Сообщение отправлено' if ok else '❌ Не удалось отправить'} пользователю {user_id}"
     )
-    text, kb = await _admin_main_text()
+    text, kb, _ = await _admin_main_text()
     await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
@@ -1587,7 +1601,7 @@ async def promo_got_max_uses(message: Message, state: FSMContext) -> None:
         f"✅ Промокод <code>{promo.code}</code> создан!\nТип: {promo.promo_type}, Значение: {promo.value}, Макс: {max_uses or '∞'}",
         parse_mode="HTML",
     )
-    text, kb = await _admin_main_text()
+    text, kb, _ = await _admin_main_text()
     await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
@@ -1729,6 +1743,7 @@ async def admin_referrals(callback: CallbackQuery) -> None:
     async with AsyncSessionFactory() as session:
         stats = await ReferralService(session).get_stats()
         top = await ReferralService(session).get_top(limit=10)
+        photo = await BotSettingsService(session).get("photo_referrals") or None
 
     lines = [
         f"👥 <b>Реферальная программа</b>\n",
@@ -1747,11 +1762,22 @@ async def admin_referrals(callback: CallbackQuery) -> None:
         )
         lines.append(f"{medal} {uname} — {r['referral_count']} реф.")
 
-    await callback.message.edit_text(
-        "\n".join(lines),
-        reply_markup=_back_admin_kb(),
-        parse_mode="HTML",
-    )
+    if photo:
+        try:
+            await callback.message.delete()
+            await callback.message.answer_photo(
+                photo=photo, caption="\n".join(lines), reply_markup=_back_admin_kb(), parse_mode="HTML"
+            )
+        except Exception:
+            await callback.message.answer(
+                "\n".join(lines), reply_markup=_back_admin_kb(), parse_mode="HTML"
+            )
+    else:
+        await callback.message.edit_text(
+            "\n".join(lines),
+            reply_markup=_back_admin_kb(),
+            parse_mode="HTML",
+        )
     await callback.answer()
 
 
