@@ -263,6 +263,12 @@
       color: #fff; filter: brightness(1.1);
     }
     .btn-accent:active { transform: translateY(0); }
+    .btn-outline-accent {
+      background: rgba(0,212,170,.08); border: 1px solid rgba(0,212,170,.25);
+      color: var(--accent); font-size: .75rem; font-weight: 500;
+      border-radius: 8px; transition: all .2s; padding: .2rem .5rem;
+    }
+    .btn-outline-accent:hover { background: rgba(0,212,170,.15); border-color: var(--accent); }
     .btn-outline {
       background: transparent; border: 1px solid var(--border);
       color: var(--text-secondary); font-size: .8rem; font-weight: 500;
@@ -431,9 +437,6 @@
     {% endif %}
     {% if has_perm(admin_role, 'referrals') %}
     <div class="nav-item"><a href="/panel/referrals" class="{% if active == 'referrals' %}active{% endif %}"><i class="bi bi-diagram-3-fill"></i> Рефералы</a></div>
-    {% endif %}
-    {% if has_perm(admin_role, 'vpn.read') %}
-    <div class="nav-item"><a href="/panel/vpn" class="{% if active == 'vpn' %}active{% endif %}"><i class="bi bi-key-fill"></i> VPN ключи</a></div>
     {% endif %}
 
     <div class="nav-section">Система</div>

@@ -97,7 +97,7 @@
     <!-- Subscriptions -->
     <div class="card mb-3">
       <div class="card-header px-3 py-2 d-flex align-items-center justify-content-between">
-        <span><i class="bi bi-calendar-check me-2 text-muted"></i>Подписки</span>
+        <span><i class="bi bi-key-fill me-2" style="color:var(--accent)"></i>Подписки</span>
         <span class="badge badge-custom badge-active">{{ subscriptions|length }}</span>
       </div>
       <div class="table-responsive">
@@ -107,24 +107,30 @@
             {% for sub in subscriptions %}
             <tr>
               <td><code style="color:#00d4aa">#{{ sub.id }}</code></td>
-              <td>{% if sub.plan %}{{ sub.plan.name }}{% else %}—{% endif %}</td>
+              <td>
+                {% if sub.plan %}{{ sub.plan.name }}{% else %}{{ sub.name or '—' }}{% endif %}
+              </td>
               <td>
                 {% set st = sub.status.value if sub.status.value is defined else sub.status %}
                 {% if st == 'active' %}<span class="badge badge-custom badge-active">Активна</span>
                 {% elif st == 'expired' %}<span class="badge badge-custom badge-expired">Истекла</span>
-                {% else %}<span class="badge badge-custom badge-closed">Отменена</span>{% endif %}
+                {% else %}<span class="badge badge-custom badge-closed">Отозвана</span>{% endif %}
               </td>
-              <td style="color:var(--text-muted)">{{ sub.expires_at.strftime('%d.%m.%Y') if sub.expires_at else '—' }}</td>
+              <td style="color:var(--text-muted)">{{ sub.expires_at.strftime('%d.%m.%Y %H:%M') if sub.expires_at else '∞' }}</td>
               <td>
                 <div class="d-flex gap-1">
-                  <button class="btn btn-xs btn-outline-secondary" title="Выдать ключ"
-                    hx-post="/panel/subscriptions/{{ sub.id }}/issue-key" hx-swap="none">
-                    <i class="bi bi-key"></i>
+                  <button class="btn btn-xs btn-outline-accent" title="Скопировать URL" onclick="copyKeyUrl('{{ sub.access_url }}')">
+                    <i class="bi bi-clipboard"></i>
                   </button>
+                  {% if st != 'revoked' %}
+                  <button class="btn btn-xs btn-outline-accent" title="Продлить" onclick="openExtendModal({{ sub.id }}, '{{ sub.plan.name if sub.plan else sub.name or '' }}')">
+                    <i class="bi bi-clock-history"></i>
+                  </button>
+                  {% endif %}
                   {% if st == 'active' %}
-                  <button class="btn btn-xs btn-outline-danger" title="Отменить"
-                    hx-post="/panel/subscriptions/{{ sub.id }}/cancel" hx-swap="none"
-                    hx-confirm="Отменить подписку?" onclick="setTimeout(()=>location.reload(),600)">
+                  <button class="btn btn-xs btn-outline-danger" title="Отозвать"
+                    hx-post="/panel/vpn/{{ sub.id }}/revoke" hx-swap="none"
+                    hx-confirm="Отозвать подписку?">
                     <i class="bi bi-x-circle"></i>
                   </button>
                   {% endif %}
@@ -133,45 +139,6 @@
             </tr>
             {% else %}
             <tr><td colspan="5" class="text-center py-3" style="color:var(--text-muted)">Нет подписок</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- VPN Keys -->
-    <div class="card mb-3">
-      <div class="card-header px-3 py-2 d-flex align-items-center justify-content-between">
-        <span><i class="bi bi-key me-2 text-muted"></i>VPN Ключи</span>
-        <span class="badge badge-custom" style="background:rgba(0,212,170,.15);color:#00d4aa">{{ vpn_keys|length }}</span>
-      </div>
-      <div class="table-responsive">
-        <table class="table mb-0" style="font-size:.82rem">
-          <thead><tr><th>#</th><th>Название</th><th>Статус</th><th>Ключ</th><th>Действия</th></tr></thead>
-          <tbody>
-            {% for key in vpn_keys %}
-            <tr>
-              <td><code style="color:#00d4aa">#{{ key.id }}</code></td>
-              <td>{{ key.name or '—' }}</td>
-              <td>
-                {% set kst = key.status.value if key.status.value is defined else key.status %}
-                {% if kst == 'active' %}<span class="badge badge-custom badge-active">Активен</span>
-                {% elif kst == 'expired' %}<span class="badge badge-custom badge-expired">Истёк</span>
-                {% else %}<span class="badge badge-custom badge-closed">Отозван</span>{% endif %}
-              </td>
-              <td><code style="font-size:.7rem;color:var(--text-muted);word-break:break-all">{{ key.access_url[:50] }}...</code></td>
-              <td>
-                {% if kst == 'active' %}
-                <button class="btn btn-xs btn-outline-danger" title="Отозвать"
-                  hx-post="/panel/vpn/{{ key.id }}/revoke" hx-swap="none"
-                  hx-confirm="Отозвать ключ?" onclick="setTimeout(()=>location.reload(),600)">
-                  <i class="bi bi-x-circle"></i>
-                </button>
-                {% endif %}
-              </td>
-            </tr>
-            {% else %}
-            <tr><td colspan="5" class="text-center py-3" style="color:var(--text-muted)">Нет ключей</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -250,6 +217,32 @@
   </div>
 </div>
 
+<!-- Extend Key Modal -->
+<div class="modal fade" id="extendModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content" style="background:#1a1f2e;border:1px solid rgba(255,255,255,.08)">
+      <div class="modal-header border-0">
+        <h6 class="modal-title" style="color:var(--text)"><i class="bi bi-clock-history me-2"></i>Продлить ключ</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--text-muted);font-size:.8rem;margin-bottom:.75rem" id="extend-key-info"></p>
+        <div class="d-flex gap-2 mb-3">
+          <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" onclick="setExtendDays(7)">7 дн.</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" onclick="setExtendDays(30)">30 дн.</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" onclick="setExtendDays(90)">90 дн.</button>
+        </div>
+        <label class="form-label" style="font-size:.8rem">Или введите свои дни</label>
+        <input type="number" id="extend-days" class="form-control" placeholder="Дней" min="1" max="3650" />
+      </div>
+      <div class="modal-footer border-0">
+        <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button class="btn btn-sm btn-accent" onclick="extendKey()"><i class="bi bi-check me-1"></i>Продлить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>.btn-xs { padding:.2rem .45rem; font-size:.75rem; }</style>
 {% endblock %}
 
@@ -272,6 +265,30 @@ async function sendMsg() {
   const r = await fetch('/panel/telegram/send', { method: 'POST', body: fd });
   bootstrap.Modal.getInstance(document.getElementById('msgModal'))?.hide();
   showToast(r.ok ? 'Отправлено' : 'Ошибка', r.ok ? 'success' : 'error');
+}
+function copyKeyUrl(url) {
+  navigator.clipboard.writeText(url).then(() => showToast('URL скопирован', 'success')).catch(() => showToast('Не удалось скопировать', 'error'));
+}
+let extendKeyId = null;
+function openExtendModal(keyId, keyName) {
+  extendKeyId = keyId;
+  document.getElementById('extend-key-info').textContent = 'Ключ #' + keyId + (keyName ? ' (' + keyName + ')' : '');
+  document.getElementById('extend-days').value = '';
+  new bootstrap.Modal(document.getElementById('extendModal')).show();
+}
+function setExtendDays(d) { document.getElementById('extend-days').value = d; }
+async function extendKey() {
+  const days = document.getElementById('extend-days').value;
+  if (!days || parseInt(days) <= 0) { showToast('Введите количество дней', 'error'); return; }
+  const fd = new FormData(); fd.append('days', days);
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  const csrf = meta ? meta.getAttribute('content') : '';
+  const r = await fetch('/panel/vpn/' + extendKeyId + '/extend', {
+    method: 'POST', body: fd, headers: {'X-CSRF-Token': csrf}
+  });
+  bootstrap.Modal.getInstance(document.getElementById('extendModal'))?.hide();
+  showToast(r.ok ? 'Ключ продлён на ' + days + ' дн.' : 'Ошибка', r.ok ? 'success' : 'error');
+  if (r.ok) setTimeout(() => location.reload(), 800);
 }
 </script>
 {% endblock %}

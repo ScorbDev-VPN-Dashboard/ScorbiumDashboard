@@ -168,7 +168,16 @@ async function clearDatabase() {
   result.innerHTML = '';
 
   try {
-    const r = await fetch('/panel/database/clear', {method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin'});
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    const csrf = meta ? meta.getAttribute('content') : '';
+    const r = await fetch('/panel/database/clear', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrf
+      },
+      credentials: 'same-origin'
+    });
     const d = await r.json();
     if (d.ok) {
       result.innerHTML = '<span style="color:#22c55e"><i class="bi bi-check-circle-fill me-1"></i>' + d.message + '</span>';

@@ -20,7 +20,6 @@ PERMISSIONS: dict[str, set[str]] = {
         "dashboard",
         "support",
         "users.read",
-        "vpn.read",
         "subscriptions.read",
     },
 }

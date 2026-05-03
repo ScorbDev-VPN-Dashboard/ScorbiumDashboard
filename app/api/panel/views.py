@@ -392,7 +392,7 @@ async def user_detail_page(
     )
 
     ctx["user"] = UserRead.model_validate(user)
-    ctx["vpn_keys"] = list(keys_result.scalars().all())
+    ctx["subscriptions"] = list(keys_result.scalars().all())
     ctx["payments"] = list(pays_result.scalars().all())
     ctx["plans"] = await PlanService(db).get_all(only_active=True)
     return templates.TemplateResponse("user_detail.html", ctx)
@@ -1098,10 +1098,8 @@ async def support_priority(
 
 @router.get("/vpn", response_class=HTMLResponse)
 async def vpn_page(request: Request, db: AsyncSession = Depends(get_db)):
-    _require_permission(request, "vpn.read")
-    ctx = await _base_ctx(request, db, "vpn")
-    ctx["keys"] = await VpnKeyService(db).get_all(limit=200)
-    return templates.TemplateResponse("vpn.html", ctx)
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/panel/subscriptions", status_code=301)
 
 
 @router.post("/vpn/{key_id}/revoke", response_class=HTMLResponse)
@@ -1115,6 +1113,29 @@ async def revoke_vpn_key(
     _toast(
         resp,
         f"Ключ #{key_id} отозван" if key else "Ключ не найден",
+        "success" if key else "error",
+    )
+    return resp
+
+
+@router.post("/vpn/{key_id}/extend", response_class=HTMLResponse)
+async def extend_vpn_key(
+    key_id: int,
+    request: Request,
+    days: int = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_permission(request, "vpn")
+    if days <= 0:
+        resp = Response(status_code=400)
+        _toast(resp, "Дней должно быть больше нуля", "error")
+        return resp
+    key = await VpnKeyService(db).extend(key_id, days)
+    await db.commit()
+    resp = Response(status_code=200)
+    _toast(
+        resp,
+        f"Ключ #{key_id} продлён на {days} дн." if key else "Ключ не найден",
         "success" if key else "error",
     )
     return resp
