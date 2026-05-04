@@ -300,10 +300,14 @@ def create_app() -> FastAPI:
 
             path = request.url.path
             is_panel = path.startswith("/panel")
+            is_miniapp = path.startswith("/app")
             is_docs = path in ("/docs", "/redoc", "/openapi.json")
 
             # X-Frame-Options
-            if is_panel:
+            if is_miniapp:
+                # MiniApp runs in Telegram WebView iframe — must allow framing
+                resp.headers["X-Frame-Options"] = "ALLOWALL"
+            elif is_panel:
                 resp.headers["X-Frame-Options"] = "SAMEORIGIN"
             else:
                 resp.headers["X-Frame-Options"] = "DENY"
@@ -347,12 +351,19 @@ def create_app() -> FastAPI:
                     "base-uri 'self'; "
                     "form-action 'self'"
                 )
-            else:
-                # API — most restrictive
+            elif is_miniapp:
+                # MiniApp — inline styles + Telegram CDN + external APIs
                 resp.headers["Content-Security-Policy"] = (
-                    "default-src 'none'; "
-                    "frame-ancestors 'none'; "
-                    "base-uri 'none'"
+                    "default-src 'self'; "
+                    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org; "
+                    "style-src 'self' 'unsafe-inline'; "
+                    "font-src 'self' data:; "
+                    "img-src 'self' data: https:; "
+                    "connect-src 'self' https:; "
+                    "frame-src 'self' https://t.me; "
+                    "object-src 'none'; "
+                    "base-uri 'self'; "
+                    "form-action 'self'"
                 )
 
             # Remove server header

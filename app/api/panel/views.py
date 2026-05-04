@@ -274,14 +274,13 @@ async def login_submit(
 @router.post("/login-2fa")
 async def login_2fa_submit(
     request: Request,
-    username: str = Form(...),
     code: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
     settings = await BotSettingsService(db).get_all()
     _error_ctx = {
         "request": request,
-        "error": "Неверный логин или код 2FA",
+        "error": "Неверный код 2FA",
         "app_name": config.web.app_name,
         "app_version": config.web.app_version,
         "custom_logo": settings.get("custom_logo", ""),
@@ -291,36 +290,34 @@ async def login_2fa_submit(
     import pyotp
     import hashlib
     import json
+    from sqlalchemy import select
+    from app.models.admin import Admin
 
-    admin = await AdminService(db).get_by_username(username)
-    if not admin or not admin.is_active:
-        return RedirectResponse(url="/panel/login", status_code=302)
+    result = await db.execute(select(Admin).where(Admin.is_active == True, Admin.totp_secret.isnot(None)))
+    admins_with_2fa = result.scalars().all()
 
-    if not admin.totp_secret:
-        return RedirectResponse(url="/panel/login", status_code=302)
+    for admin in admins_with_2fa:
+        totp = pyotp.TOTP(admin.totp_secret)
+        if totp.verify(code):
+            token = create_access_token(subject=admin.username, role=admin.role)
+            resp = RedirectResponse(url="/panel/", status_code=302)
+            resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
+            return resp
 
-    totp = pyotp.TOTP(admin.totp_secret)
-    if totp.verify(code):
-        token = create_access_token(subject=admin.username, role=admin.role)
-        resp = RedirectResponse(url="/panel/", status_code=302)
-        resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
-        return resp
-
-    # Try backup codes
-    if admin.backup_codes:
-        try:
-            hashed_codes = json.loads(admin.backup_codes)
-            code_hash = hashlib.sha256(code.upper().replace("-", "").strip().encode()).hexdigest()
-            if code_hash in hashed_codes:
-                hashed_codes.remove(code_hash)
-                admin.backup_codes = json.dumps(hashed_codes)
-                await db.commit()
-                token = create_access_token(subject=admin.username, role=admin.role)
-                resp = RedirectResponse(url="/panel/", status_code=302)
-                resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
-                return resp
-        except (json.JSONDecodeError, ValueError):
-            pass
+        if admin.backup_codes:
+            try:
+                hashed_codes = json.loads(admin.backup_codes)
+                code_hash = hashlib.sha256(code.upper().replace("-", "").strip().encode()).hexdigest()
+                if code_hash in hashed_codes:
+                    hashed_codes.remove(code_hash)
+                    admin.backup_codes = json.dumps(hashed_codes)
+                    await db.commit()
+                    token = create_access_token(subject=admin.username, role=admin.role)
+                    resp = RedirectResponse(url="/panel/", status_code=302)
+                    resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
+                    return resp
+            except (json.JSONDecodeError, ValueError):
+                pass
 
     return templates.TemplateResponse("login.html", _error_ctx)
 
