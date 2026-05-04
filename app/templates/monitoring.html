@@ -120,7 +120,7 @@ async function refreshHealth() {
       const label = e.status === 'healthy' ? 'OK' : e.status === 'degraded' ? 'Degraded' : 'DOWN';
       const latency = e.latency_ms > 0 ? `<div style="font-size:.7rem;color:var(--text-muted)">${e.latency_ms.toFixed(0)}ms</div>` : '';
       const msg = e.message && e.status !== 'healthy' ? `<div style="font-size:.65rem;color:var(--danger);margin-top:.25rem;word-break:break-word">${e.message.substring(0, 80)}</div>` : '';
-      const time = e.checked_at ? e.checked_at.substring(11, 19) : '—';
+      const time = e.checked_at ? new Date(e.checked_at).toLocaleTimeString() : '—';
       container.innerHTML += `
         <div class="col-sm-4 col-md-3 col-lg-2">
           <div class="card p-3 text-center">

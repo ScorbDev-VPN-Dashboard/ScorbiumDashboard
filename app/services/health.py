@@ -62,8 +62,7 @@ class HealthService:
         checks = [
             ("database", self._check_db),
             ("telegram_bot", self._check_telegram),
-            ("marzban", self._check_marzban),
-            ("pasarguard", self._check_pasarguard),
+            ("vpn_panel", self._check_vpn_panel),
             ("yookassa", self._check_yookassa),
             ("cryptobot", self._check_cryptobot),
         ]
@@ -99,25 +98,56 @@ class HealthService:
         return True
 
     async def send_alerts(self):
-        """Send Telegram alerts for down services."""
-        now = time.time()
+        """Send Telegram alerts for down services, respecting notification settings."""
+        from app.core.database import AsyncSessionFactory
+        from app.services.bot_settings import BotSettingsService
+
+        async with AsyncSessionFactory() as session:
+            settings = BotSettingsService(session)
+            if not (await settings.get("notify_monitoring_enabled")) == "1":
+                return
+
+            cooldown_sec = int((await settings.get("notify_cooldown_seconds")) or "300")
+            notify_on_degraded = (await settings.get("notify_on_degraded")) == "1"
+            chat_ids_raw = await settings.get("notify_chat_ids")
+            notify_svc = {
+                "database": (await settings.get("notify_svc_database")) == "1",
+                "telegram_bot": (await settings.get("notify_svc_telegram_bot")) == "1",
+                "vpn_panel": (await settings.get("notify_svc_vpn_panel")) == "1",
+                "yookassa": (await settings.get("notify_svc_yookassa")) == "1",
+                "cryptobot": (await settings.get("notify_svc_cryptobot")) == "1",
+            }
+
+        if chat_ids_raw and chat_ids_raw.strip():
+            try:
+                target_ids = [int(x.strip()) for x in chat_ids_raw.split(",") if x.strip()]
+            except ValueError:
+                target_ids = config.telegram.telegram_admin_ids
+        else:
+            target_ids = config.telegram.telegram_admin_ids
+
         notify = TelegramNotifyService()
-        admin_ids = config.telegram.telegram_admin_ids
+        now = time.time()
 
         for name, entry in self._entries.items():
-            if entry.status == ServiceStatus.DOWN:
+            if entry.status == ServiceStatus.DOWN or (notify_on_degraded and entry.status == ServiceStatus.DEGRADED):
+                if not notify_svc.get(name, True):
+                    continue
                 cooldown = self._alert_cooldowns.get(name, 0)
-                if now - cooldown < self._alert_cooldown:
+                if now - cooldown < cooldown_sec:
                     continue
                 self._alert_cooldowns[name] = now
+
+                emoji = "🚨" if entry.status == ServiceStatus.DOWN else "⚠️"
+                label = "недоступен" if entry.status == ServiceStatus.DOWN else "работает с перебоями"
                 msg = (
-                    f"🚨 <b>Сервис недоступен: {name}</b>\n\n"
+                    f"{emoji} <b>Сервис {label}: {name}</b>\n\n"
                     f"Ошибка: {entry.message}\n"
                     f"Время: {entry.checked_at.strftime('%H:%M:%S')}"
                 )
-                for admin_id in admin_ids:
+                for chat_id in target_ids:
                     try:
-                        await notify.send_message(admin_id, msg)
+                        await notify.send_message(chat_id, msg)
                     except Exception:
                         pass
 
@@ -157,31 +187,12 @@ class HealthService:
         finally:
             await bot.session.close()
 
-    async def _check_marzban(self, entry: HealthEntry):
+    async def _check_vpn_panel(self, entry: HealthEntry):
+        """Check Pasarguard/Marzban VPN panel (single unified check)."""
         import httpx
 
-        url = config.pasarguard.marz_base_url
-        if not url:
-            entry.warn(0, "Not configured")
-            return
-        url = url.rstrip("/")
-        start = time.time()
-        try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                resp = await client.get(f"{url}/api/system")
-            latency = (time.time() - start) * 1000
-            if resp.status_code == 200:
-                entry.ok(latency)
-            else:
-                entry.warn(latency, f"Status {resp.status_code}")
-        except Exception as e:
-            entry.fail(str(e))
-
-    async def _check_pasarguard(self, entry: HealthEntry):
-        import httpx
-
-        base = config.pasarguard.pasarguard_base_url
-        if not base:
+        base = str(config.pasarguard.pasarguard_admin_panel).rstrip("/")
+        if not base or "..." in base:
             entry.warn(0, "Not configured")
             return
         start = time.time()
@@ -190,7 +201,7 @@ class HealthService:
                 resp = await client.get(f"{base}/api/health")
             latency = (time.time() - start) * 1000
             if resp.status_code == 200:
-                entry.ok(latency)
+                entry.ok(latency, "Pasarguard/Marzban OK")
             else:
                 entry.warn(latency, f"Status {resp.status_code}")
         except Exception as e:

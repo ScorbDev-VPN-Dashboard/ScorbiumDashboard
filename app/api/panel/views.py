@@ -105,6 +105,7 @@ def _require_permission(request: Request, permission: str) -> dict:
                 },
             )
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+    return info
 
 
 def _redirect(url: str):
@@ -146,6 +147,7 @@ async def _base_ctx(
         "time_us": now.astimezone(us_east).strftime("%H:%M"),
         "csrf_token": request.cookies.get("csrf_token", ""),
         "custom_logo": custom_logo,
+        "open_alerts": 0,
     }
 
 
@@ -3516,3 +3518,66 @@ def _get_uptime() -> str:
         return f"{hours}h {minutes}m"
     else:
         return f"{minutes}m"
+
+
+# ── Notifications ─────────────────────────────────────────────────────────────
+
+_NOTIFY_SERVICES = [
+    {"key": "database", "label": "PostgreSQL", "icon": "🗄️"},
+    {"key": "telegram_bot", "label": "Telegram Bot", "icon": "🤖"},
+    {"key": "vpn_panel", "label": "VPN Panel (Pasarguard/Marzban)", "icon": "🌐"},
+    {"key": "yookassa", "label": "YooKassa", "icon": "💳"},
+    {"key": "cryptobot", "label": "CryptoBot", "icon": "₿"},
+]
+
+
+@router.get("/notifications", response_class=HTMLResponse)
+async def notifications_page(request: Request, db: AsyncSession = Depends(get_db)):
+    _require_permission(request, "system")
+    ctx = await _base_ctx(request, db, "notifications")
+    ctx["settings"] = await BotSettingsService(db).get_all()
+    ctx["service_list"] = _NOTIFY_SERVICES
+    return templates.TemplateResponse("notifications.html", ctx)
+
+
+@router.post("/api/notifications/setting")
+async def update_notification_setting(
+    request: Request,
+    key: str = Form(...),
+    value: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_permission(request, "system")
+    allowed_keys = {
+        "notify_monitoring_enabled", "notify_cooldown_seconds",
+        "notify_on_degraded", "notify_chat_ids",
+        "notify_svc_database", "notify_svc_telegram_bot",
+        "notify_svc_vpn_panel", "notify_svc_yookassa", "notify_svc_cryptobot",
+    }
+    if key not in allowed_keys:
+        return JSONResponse({"error": "Invalid key"}, status_code=400)
+    await BotSettingsService(db).set(key, value)
+    await db.commit()
+    # Clear health service cooldowns on settings change
+    health_service._alert_cooldowns.clear()
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/notifications/test")
+async def test_notification(request: Request, db: AsyncSession = Depends(get_db)):
+    _require_permission(request, "system")
+    notify = TelegramNotifyService()
+    admin_ids = config.telegram.telegram_admin_ids
+    msg = (
+        "🔔 <b>Тестовое уведомление</b>\n\n"
+        "Если вы получили это сообщение — уведомления работают корректно.\n"
+        f"Время: {datetime.now(timezone.utc).strftime('%H:%M:%S')}"
+    )
+    sent = 0
+    for admin_id in admin_ids:
+        try:
+            await notify.send_message(admin_id, msg)
+            sent += 1
+        except Exception:
+            pass
+    return JSONResponse({"ok": True, "sent_to": sent})

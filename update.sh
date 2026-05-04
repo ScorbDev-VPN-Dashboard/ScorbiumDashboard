@@ -115,7 +115,8 @@ fi
 info "Домен: ${DOMAIN}, HTTPS порт: ${HTTPS_PORT}"
 
 # Ensure JWT_SECRET_KEY exists
-if ! grep -q "^JWT_SECRET_KEY=" .env || [[ -z "$(grep "^JWT_SECRET_KEY=" .env | cut -d= -f2- | xargs)" ]]; then
+JWT_VAL=$(grep "^JWT_SECRET_KEY=" .env 2>/dev/null | cut -d= -f2- | sed 's/[[:space:]]*#.*//' | xargs || true)
+if [[ -z "$JWT_VAL" ]]; then
     warn "JWT_SECRET_KEY не найден в .env — генерирую..."
     NEW_JWT=$(openssl rand -hex 32 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(32))")
     echo "JWT_SECRET_KEY=${NEW_JWT}" >> .env
@@ -344,6 +345,7 @@ touch update.lock
 
 # Build
 docker compose -f "$COMPOSE_FILE" build app || {
+    rm -f update.lock
     error "Сборка app failed. Откат не требуется — старый образ остался."
 }
 
@@ -428,8 +430,8 @@ success "Очистка завершена"
 
 # Clean old backups (keep last 5)
 if [[ -d "$BACKUP_DIR" ]]; then
-    local_count=$(ls -1 "$BACKUP_DIR"/backup_*.sql.gz 2>/dev/null | wc -l)
-    if [[ $local_count -gt 5 ]]; then
+    bk_count=$(ls -1 "$BACKUP_DIR"/backup_*.sql.gz 2>/dev/null | wc -l)
+    if [[ $bk_count -gt 5 ]]; then
         ls -1t "$BACKUP_DIR"/backup_*.sql.gz 2>/dev/null | tail -n +6 | xargs rm -f
         info "Удалены старые бэкапы (оставлено 5)"
     fi

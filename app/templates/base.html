@@ -460,6 +460,7 @@
     <div class="nav-item"><a href="/panel/audit" class="{% if active == 'audit' %}active{% endif %}"><i class="bi bi-journal-text"></i> Аудит</a></div>
     <div class="nav-item"><a href="/panel/2fa" class="{% if active == '2fa' %}active{% endif %}"><i class="bi bi-shield-lock-fill"></i> 2FA</a></div>
     <div class="nav-item"><a href="/panel/monitoring" class="{% if active == 'monitoring' %}active{% endif %}"><i class="bi bi-activity"></i> Мониторинг</a></div>
+    <div class="nav-item"><a href="/panel/notifications" class="{% if active == 'notifications' %}active{% endif %}"><i class="bi bi-bell-fill"></i> Уведомления{% if open_alerts %}<span class="nav-badge nav-badge-warn">{{ open_alerts }}</span>{% endif %}</a></div>
     {% endif %}
     <div class="nav-item"><a href="/docs" target="_blank"><i class="bi bi-code-slash"></i> API Docs</a></div>
   </nav>

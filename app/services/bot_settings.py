@@ -115,6 +115,17 @@ DEFAULTS = {
     "btn_emoji_top_referrers": "",
     "btn_emoji_status": "",
     "btn_emoji_language": "",
+    # ── Уведомления о мониторинге ─────────────────────────────────────────────
+    "notify_monitoring_enabled": "1",  # 1 = общие уведомления включены
+    "notify_svc_database": "1",  # уведомления о БД
+    "notify_svc_telegram_bot": "1",  # уведомления о Telegram боте
+    "notify_svc_vpn_panel": "1",  # уведомления о VPN панели (Pasarguard/Marzban)
+    "notify_svc_yookassa": "0",  # уведомления о YooKassa
+    "notify_svc_cryptobot": "0",  # уведомления о CryptoBot
+    "notify_cooldown_seconds": "300",  # интервал между повторными уведомлениями (сек)
+    "notify_on_degraded": "0",  # 1 = уведомлять о degraded статусе
+    # ── Telegram Chat ID для уведомлений ──────────────────────────────────────
+    "notify_chat_ids": "",  # список chat_id через запятую (если пустой — все админы)
 }
 
 
