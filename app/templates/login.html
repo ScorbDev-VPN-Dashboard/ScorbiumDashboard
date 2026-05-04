@@ -145,8 +145,13 @@
     .security-badge {
       display: flex; align-items: center; justify-content: center; gap: .5rem;
       margin-top: 1rem; font-size: .7rem; color: var(--text-muted);
+      text-align: center;
     }
-    .security-badge i { color: var(--success); }
+    .security-badge i { color: var(--success); flex-shrink: 0; }
+    .security-badge span { white-space: nowrap; }
+    @media (max-width: 480px) {
+      .security-badge span { white-space: normal; text-align: center; }
+    }
 
     /* Page loader */
     .login-loader {
@@ -212,14 +217,15 @@
   <div class="orb orb-2"></div>
   <div class="orb orb-3"></div>
   <div class="login-wrap">
-    <div class="login-card" id="form-password">
+    <div class="login-card" id="form-password" style="{% if show_2fa %}display:none{% endif %}">
       <div class="logo-block">
         {% if custom_logo %}
-        <img src="{{ custom_logo }}" alt="Logo" class="logo-avatar" onerror="this.style.display='none';document.getElementById('fallback-icon').style.display='flex';">
-        {% endif %}
-        <div id="fallback-icon" class="logo-icon" style="display:{% if custom_logo %}none{% else %}flex{% endif %};width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-secondary));align-items:center;justify-content:center;margin-bottom:1rem;box-shadow:0 8px 32px rgba(0,212,170,.35);font-size:1.8rem;color:#fff;">
+        <img src="{{ custom_logo }}" alt="Logo" class="logo-avatar" id="logo-pw-img" onerror="this.style.display='none';document.getElementById('fallback-icon').style.display='flex';">
+        {% else %}
+        <div id="fallback-icon" style="display:flex;width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-secondary));align-items:center;justify-content:center;margin-bottom:1rem;box-shadow:0 8px 32px rgba(0,212,170,.35);font-size:1.8rem;color:#fff;">
           <i class="bi bi-shield-lock-fill"></i>
         </div>
+        {% endif %}
         <div class="app-name">{{ app_name | default('VPN Panel') }}</div>
         <div class="app-sub">
           Панель управления
@@ -227,7 +233,7 @@
         </div>
       </div>
 
-      {% if error %}
+      {% if error and not show_2fa %}
       <div class="alert-custom mb-3 d-flex align-items-center gap-2">
         <i class="bi bi-exclamation-triangle-fill"></i>
         <span>{{ error }}</span>
@@ -239,7 +245,7 @@
           <label class="form-label">Логин</label>
           <div class="input-group">
             <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
-            <input type="text" name="username" class="form-control" placeholder="admin" required autofocus autocomplete="username" />
+            <input type="text" name="username" class="form-control" placeholder="admin" required {% if not show_2fa %}autofocus {% endif %}autocomplete="username" />
           </div>
         </div>
         <div class="mb-4">
@@ -258,22 +264,23 @@
         </button>
       </form>
 
-      <div id="divider-2fa" class="divider-2fa">
+      <div id="divider-2fa" class="divider-2fa" style="{% if show_2fa %}display:none{% endif %}">
         <span>или</span>
       </div>
-      <button type="button" class="btn-2fa-toggle" id="btn-toggle-2fa" onclick="toggle2faLogin()">
+      <button type="button" class="btn-2fa-toggle" id="btn-toggle-2fa" style="{% if show_2fa %}display:none{% endif %}" onclick="toggle2faLogin()">
         <i class="bi bi-shield-lock-fill me-2"></i>Войти по коду 2FA
       </button>
     </div>
 
-    <div id="form-2fa" class="login-card" style="display:none">
+    <div id="form-2fa" class="login-card" style="display:{% if show_2fa %}block{% else %}none{% endif %}">
       <div class="logo-block">
         {% if custom_logo %}
-        <img src="{{ custom_logo }}" alt="Logo" class="logo-avatar" onerror="this.style.display='none';document.getElementById('fallback-2fa-icon').style.display='flex';">
-        {% endif %}
-        <div id="fallback-2fa-icon" class="logo-icon" style="display:{% if custom_logo %}none{% else %}flex{% endif %};width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--accent-warm),var(--accent-secondary));align-items:center;justify-content:center;margin-bottom:1rem;box-shadow:0 8px 32px rgba(245,158,11,.35);font-size:1.8rem;color:#fff;">
+        <img src="{{ custom_logo }}" alt="Logo" class="logo-avatar" id="logo-2fa-img" onerror="this.style.display='none';document.getElementById('fallback-2fa-icon').style.display='flex';">
+        {% else %}
+        <div id="fallback-2fa-icon" style="display:flex;width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--accent-warm),var(--accent-secondary));align-items:center;justify-content:center;margin-bottom:1rem;box-shadow:0 8px 32px rgba(245,158,11,.35);font-size:1.8rem;color:#fff;">
           <i class="bi bi-shield-lock-fill"></i>
         </div>
+        {% endif %}
         <div class="app-name">{{ app_name | default('VPN Panel') }}</div>
         <div class="app-sub">
           Вход по 2FA-коду
@@ -281,7 +288,7 @@
         </div>
       </div>
 
-      {% if error %}
+      {% if error and show_2fa %}
       <div class="alert-custom mb-3 d-flex align-items-center gap-2">
         <i class="bi bi-exclamation-triangle-fill"></i>
         <span>{{ error }}</span>
@@ -316,11 +323,11 @@
         <i class="bi bi-arrow-left me-1"></i>Назад к паролю
       </button>
     </div>
-  </div>
 
-  <div class="security-badge" style="position:relative;z-index:1;margin-top:1.5rem;text-align:center;max-width:440px;width:100%;margin-left:auto;margin-right:auto">
-    <i class="bi bi-shield-check" style="flex-shrink:0"></i>
-    <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">SSL · CSRF Protection · Rate Limited</span>
+    <div class="security-badge">
+      <i class="bi bi-shield-check"></i>
+      <span>SSL · CSRF Protection · Rate Limited</span>
+    </div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>

@@ -285,6 +285,7 @@ async def login_2fa_submit(
         "app_name": config.web.app_name,
         "app_version": config.web.app_version,
         "custom_logo": settings.get("custom_logo", ""),
+        "show_2fa": True,
     }
 
     import pyotp
