@@ -44,7 +44,11 @@ class MiniApp {
   }
 
   async api(path, options = {}) {
-    const url = `${this.apiBase}${path}`;
+    const isGet = !options.method || options.method.toUpperCase() === 'GET';
+    const sep = path.includes('?') ? '&' : '?';
+    const url = isGet && this.initData
+      ? `${this.apiBase}${path}${sep}tgWebAppData=${encodeURIComponent(this.initData)}`
+      : `${this.apiBase}${path}`;
 
     const headers = {
       'Content-Type': 'application/json',
