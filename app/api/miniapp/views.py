@@ -63,17 +63,22 @@ async def _verify_telegram_data(init_data: str, db: Optional[AsyncSession] = Non
         env_token = config.telegram.telegram_bot_token.get_secret_value()
         if env_token:
             tokens_to_try.append(env_token)
+            log.debug(f"MiniApp auth: env token loaded, len={len(env_token)}")
         if db:
             try:
                 db_token = await BotSettingsService(db).get("telegram_bot_token")
+                log.debug(f"MiniApp auth: DB token loaded, value={db_token[:10]}..." if db_token and len(db_token) > 10 else f"MiniApp auth: DB token loaded, len={len(db_token) if db_token else 0}")
                 if db_token and db_token not in tokens_to_try:
                     tokens_to_try.append(db_token)
+                    log.debug("MiniApp auth: added DB token as separate candidate")
             except Exception as e:
-                log.debug(f"MiniApp auth: failed to fetch DB token: {e}")
+                log.warning(f"MiniApp auth: failed to fetch DB token: {e}")
 
         if not tokens_to_try:
             log.error("MiniApp auth: no bot tokens configured")
             return None
+
+        log.debug(f"MiniApp auth: trying {len(tokens_to_try)} token(s)")
 
         # Try each token
         user_data = None
@@ -134,6 +139,31 @@ async def _get_tg_user(request: Request, db: Optional[AsyncSession] = None) -> O
     return None
 
 
+@router.get("/debug")
+async def miniapp_debug(request: Request, db: AsyncSession = Depends(get_db)):
+    """Debug endpoint to check auth headers."""
+    headers = dict(request.headers)
+    init_data_header = headers.get("x-telegram-init-data", "")
+    init_data_query = request.query_params.get("tgWebAppData", "")
+    env_token = config.telegram.telegram_bot_token.get_secret_value()
+    db_token = ""
+    try:
+        db_token_raw = await BotSettingsService(db).get("telegram_bot_token")
+        db_token = (db_token_raw or "")[:10] + "..." if db_token_raw and len(db_token_raw) > 10 else f"len={len(db_token_raw) if db_token_raw else 0}"
+    except Exception as e:
+        db_token = f"error: {e}"
+
+    return JSONResponse({
+        "headers_keys": list(headers.keys()),
+        "init_data_header_len": len(init_data_header),
+        "init_data_header_has_hash": "hash=" in init_data_header if init_data_header else False,
+        "init_data_query_len": len(init_data_query),
+        "env_token_prefix": env_token[:10] + "...",
+        "env_token_len": len(env_token),
+        "db_token_info": db_token,
+    })
+
+
 @router.get("/", response_class=HTMLResponse)
 async def miniapp_index(request: Request, db: AsyncSession = Depends(get_db)):
     """Main Mini App page."""
@@ -157,9 +187,12 @@ async def miniapp_index(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/auth")
 async def miniapp_auth(request: Request, db: AsyncSession = Depends(get_db)):
     """Authenticate user via Telegram initData, create if not exists."""
+    log.debug(f"MiniApp /auth: method={request.method}, content_type={request.headers.get('content-type')}")
+    log.debug(f"MiniApp /auth: headers={list(request.headers.keys())}")
     tg_user = await _get_tg_user(request, db)
 
     if not tg_user:
+        log.warning("MiniApp /auth: _get_tg_user returned None, returning 401")
         return JSONResponse(
             {"ok": False, "error": "Invalid auth", "detail": "HMAC verification failed or missing initData"},
             status_code=401

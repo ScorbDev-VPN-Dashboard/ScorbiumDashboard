@@ -387,8 +387,6 @@ def create_app() -> FastAPI:
     from app.api.miniapp import get_miniapp_router
     app.include_router(get_miniapp_router())
 
-    from app.api.web import get_web_router
-    app.include_router(get_web_router())
 
     static_path = Path(__file__).resolve().parent.parent / "static"
     static_path.mkdir(exist_ok=True)
