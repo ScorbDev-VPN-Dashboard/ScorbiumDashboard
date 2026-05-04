@@ -281,12 +281,24 @@ class MiniApp {
     this.currentScreen = 'profile';
     try {
       this.showLoading('profile-c');
-      const [profile, stats] = await Promise.all([
+      const [profile, stats, payments] = await Promise.all([
         this.api('/profile'),
-        this.api('/user/stats')
+        this.api('/user/stats'),
+        this.api('/user/payments?limit=5')
       ]);
 
       if (!profile.ok || !stats.ok) throw new Error('Load failed');
+
+      const pmts = payments?.payments || [];
+      const pmtsHtml = pmts.length ? pmts.map(p => {
+        const statusColor = p.status === 'succeeded' ? '#22c55e' : p.status === 'pending' ? '#eab308' : '#ef4444';
+        const statusIcon = p.status === 'succeeded' ? '✅' : p.status === 'pending' ? '⏳' : '❌';
+        return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--br)">
+          <span style="font-size:13px">${statusIcon} ${parseFloat(p.amount).toFixed(2)} ₽</span>
+          <span style="font-size:12px;color:var(--hi)">${p.provider || '—'}</span>
+          <span style="font-size:12px;color:${statusColor}">${p.status}</span>
+        </div>`;
+      }).join('') : '<div style="font-size:13px;color:var(--hi);text-align:center;padding:12px">Нет платежей</div>';
 
       const c = document.getElementById('profile-c');
       c.innerHTML = `
@@ -307,6 +319,11 @@ class MiniApp {
             <div class="stat-val">${stats.stats?.active_keys || 0}</div>
             <div class="stat-lbl">Активных ключей</div>
           </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <div style="font-size:14px;font-weight:700;margin-bottom:8px">💳 Последние платежи</div>
+          ${pmtsHtml}
         </div>
 
         <div style="font-size:12px;color:var(--hi);text-align:center;margin:24px 0">
@@ -568,9 +585,12 @@ function applyPromo() {
 }
 
 function toggleTheme() {
+  const isDark = document.body.classList.contains('dark');
   document.body.classList.toggle('dark');
   document.body.classList.toggle('light');
-  localStorage.theme = document.body.className;
+  const tbtn = document.getElementById('tbtn');
+  if (tbtn) tbtn.textContent = isDark ? '☀️' : '🌙';
+  localStorage.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
 }
 
 function toggleFaq(el) {

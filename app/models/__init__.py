@@ -14,6 +14,7 @@ from app.models.broadcast import Broadcast, BroadcastStatus
 from app.models.promo import PromoCode, PromoType
 from app.models.referral import Referral
 from app.models.bot_settings import BotSettings
+from app.models.audit_log import AuditLog
 
 __all__ = [
     "Base",
@@ -37,4 +38,5 @@ __all__ = [
     "PromoType",
     "Referral",
     "BotSettings",
+    "AuditLog",
 ]

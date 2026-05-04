@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Мониторинг — VPN Panel{% endblock %}
+{% block page_title %}<i class="bi bi-activity me-2" style="color:var(--accent)"></i>Мониторинг{% endblock %}
+
+{% block content %}
+<!-- Service health cards -->
+<div class="row g-3 mb-3" id="healthCards">
+  {% for name, entry in services.items() %}
+  <div class="col-sm-4 col-md-3 col-lg-2">
+    <div class="card p-3 text-center">
+      <div class="mb-2" style="font-size:1.5rem">
+        {% if entry.status == 'healthy' %}
+          <i class="bi bi-check-circle-fill" style="color:var(--success)"></i>
+        {% elif entry.status == 'degraded' %}
+          <i class="bi bi-exclamation-triangle-fill" style="color:var(--warning)"></i>
+        {% else %}
+          <i class="bi bi-x-circle-fill" style="color:var(--danger)"></i>
+        {% endif %}
+      </div>
+      <div class="fw-semibold" style="color:var(--text);font-size:.85rem">{{ name }}</div>
+      <div style="font-size:.75rem;color:var(--text-muted)">
+        {% if entry.status == 'healthy' %}OK{% elif entry.status == 'degraded' %}Degraded{% else %}DOWN{% endif %}
+      </div>
+      {% if entry.latency_ms > 0 %}
+      <div style="font-size:.7rem;color:var(--text-muted)">{{ "%.0f"|format(entry.latency_ms) }}ms</div>
+      {% endif %}
+      {% if entry.message and entry.status != 'healthy' %}
+      <div style="font-size:.65rem;color:var(--danger);margin-top:.25rem;word-break:break-word">{{ entry.message[:80] }}</div>
+      {% endif %}
+      <div style="font-size:.6rem;color:var(--text-muted);margin-top:.25rem">
+        {{ entry.checked_at.strftime('%H:%M:%S') if entry.checked_at else '—' }}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="d-flex gap-2 mb-3">
+  <button class="btn btn-sm btn-accent" onclick="refreshHealth()"><i class="bi bi-arrow-clockwise me-1"></i>Обновить</button>
+  <button class="btn btn-sm btn-outline-secondary" onclick="toggleMetrics()"><i class="bi bi-graph-up me-1"></i>Метрики</button>
+</div>
+
+<!-- Slow queries -->
+<div class="card mb-3">
+  <div class="card-header px-3 py-2"><i class="bi bi-hourglass-split me-2" style="color:var(--warning)"></i>Медленные запросы (последние)</div>
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th>Время</th>
+          <th>Длительность</th>
+          <th>Запрос</th>
+        </tr>
+      </thead>
+      <tbody id="slowQueries">
+        {% for q in slow_queries %}
+        <tr>
+          <td style="font-size:.8rem;color:var(--text-muted)">{{ q.time.strftime('%H:%M:%S') }}</td>
+          <td><span class="badge badge-custom" style="background:rgba(245,158,11,.12);color:#f59e0b">{{ "%.2f"|format(q.duration) }}s</span></td>
+          <td style="font-size:.75rem;color:var(--text-muted);max-width:600px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ q.query }}">{{ q.query[:120] }}{% if q.query|length > 120 %}…{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="text-center py-3" style="color:var(--text-muted)">Медленных запросов нет 🎉</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Prometheus metrics panel (hidden by default) -->
+<div class="card" id="metricsPanel" style="display:none">
+  <div class="card-header px-3 py-2"><i class="bi bi-speedometer2 me-2" style="color:var(--accent)"></i>Метрики Prometheus</div>
+  <div class="p-3">
+    <div class="row g-3">
+      <div class="col-sm-3">
+        <div class="card p-3 text-center">
+          <div class="fw-bold fs-4" style="color:var(--accent)" id="metricRequests">{{ http_requests|default(0) }}</div>
+          <div style="font-size:.75rem;color:var(--text-muted)">HTTP запросов</div>
+        </div>
+      </div>
+      <div class="col-sm-3">
+        <div class="card p-3 text-center">
+          <div class="fw-bold fs-4" style="color:var(--success)" id="metricAvgTime">{{ avg_time|default('0.00') }}s</div>
+          <div style="font-size:.75rem;color:var(--text-muted)">Среднее время ответа</div>
+        </div>
+      </div>
+      <div class="col-sm-3">
+        <div class="card p-3 text-center">
+          <div class="fw-bold fs-4" style="color:var(--warning)" id="metricSlow">{{ slow_count|default(0) }}</div>
+          <div style="font-size:.75rem;color:var(--text-muted)">Медленных запросов</div>
+        </div>
+      </div>
+      <div class="col-sm-3">
+        <div class="card p-3 text-center">
+          <div class="fw-bold fs-4" style="color:var(--info)" id="metricUptime">{{ uptime }}</div>
+          <div style="font-size:.75rem;color:var(--text-muted)">Аптайм</div>
+        </div>
+      </div>
+    </div>
+    <div class="mt-3">
+      <a href="/metrics" target="_blank" class="btn btn-sm btn-outline" style="font-size:.8rem">
+        <i class="bi bi-box-arrow-up-right me-1"></i>Открыть /metrics для Grafana
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function refreshHealth() {
+  try {
+    const r = await fetch('/panel/health/json');
+    const data = await r.json();
+    const container = document.getElementById('healthCards');
+    container.innerHTML = '';
+    for (const [name, e] of Object.entries(data)) {
+      const icon = e.status === 'healthy' ? 'bi-check-circle-fill' : e.status === 'degraded' ? 'bi-exclamation-triangle-fill' : 'bi-x-circle-fill';
+      const color = e.status === 'healthy' ? 'var(--success)' : e.status === 'degraded' ? 'var(--warning)' : 'var(--danger)';
+      const label = e.status === 'healthy' ? 'OK' : e.status === 'degraded' ? 'Degraded' : 'DOWN';
+      const latency = e.latency_ms > 0 ? `<div style="font-size:.7rem;color:var(--text-muted)">${e.latency_ms.toFixed(0)}ms</div>` : '';
+      const msg = e.message && e.status !== 'healthy' ? `<div style="font-size:.65rem;color:var(--danger);margin-top:.25rem;word-break:break-word">${e.message.substring(0, 80)}</div>` : '';
+      const time = e.checked_at ? e.checked_at.substring(11, 19) : '—';
+      container.innerHTML += `
+        <div class="col-sm-4 col-md-3 col-lg-2">
+          <div class="card p-3 text-center">
+            <div class="mb-2" style="font-size:1.5rem"><i class="${icon}" style="color:${color}"></i></div>
+            <div class="fw-semibold" style="color:var(--text);font-size:.85rem">${name}</div>
+            <div style="font-size:.75rem;color:var(--text-muted)">${label}</div>
+            ${latency}${msg}
+            <div style="font-size:.6rem;color:var(--text-muted);margin-top:.25rem">${time}</div>
+          </div>
+        </div>`;
+    }
+  } catch {}
+}
+
+function toggleMetrics() {
+  const panel = document.getElementById('metricsPanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+// Auto-refresh every 60s
+setInterval(refreshHealth, 60000);
+</script>
+{% endblock %}

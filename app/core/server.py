@@ -90,6 +90,8 @@ def _make_dp():
     dp.update.outer_middleware(ThrottleMiddleware())
     dp.update.outer_middleware(ChannelCheckMiddleware())
     dp.update.outer_middleware(UserNotifyMiddleware())
+    from app.bot.middlewares.metrics import BotMetricsMiddleware
+    dp.update.outer_middleware(BotMetricsMiddleware())
     dp.include_router(_start.router)
     dp.include_router(_buy.router)
     dp.include_router(_my_keys.router)
@@ -147,6 +149,14 @@ async def _lifespan(app: FastAPI):
     _start_bg_task(payment_polling_loop(), name="payment_polling")
     _start_bg_task(expire_loop(), name="expire_loop")
     _start_bg_task(sync_loop(), name="sync_loop")
+
+    from app.bot.middlewares.metrics import BotMetricsLoop
+    _start_bg_task(BotMetricsLoop.run(), name="bot_metrics")
+
+    from app.services.slow_query import register_slow_query_logger
+    register_slow_query_logger()
+
+    _start_monitoring()
 
     import os as _os
     _env_cryptobot = _os.environ.get("CRYPTOBOT_TOKEN", "").strip()
@@ -235,6 +245,18 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(RateLimitMiddleware)
 
+    # Sentry integration
+    import os as _os
+    _sentry_dsn = _os.environ.get("SENTRY_DSN", "").strip()
+    if _sentry_dsn:
+        import sentry_sdk
+        sentry_sdk.init(
+            dsn=_sentry_dsn,
+            traces_sample_rate=0.1,
+            environment=_os.environ.get("SENTRY_ENV", "production"),
+        )
+        log.info("Sentry initialized")
+
     from starlette.middleware.base import BaseHTTPMiddleware as _BHM
     from app.api.middleware.csrf import CSRFMiddleware, generate_csrf_token as _gct, CSRF_COOKIE as _CC
 
@@ -272,15 +294,82 @@ def create_app() -> FastAPI:
     class _SecurityHeaders(_BHM):
         async def dispatch(self, request: Request, call_next):
             resp = await call_next(request)
+            # Standard headers
             resp.headers["X-Content-Type-Options"] = "nosniff"
             resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
             path = request.url.path
-            if path.startswith("/panel"):
+            is_panel = path.startswith("/panel")
+            is_docs = path in ("/docs", "/redoc", "/openapi.json")
+
+            # X-Frame-Options
+            if is_panel:
                 resp.headers["X-Frame-Options"] = "SAMEORIGIN"
             else:
                 resp.headers["X-Frame-Options"] = "DENY"
+
+            # HSTS — only for HTTPS
+            if request.url.scheme == "https":
+                resp.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
+
+            # Permissions-Policy
+            resp.headers["Permissions-Policy"] = (
+                "accelerometer=(), camera=(), geolocation=(), gyroscope=(), "
+                "magnetometer=(), microphone=(), payment=(), usb=()"
+            )
+
+            # Content-Security-Policy
+            if is_docs:
+                # Swagger/Redoc need inline scripts/styles
+                resp.headers["Content-Security-Policy"] = (
+                    "default-src 'self'; "
+                    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; "
+                    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+                    "font-src 'self' https://fonts.gstatic.com; "
+                    "img-src 'self' data:; "
+                    "connect-src 'self'; "
+                    "frame-src 'none'; "
+                    "object-src 'none'; "
+                    "base-uri 'self'; "
+                    "form-action 'self'"
+                )
+            elif is_panel:
+                # Panel uses HTMX + Bootstrap CDN
+                resp.headers["Content-Security-Policy"] = (
+                    "default-src 'self'; "
+                    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; "
+                    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+                    "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com; "
+                    "img-src 'self' data:; "
+                    "connect-src 'self' ws: wss:; "
+                    "frame-src 'none'; "
+                    "object-src 'none'; "
+                    "base-uri 'self'; "
+                    "form-action 'self'"
+                )
+            else:
+                # API — most restrictive
+                resp.headers["Content-Security-Policy"] = (
+                    "default-src 'none'; "
+                    "frame-ancestors 'none'; "
+                    "base-uri 'none'"
+                )
+
+            # Remove server header
+            if "server" in resp.headers:
+                del resp.headers["server"]
+
+            # Cache control for API
+            if path.startswith("/api/") or path == "/metrics":
+                resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+                resp.headers["Pragma"] = "no-cache"
+
             return resp
     app.add_middleware(_SecurityHeaders)
+
+    # Prometheus outermost — captures ALL requests including rate-limited/CSRF-blocked
+    from app.api.middleware_prometheus import PrometheusMiddleware
+    app.add_middleware(PrometheusMiddleware)
 
     app.include_router(get_router())
     app.include_router(get_panel_router())
@@ -345,5 +434,25 @@ def create_app() -> FastAPI:
             log.error("Health check failed: %s", e)
             return JSONResponse({"status": "error", "db": "unavailable"}, status_code=503)
 
+    @app.get("/metrics", include_in_schema=False)
+    async def prometheus_metrics():
+        from app.services.metrics import metrics_response
+        return metrics_response()
+
     return app
+
+
+def _start_monitoring():
+    """Start background service monitoring and alerts (called from lifespan)."""
+    async def _monitor_loop():
+        import asyncio
+        from app.services.health import health_service
+        while True:
+            await asyncio.sleep(60)
+            try:
+                await health_service.check_all()
+                await health_service.send_alerts()
+            except Exception as e:
+                log.error("Monitor loop error: %s", e)
+    _start_bg_task(_monitor_loop(), name="service_monitor")
 

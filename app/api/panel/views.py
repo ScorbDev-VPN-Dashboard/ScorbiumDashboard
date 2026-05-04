@@ -225,31 +225,310 @@ async def login_submit(
         "custom_logo": settings.get("custom_logo", ""),
     }
 
+    admin = None
     # Try DB-based admin auth first
     admin = await AdminService(db).authenticate(username, password)
     if admin:
-        token = create_access_token(subject=admin.username, role=admin.role)
-        resp = RedirectResponse(url="/panel/", status_code=302)
-        resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
-        return resp
-
-    if (
+        pass
+    elif (
         username == config.web.web_superadmin_username
         and password == config.web.web_superadmin_password.get_secret_value()
     ):
-        token = create_access_token(subject=username, role="superadmin")
-        resp = RedirectResponse(url="/panel/", status_code=302)
-        resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
+        admin = await AdminService(db).get_by_username(username)
+        if not admin:
+            from app.models.admin import Admin, AdminRole
+            import bcrypt as _bcrypt
+            new_admin = Admin(
+                username=username,
+                password_hash=_bcrypt.hashpw(
+                    config.web.web_superadmin_password.get_secret_value().encode(),
+                    _bcrypt.gensalt()
+                ).decode(),
+                role=AdminRole.SUPERADMIN.value,
+            )
+            db.add(new_admin)
+            await db.commit()
+            await db.refresh(new_admin)
+            admin = new_admin
+
+    if not admin:
+        return templates.TemplateResponse("login.html", _error_ctx)
+
+    if not admin.is_active:
+        return templates.TemplateResponse("login.html", {**_error_ctx, "error": "Аккаунт заблокирован"})
+
+    if admin.totp_secret:
+        preauth = create_access_token(subject=admin.username, role=admin.role, extra={"type": "preauth"})
+        resp = RedirectResponse(url="/panel/2fa", status_code=302)
+        resp.set_cookie("vpn_preauth", preauth, httponly=True, samesite="lax", max_age=300)
         return resp
 
-    return templates.TemplateResponse("login.html", _error_ctx)
+    token = create_access_token(subject=admin.username, role=admin.role)
+    resp = RedirectResponse(url="/panel/", status_code=302)
+    resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
+    return resp
 
 
 @router.get("/logout")
 async def logout():
     resp = RedirectResponse(url="/panel/login", status_code=302)
     resp.delete_cookie(SESSION_COOKIE)
+    resp.delete_cookie("vpn_preauth")
     return resp
+
+
+@router.get("/2fa", response_class=HTMLResponse)
+async def twofa_page(request: Request, db: AsyncSession = Depends(get_db)):
+    preauth = request.cookies.get("vpn_preauth", "")
+    has_session = bool(request.cookies.get(SESSION_COOKIE, ""))
+
+    # If accessing with preauth cookie (during login), show login page
+    if preauth and not has_session:
+        try:
+            payload = decode_access_token_full(preauth)
+            if payload and payload.get("type") == "preauth":
+                return templates.TemplateResponse(
+                    "2fa_login.html",
+                    {
+                        "request": request,
+                        "admin_username": payload.get("sub", ""),
+                        "error": None,
+                        "app_name": config.web.app_name,
+                        "app_version": config.web.app_version,
+                    },
+                )
+        except Exception:
+            pass
+        return RedirectResponse(url="/panel/login", status_code=302)
+
+    # If accessing with full session, show settings page
+    admin_info = _require_permission(request, "system")
+    ctx = await _base_ctx(request, db, "2fa")
+    ctx["admin"] = await AdminService(db).get_by_username(admin_info["username"])
+    return templates.TemplateResponse("two_fa.html", ctx)
+
+
+@router.post("/2fa-login")
+async def twofa_login_submit(
+    request: Request,
+    code: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    preauth = request.cookies.get("vpn_preauth", "")
+    if not preauth:
+        return RedirectResponse(url="/panel/login", status_code=302)
+    try:
+        payload = decode_access_token_full(preauth)
+        if not payload or payload.get("type") != "preauth":
+            return RedirectResponse(url="/panel/login", status_code=302)
+    except Exception:
+        return RedirectResponse(url="/panel/login", status_code=302)
+
+    import pyotp
+    import hashlib
+    import json
+
+    admin = await AdminService(db).get_by_username(payload["sub"])
+    if not admin or not admin.totp_secret:
+        return RedirectResponse(url="/panel/login", status_code=302)
+
+    totp = pyotp.TOTP(admin.totp_secret)
+    if totp.verify(code):
+        token = create_access_token(subject=admin.username, role=admin.role)
+        resp = RedirectResponse(url="/panel/", status_code=302)
+        resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
+        resp.delete_cookie("vpn_preauth")
+        return resp
+
+    # Try backup codes
+    if admin.backup_codes:
+        try:
+            hashed_codes = json.loads(admin.backup_codes)
+            code_hash = hashlib.sha256(code.upper().replace("-", "").strip().encode()).hexdigest()
+            if code_hash in hashed_codes:
+                hashed_codes.remove(code_hash)
+                admin.backup_codes = json.dumps(hashed_codes)
+                await db.commit()
+                token = create_access_token(subject=admin.username, role=admin.role)
+                resp = RedirectResponse(url="/panel/", status_code=302)
+                resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
+                resp.delete_cookie("vpn_preauth")
+                return resp
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    return templates.TemplateResponse(
+        "2fa_login.html",
+        {
+            "request": request,
+            "admin_username": payload.get("sub", ""),
+            "error": "Неверный код",
+            "app_name": config.web.app_name,
+            "app_version": config.web.app_version,
+        },
+    )
+
+
+@router.get("/2fa/setup")
+async def twofa_setup(request: Request, db: AsyncSession = Depends(get_db)):
+    from fastapi.responses import JSONResponse
+    import pyotp
+    import qrcode
+    import base64
+    import io
+
+    admin_info = _require_permission(request, "system")
+    secret = pyotp.random_base32()
+    totp = pyotp.TOTP(secret)
+    uri = totp.provisioning_uri(
+        name=admin_info["username"],
+        issuer_name=config.web.app_name or "Scorbium"
+    )
+    qr = qrcode.QRCode(version=1, box_size=10, border=2)
+    qr.add_data(uri)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    qr_b64 = base64.b64encode(buf.getvalue()).decode()
+    return JSONResponse({"secret": secret, "qr_b64": qr_b64})
+
+
+@router.post("/2fa/activate")
+async def twofa_activate(request: Request, db: AsyncSession = Depends(get_db)):
+    from fastapi.responses import JSONResponse
+    import pyotp
+    import secrets
+    import hashlib
+    import json
+    from app.services.audit import AuditService
+
+    admin_info = _require_permission(request, "system")
+    body = await request.json()
+    secret = body.get("secret", "")
+    code = body.get("code", "")
+    if len(code) != 6:
+        return JSONResponse({"ok": False, "message": "Код должен быть 6 знаков"}, status_code=400)
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(code):
+        return JSONResponse({"ok": False, "message": "Неверный код"}, status_code=400)
+    admin = await AdminService(db).get_by_username(admin_info["username"])
+    if admin:
+        admin.totp_secret = secret
+        # Generate 8 backup codes
+        raw_codes = [secrets.token_hex(4).upper() for _ in range(8)]
+        hashed_codes = [hashlib.sha256(c.encode()).hexdigest() for c in raw_codes]
+        admin.backup_codes = json.dumps(hashed_codes)
+        await db.commit()
+        await AuditService(db).log(admin.id, "2fa_enabled", "admin", admin.id)
+        await db.commit()
+        return JSONResponse({"ok": True, "message": "2FA активирована", "backup_codes": raw_codes})
+    return JSONResponse({"ok": False, "message": "Админ не найден"}, status_code=404)
+
+
+@router.post("/2fa/verify")
+async def twofa_verify(request: Request, db: AsyncSession = Depends(get_db)):
+    from fastapi.responses import JSONResponse
+    import pyotp
+    import hashlib
+    import json
+
+    preauth = request.cookies.get("vpn_preauth", "")
+    if not preauth:
+        return JSONResponse({"ok": False, "message": "Нет сессии"}, status_code=401)
+    try:
+        payload = decode_access_token_full(preauth)
+        if not payload or payload.get("type") != "preauth":
+            return JSONResponse({"ok": False, "message": "Нет сессии"}, status_code=401)
+    except Exception:
+        return JSONResponse({"ok": False, "message": "Нет сессии"}, status_code=401)
+
+    body = await request.json()
+    code = body.get("code", "")
+    admin = await AdminService(db).get_by_username(payload["sub"])
+    if not admin or not admin.totp_secret:
+        return JSONResponse({"ok": False, "message": "2FA не настроена"}, status_code=400)
+
+    used_backup = False
+    totp = pyotp.TOTP(admin.totp_secret)
+    if not totp.verify(code):
+        # Try backup codes
+        if admin.backup_codes:
+            try:
+                hashed_codes = json.loads(admin.backup_codes)
+                code_hash = hashlib.sha256(code.upper().replace("-", "").strip().encode()).hexdigest()
+                if code_hash in hashed_codes:
+                    # Remove used code
+                    hashed_codes.remove(code_hash)
+                    admin.backup_codes = json.dumps(hashed_codes)
+                    await db.commit()
+                    used_backup = True
+                else:
+                    return JSONResponse({"ok": False, "message": "Неверный код"}, status_code=400)
+            except (json.JSONDecodeError, ValueError):
+                return JSONResponse({"ok": False, "message": "Неверный код"}, status_code=400)
+        else:
+            return JSONResponse({"ok": False, "message": "Неверный код"}, status_code=400)
+
+    token = create_access_token(subject=admin.username, role=admin.role)
+    resp = JSONResponse({"ok": True, "message": "OK", "backup": used_backup})
+    resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
+    resp.delete_cookie("vpn_preauth")
+    return resp
+
+
+@router.post("/2fa/disable")
+async def twofa_disable(request: Request, db: AsyncSession = Depends(get_db)):
+    from fastapi.responses import JSONResponse
+    import pyotp
+    from app.services.audit import AuditService
+
+    admin_info = _require_permission(request, "system")
+    body = await request.json()
+    code = body.get("code", "")
+    admin = await AdminService(db).get_by_username(admin_info["username"])
+    if not admin or not admin.totp_secret:
+        return JSONResponse({"ok": False, "message": "2FA не включена"}, status_code=400)
+
+    totp = pyotp.TOTP(admin.totp_secret)
+    if not totp.verify(code):
+        return JSONResponse({"ok": False, "message": "Неверный код"}, status_code=400)
+
+    admin.totp_secret = None
+    await db.commit()
+    await AuditService(db).log(admin.id, "2fa_disabled", "admin", admin.id)
+    await db.commit()
+    return JSONResponse({"ok": True, "message": "2FA отключена"})
+
+
+@router.get("/2fa/check")
+async def twofa_check(request: Request, db: AsyncSession = Depends(get_db)):
+    from fastapi.responses import JSONResponse
+    admin_info = _require_permission(request, "system")
+    admin = await AdminService(db).get_by_username(admin_info["username"])
+    return JSONResponse({"enabled": bool(admin and admin.totp_secret)})
+
+
+@router.post("/2fa/regenerate-backup")
+async def twofa_regenerate_backup(request: Request, db: AsyncSession = Depends(get_db)):
+    from fastapi.responses import JSONResponse
+    import secrets
+    import hashlib
+    import json
+    from app.services.audit import AuditService
+
+    admin_info = _require_permission(request, "system")
+    admin = await AdminService(db).get_by_username(admin_info["username"])
+    if not admin or not admin.totp_secret:
+        return JSONResponse({"ok": False, "message": "2FA не включена"}, status_code=400)
+
+    raw_codes = [secrets.token_hex(4).upper() for _ in range(8)]
+    hashed_codes = [hashlib.sha256(c.encode()).hexdigest() for c in raw_codes]
+    admin.backup_codes = json.dumps(hashed_codes)
+    await db.commit()
+    await AuditService(db).log(admin.id, "2fa_backup_regenerated", "admin", admin.id)
+    await db.commit()
+    return JSONResponse({"ok": True, "message": "Резервные коды обновлены", "backup_codes": raw_codes})
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -566,6 +845,110 @@ async def add_balance(
     return resp
 
 
+@router.post("/users/bulk")
+async def bulk_users_action(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    _require_permission(request, "users.write")
+    from fastapi.responses import JSONResponse
+
+    body = await request.json()
+    action = body.get("action", "")
+    user_ids = body.get("user_ids", [])
+
+    if not user_ids or not isinstance(user_ids, list):
+        return JSONResponse({"ok": False, "message": "Нет выбранных пользователей"}, status_code=400)
+
+    if action == "ban":
+        done = 0
+        for uid in user_ids:
+            if uid in config.telegram.telegram_admin_ids:
+                continue
+            user = await UserService(db).ban(uid)
+            if user:
+                done += 1
+        await db.commit()
+        return JSONResponse({"ok": True, "message": f"Забанено: {done}"})
+    elif action == "unban":
+        done = 0
+        for uid in user_ids:
+            user = await UserService(db).unban(uid)
+            if user:
+                done += 1
+        await db.commit()
+        return JSONResponse({"ok": True, "message": f"Разбанено: {done}"})
+    else:
+        return JSONResponse({"ok": False, "message": "Неизвестное действие"}, status_code=400)
+
+
+@router.post("/users/bulk-balance")
+async def bulk_balance_action(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    _require_permission(request, "users.write")
+    from fastapi.responses import JSONResponse
+
+    body = await request.json()
+    user_ids = body.get("user_ids", [])
+    amount = body.get("amount")
+
+    if not user_ids or not amount:
+        return JSONResponse({"ok": False, "message": "Нет данных"}, status_code=400)
+
+    try:
+        amount = Decimal(str(amount))
+        if amount <= 0:
+            raise ValueError
+    except Exception:
+        return JSONResponse({"ok": False, "message": "Неверная сумма"}, status_code=400)
+
+    done = 0
+    for uid in user_ids:
+        user = await UserService(db).add_balance(uid, amount)
+        if user:
+            done += 1
+            await TelegramNotifyService().send_message(
+                uid, f"💰 На ваш баланс зачислено <b>{amount} ₽</b>"
+            )
+    await db.commit()
+    return JSONResponse({"ok": True, "message": f"Пополнено {done} пользователей на {amount} ₽"})
+
+
+@router.post("/users/bulk-gift")
+async def bulk_gift_action(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    _require_permission(request, "users.write")
+    from fastapi.responses import JSONResponse
+
+    body = await request.json()
+    user_ids = body.get("user_ids", [])
+    plan_id = body.get("plan_id")
+
+    if not user_ids or not plan_id:
+        return JSONResponse({"ok": False, "message": "Нет данных"}, status_code=400)
+
+    plan = await PlanService(db).get_by_id(int(plan_id))
+    if not plan:
+        return JSONResponse({"ok": False, "message": "Тариф не найден"}, status_code=404)
+
+    done = 0
+    for uid in user_ids:
+        key = await VpnKeyService(db).provision(user_id=uid, plan=plan)
+        if key:
+            done += 1
+            await TelegramNotifyService().send_message(
+                uid,
+                f"🎁 <b>Вам подарена подписка!</b>\n\nПлан: <b>{plan.name}</b> ({plan.duration_days} дней)\n\n"
+                f"🔑 <b>Ссылка:</b>\n<code>{key.access_url}</code>",
+            )
+    await db.commit()
+    return JSONResponse({"ok": True, "message": f"Подарено {done} подписок «{plan.name}»"})
+
+
 def _to_detail(u) -> UserDetail:
     return UserDetail(
         **UserRead.model_validate(u).model_dump(),
@@ -736,6 +1119,23 @@ async def delete_plan_view(
     return resp
 
 
+@router.post("/plans/reorder")
+async def reorder_plans(request: Request, db: AsyncSession = Depends(get_db)):
+    _require_permission(request, "plans")
+    from fastapi.responses import JSONResponse
+
+    body = await request.json()
+    order = body.get("order", [])
+    for idx, plan_id_str in enumerate(order):
+        try:
+            plan_id = int(plan_id_str)
+            await PlanService(db).update(plan_id, sort_order=idx)
+        except (ValueError, Exception):
+            pass
+    await db.commit()
+    return JSONResponse({"ok": True})
+
+
 # ── Payments ──────────────────────────────────────────────────────────────────
 
 
@@ -759,6 +1159,172 @@ async def payments_page(
     ctx["current_status"] = status or ""
     ctx["current_type"] = payment_type or ""
     return templates.TemplateResponse("payments.html", ctx)
+
+
+@router.get("/payments/stats", response_class=HTMLResponse)
+async def payments_stats_page(request: Request, db: AsyncSession = Depends(get_db)):
+    _require_permission(request, "payments")
+    ctx = await _base_ctx(request, db, "payments_stats")
+    from sqlalchemy import select, func, and_
+    from datetime import timedelta
+    from app.models.payment import Payment
+
+    days = 30
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    # Summary
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(Payment.amount), 0).label('total'),
+            func.count(Payment.id).label('count'),
+            func.avg(Payment.amount).label('avg'),
+        ).where(
+            Payment.status == PaymentStatus.SUCCEEDED.value,
+            Payment.created_at >= cutoff
+        )
+    )
+    row = result.first()
+    total_rev = float(row.total) if row else 0
+    total_pay = row.count if row else 0
+    avg_pay = float(row.avg) if row and row.avg else 0
+
+    result = await db.execute(
+        select(func.count(Payment.id)).where(
+            Payment.created_at >= cutoff
+        )
+    )
+    all_count = result.scalar() or 1
+
+    result = await db.execute(
+        select(func.count(Payment.id)).where(
+            Payment.status == PaymentStatus.SUCCEEDED.value,
+            Payment.created_at >= cutoff
+        )
+    )
+    success_count = result.scalar() or 0
+
+    ctx["stats"] = {
+        "total_revenue": f"{total_rev:.2f}",
+        "total_payments": total_pay,
+        "avg_payment": f"{avg_pay:.2f}",
+        "success_rate": round(success_count / all_count * 100) if all_count else 0,
+    }
+
+    # Provider breakdown
+    provider_names = {
+        'yookassa': 'YooKassa', 'yookassa_sbp': 'YooKassa СБП', 'cryptobot': 'CryptoBot',
+        'telegram_stars': 'Telegram Stars', 'freekassa': 'FreeKassa', 'balance': 'Баланс', 'topup': 'Пополнение'
+    }
+    result = await db.execute(
+        select(
+            Payment.provider,
+            func.count(Payment.id).label('cnt'),
+            func.coalesce(func.sum(Payment.amount).filter(Payment.status == PaymentStatus.SUCCEEDED.value), 0).label('rev'),
+            func.count(Payment.id).filter(Payment.status == PaymentStatus.SUCCEEDED.value).label('scnt'),
+        ).where(
+            Payment.created_at >= cutoff
+        ).group_by(Payment.provider)
+    )
+    providers = []
+    for r in result.all():
+        providers.append({
+            "provider": r.provider,
+            "label": provider_names.get(r.provider, r.provider),
+            "count": r.cnt,
+            "revenue": float(r.rev),
+            "success_count": r.scnt,
+            "avg_amount": float(r.rev) / r.scnt if r.scnt else 0,
+        })
+    total_prov = sum(p["count"] for p in providers) or 1
+    for p in providers:
+        p["share"] = round(p["count"] / total_prov * 100)
+    ctx["providers"] = sorted(providers, key=lambda x: x["revenue"], reverse=True)
+
+    return templates.TemplateResponse("payments_stats.html", ctx)
+
+
+@router.get("/payments/stats/json")
+async def payments_stats_json(request: Request, days: int = 30, db: AsyncSession = Depends(get_db)):
+    _require_permission(request, "payments")
+    from fastapi.responses import JSONResponse
+    from sqlalchemy import select, func
+    from datetime import timedelta
+    from app.models.payment import Payment
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    # Summary
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(Payment.amount), 0).label('total'),
+            func.count(Payment.id).label('count'),
+            func.avg(Payment.amount).label('avg'),
+        ).where(
+            Payment.status == PaymentStatus.SUCCEEDED.value,
+            Payment.created_at >= cutoff
+        )
+    )
+    row = result.first()
+    total_rev = float(row.total) if row else 0
+    total_pay = row.count if row else 0
+    avg_pay = float(row.avg) if row and row.avg else 0
+
+    result = await db.execute(select(func.count(Payment.id)).where(Payment.created_at >= cutoff))
+    all_count = result.scalar() or 1
+    result = await db.execute(select(func.count(Payment.id)).where(Payment.status == PaymentStatus.SUCCEEDED.value, Payment.created_at >= cutoff))
+    success_count = result.scalar() or 0
+
+    provider_names = {
+        'yookassa': 'YooKassa', 'yookassa_sbp': 'YooKassa СБП', 'cryptobot': 'CryptoBot',
+        'telegram_stars': 'Telegram Stars', 'freekassa': 'FreeKassa', 'balance': 'Баланс', 'topup': 'Пополнение'
+    }
+    provider_icons = {
+        'yookassa': 'credit-card', 'yookassa_sbp': 'bank', 'cryptobot': 'currency-bitcoin',
+        'telegram_stars': 'star', 'freekassa': 'lightning', 'balance': 'wallet2', 'topup': 'plus-circle'
+    }
+    result = await db.execute(
+        select(
+            Payment.provider,
+            func.count(Payment.id).label('cnt'),
+            func.coalesce(func.sum(Payment.amount).filter(Payment.status == PaymentStatus.SUCCEEDED.value), 0).label('rev'),
+            func.count(Payment.id).filter(Payment.status == PaymentStatus.SUCCEEDED.value).label('scnt'),
+        ).where(Payment.created_at >= cutoff).group_by(Payment.provider)
+    )
+    providers = []
+    for r in result.all():
+        providers.append({
+            "provider": r.provider,
+            "label": provider_names.get(r.provider, r.provider),
+            "icon": provider_icons.get(r.provider, 'question-circle'),
+            "count": r.cnt,
+            "revenue": float(r.rev),
+            "success_count": r.scnt,
+            "avg_amount": float(r.rev) / r.scnt if r.scnt else 0,
+        })
+    total_prov = sum(p["count"] for p in providers) or 1
+    for p in providers:
+        p["share"] = round(p["count"] / total_prov * 100)
+
+    # Daily revenue
+    result = await db.execute(
+        select(
+            func.date_trunc('day', Payment.created_at).label('day'),
+            func.coalesce(func.sum(Payment.amount), 0).label('amount'),
+        ).where(
+            Payment.status == PaymentStatus.SUCCEEDED.value,
+            Payment.created_at >= cutoff
+        ).group_by(func.date_trunc('day', Payment.created_at)).order_by(func.date_trunc('day', Payment.created_at))
+    )
+    daily = [{"date": str(r.day)[:10], "amount": float(r.amount)} for r in result.all()]
+
+    return JSONResponse({
+        "total_revenue": f"{total_rev:.2f}",
+        "total_payments": total_pay,
+        "avg_payment": f"{avg_pay:.2f}",
+        "success_rate": round(success_count / all_count * 100) if all_count else 0,
+        "providers": sorted(providers, key=lambda x: x["revenue"], reverse=True),
+        "daily": daily,
+    })
 
 
 @router.post("/payments/{payment_id}/refund", response_class=HTMLResponse)
@@ -1218,6 +1784,14 @@ async def send_broadcast_view(
     return resp
 
 
+@router.get("/broadcasts/estimate")
+async def broadcast_estimate(request: Request, target: str = "all", db: AsyncSession = Depends(get_db)):
+    _require_permission(request, "broadcasts")
+    from fastapi.responses import JSONResponse
+    count = await BroadcastService(db).estimate_count(target)
+    return JSONResponse({"count": count})
+
+
 # ── Telegram ──────────────────────────────────────────────────────────────────
 
 
@@ -1244,6 +1818,10 @@ async def telegram_page(request: Request, db: AsyncSession = Depends(get_db)):
     yk_shop = await svc.get("yookassa_shop_id_override") or ""
     yk_key_set = bool(await svc.get("yookassa_secret_key_override"))
     cb_token_set = bool((await svc.get("cryptobot_token") or "").strip())
+
+    # Encryption status
+    from app.services.encryption import get_encryption_key_info
+    ctx["encryption_status"] = get_encryption_key_info()
 
     # Also check env-level yookassa
     yk_env_ok = bool(
@@ -2870,3 +3448,71 @@ async def keyboard_styles(request: Request, db: AsyncSession = Depends(get_db)):
         await svc.set(f"btn_style_{btn_id}", style)
     await db.commit()
     return {"ok": True}
+
+
+@router.get("/audit", response_class=HTMLResponse)
+async def audit_page(request: Request, db: AsyncSession = Depends(get_db)):
+    _require_permission(request, "system")
+    from app.services.audit import AuditService
+
+    ctx = await _base_ctx(request, db, "audit")
+    ctx["entries"] = await AuditService(db).get_recent(limit=200)
+    return templates.TemplateResponse("audit.html", ctx)
+
+
+@router.get("/monitoring", response_class=HTMLResponse)
+async def monitoring_page(request: Request, db: AsyncSession = Depends(get_db)):
+    _require_permission(request, "system")
+    from app.services.health import health_service, ServiceStatus
+
+    entries = await health_service.check_all()
+    services = {}
+    for name, entry in entries.items():
+        services[name] = {
+            "status": entry.status,
+            "latency_ms": entry.latency_ms,
+            "message": entry.message,
+            "checked_at": entry.checked_at,
+        }
+
+    ctx = await _base_ctx(request, db, "monitoring")
+    ctx["services"] = services
+    from app.services.slow_query import get_slow_queries
+    ctx["slow_queries"] = get_slow_queries()[-50:]
+    ctx["uptime"] = _get_uptime()
+    return templates.TemplateResponse("monitoring.html", ctx)
+
+
+@router.get("/health/json")
+async def health_json(request: Request, db: AsyncSession = Depends(get_db)):
+    _require_permission(request, "system")
+    from fastapi.responses import JSONResponse
+    from app.services.health import health_service
+
+    entries = await health_service.check_all()
+    result = {}
+    for name, entry in entries.items():
+        result[name] = {
+            "status": entry.status,
+            "latency_ms": entry.latency_ms,
+            "message": entry.message,
+            "checked_at": entry.checked_at.isoformat() if entry.checked_at else None,
+        }
+    return JSONResponse(result)
+
+
+_startup_time = datetime.now(timezone.utc)
+
+
+def _get_uptime() -> str:
+    from datetime import timedelta
+    delta = datetime.now(timezone.utc) - _startup_time
+    days = delta.days
+    hours, remainder = divmod(delta.seconds, 3600)
+    minutes, _ = divmod(remainder, 60)
+    if days > 0:
+        return f"{days}d {hours}h"
+    elif hours > 0:
+        return f"{hours}h {minutes}m"
+    else:
+        return f"{minutes}m"

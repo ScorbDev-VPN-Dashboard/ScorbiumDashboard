@@ -43,11 +43,14 @@ def create_access_token(
     subject: Any,
     role: str = "superadmin",
     expires_delta: Optional[timedelta] = None,
+    extra: Optional[dict] = None,
 ) -> str:
     expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     payload = {"sub": str(subject), "role": role, "exp": expire}
+    if extra:
+        payload.update(extra)
     return jwt.encode(payload, _secret_key(), algorithm=ALGORITHM)
 
 

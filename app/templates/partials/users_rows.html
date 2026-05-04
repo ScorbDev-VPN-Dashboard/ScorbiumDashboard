@@ -1,5 +1,6 @@
 {% for u in users %}
-<tr id="user-row-{{ u.id }}">
+<tr id="user-row-{{ u.id }}" data-user="{{ u.id }}" data-banned="{{ u.is_banned|lower }}" data-keys="{{ u.subscriptions_count }}" data-balance="{{ u.balance or 0 }}" data-created="{{ u.created_at.isoformat() if u.created_at else '' }}">
+  <td><input type="checkbox" class="user-check" value="{{ u.id }}" onchange="updateBulkBar()"></td>
   <td><code style="color:#00d4aa">{{ u.id }}</code></td>
   <td>{{ u.full_name }}</td>
   <td>{% if u.username %}<span style="color:var(--text-muted)">@{{ u.username }}</span>{% else %}—{% endif %}</td>
@@ -49,5 +50,5 @@
   </td>
 </tr>
 {% else %}
-<tr><td colspan="7" class="text-center py-4" style="color:var(--text-muted)">Пользователи не найдены</td></tr>
+<tr><td colspan="8" class="text-center py-4" style="color:var(--text-muted)">Пользователи не найдены</td></tr>
 {% endfor %}

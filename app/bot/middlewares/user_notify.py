@@ -38,10 +38,26 @@ class UserNotifyMiddleware(BaseMiddleware):
                 user_id = event.callback_query.from_user.id
 
         if user_id:
-            # Запускаем проверки в фоне, не блокируя обработку
+            asyncio.create_task(_update_last_seen(user_id))
             asyncio.create_task(_check_and_notify(user_id))
 
         return await handler(event, data)
+
+
+async def _update_last_seen(user_id: int) -> None:
+    from datetime import datetime, timezone
+    from sqlalchemy import update
+    from app.models.user import User
+    try:
+        async with AsyncSessionFactory() as session:
+            await session.execute(
+                update(User)
+                .where(User.id == user_id)
+                .values(last_seen=datetime.now(timezone.utc))
+            )
+            await session.commit()
+    except Exception as e:
+        log.debug(f"[last_seen] error for user {user_id}: {e}")
 
 
 async def _check_and_notify(user_id: int) -> None:

@@ -942,3 +942,30 @@ async def user_stats(request: Request, db: AsyncSession = Depends(get_db)):
             },
         }
     )
+
+
+@router.get("/user/payments")
+async def user_payments(request: Request, limit: int = 10, db: AsyncSession = Depends(get_db)):
+    """Get user payment history."""
+    tg_user = await _get_tg_user(request)
+    if not tg_user:
+        return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
+
+    user_id = tg_user["id"]
+    payments = await PaymentService(db).get_all(user_id=user_id, limit=limit)
+
+    return JSONResponse({
+        "ok": True,
+        "payments": [
+            {
+                "id": p.id,
+                "amount": float(p.amount),
+                "currency": p.currency,
+                "provider": p.provider,
+                "payment_type": p.payment_type,
+                "status": p.status,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            }
+            for p in payments
+        ],
+    })

@@ -1,9 +1,10 @@
 <div class="row g-3" id="plans-grid">
   {% for plan in plans %}
-  <div class="col-md-6 col-xl-4" id="plan-{{ plan.id }}">
+  <div class="col-md-6 col-xl-4 plan-card" id="plan-{{ plan.id }}" data-plan-id="{{ plan.id }}">
     <div class="card h-100 p-3">
       <div class="d-flex align-items-start justify-content-between mb-2">
         <div>
+          <span class="drag-handle me-2" style="cursor:grab;color:var(--text-muted);font-size:.9rem"><i class="bi bi-grip-vertical"></i></span>
           <div class="fw-bold" style="color:var(--text)">{{ plan.name }}</div>
           <code style="font-size:.7rem;color:var(--text-muted)">{{ plan.slug }}</code>
         </div>
@@ -27,15 +28,15 @@
         </button>
         <button class="btn btn-sm btn-outline-secondary"
           hx-post="/panel/plans/{{ plan.id }}/toggle"
-          hx-target="#plan-{{ plan.id }}"
-          hx-swap="outerHTML"
+          hx-target="#plans-grid"
+          hx-swap="innerHTML"
           title="{{ 'Отключить' if plan.is_active else 'Включить' }}">
           <i class="bi bi-{{ 'pause' if plan.is_active else 'play' }}"></i>
         </button>
         <button class="btn btn-sm btn-outline-danger"
           hx-delete="/panel/plans/{{ plan.id }}"
-          hx-target="#plan-{{ plan.id }}"
-          hx-swap="outerHTML"
+          hx-target="#plans-grid"
+          hx-swap="innerHTML"
           hx-confirm="Удалить тариф «{{ plan.name }}»?">
           <i class="bi bi-trash"></i>
         </button>

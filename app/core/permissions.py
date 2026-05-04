@@ -15,12 +15,16 @@ PERMISSIONS: dict[str, set[str]] = {
         "broadcasts",
         "export",
         "vpn",
+        "system",
+        "monitoring",
     },
     "operator": {
         "dashboard",
         "support",
         "users.read",
         "subscriptions.read",
+        "system",
+        "monitoring",
     },
 }
 

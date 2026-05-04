@@ -423,6 +423,7 @@
     {% endif %}
     {% if has_perm(admin_role, 'payments') %}
     <div class="nav-item"><a href="/panel/payments" class="{% if active == 'payments' %}active{% endif %}"><i class="bi bi-credit-card-fill"></i> Платежи{% if pending_payments %}<span class="nav-badge nav-badge-warn">{{ pending_payments }}</span>{% endif %}</a></div>
+    <div class="nav-item"><a href="/panel/payments/stats" class="{% if active == 'payments_stats' %}active{% endif %}"><i class="bi bi-bar-chart-fill"></i> Аналитика</a></div>
     {% endif %}
 
     <div class="nav-section">Сервис</div>
@@ -454,6 +455,11 @@
     {% endif %}
     {% if admin_role == 'superadmin' %}
     <div class="nav-item"><a href="/panel/admins" class="{% if active == 'admins' %}active{% endif %}"><i class="bi bi-shield-lock"></i> Администраторы</a></div>
+    {% endif %}
+    {% if has_perm(admin_role, 'system') %}
+    <div class="nav-item"><a href="/panel/audit" class="{% if active == 'audit' %}active{% endif %}"><i class="bi bi-journal-text"></i> Аудит</a></div>
+    <div class="nav-item"><a href="/panel/2fa" class="{% if active == '2fa' %}active{% endif %}"><i class="bi bi-shield-lock-fill"></i> 2FA</a></div>
+    <div class="nav-item"><a href="/panel/monitoring" class="{% if active == 'monitoring' %}active{% endif %}"><i class="bi bi-activity"></i> Мониторинг</a></div>
     {% endif %}
     <div class="nav-item"><a href="/docs" target="_blank"><i class="bi bi-code-slash"></i> API Docs</a></div>
   </nav>
@@ -494,6 +500,9 @@
       {% if open_tickets %}
       <a href="/panel/support" class="text-decoration-none" style="font-size:.75rem;color:var(--danger)"><i class="bi bi-bell-fill me-1"></i>{{ open_tickets }}</a>
       {% endif %}
+      <button class="btn btn-sm p-0" style="color:var(--text-muted);background:none;border:none" id="notifBell" onclick="toggleBrowserNotif()" title="Уведомления браузера">
+        <i class="bi bi-bell" id="notifBellIcon"></i>
+      </button>
     </div>
   </header>
   <main class="page-content">{% block content %}{% endblock %}</main>
@@ -607,7 +616,11 @@
               new_user: (d) => `👤 Новый пользователь: ${d.full_name || ''}`,
             };
             const fn = mapping[msg.type];
-            if (fn) showToast(fn(msg.data || {}), 'info');
+            if (fn) {
+              const text = fn(msg.data || {});
+              showToast(text, 'info');
+              sendBrowserNotification(text);
+            }
           } catch (e) {}
         };
 
@@ -626,6 +639,42 @@
     }
 
     connect();
+  })();
+
+  // ── Browser Notifications ──
+  function sendBrowserNotification(body) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Scorbium Panel', { body, icon: '/static/img/logo.png', badge: '/static/img/logo.png' });
+    }
+  }
+
+  function toggleBrowserNotif() {
+    if (!('Notification' in window)) {
+      showToast('Браузер не поддерживает уведомления', 'error');
+      return;
+    }
+    if (Notification.permission === 'granted') {
+      showToast('Уведомления уже включены', 'info');
+      return;
+    }
+    Notification.requestPermission().then(perm => {
+      if (perm === 'granted') {
+        showToast('Уведомления включены!', 'success');
+        new Notification('Scorbium Panel', { body: 'Уведомления панели работают!', icon: '/static/img/logo.png' });
+      } else {
+        showToast('Уведомления заблокированы', 'error');
+      }
+    });
+  }
+
+  // Update bell icon on load
+  (function() {
+    const icon = document.getElementById('notifBellIcon');
+    if (!icon || !('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      icon.className = 'bi bi-bell-fill';
+      icon.style.color = 'var(--accent)';
+    }
   })();
 
   // Hide page loader

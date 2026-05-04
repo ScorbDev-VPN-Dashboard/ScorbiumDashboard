@@ -6,6 +6,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bot_settings import BotSettings
 from app.utils.log import log
 
+# Keys that must be encrypted at rest
+_SENSITIVE_KEYS = {
+    "cryptobot_token",
+    "freekassa_api_key",
+    "freekassa_secret_word_1",
+    "freekassa_secret_word_2",
+    "aikassa_token",
+    "bot_token",
+    "telegram_bot_token",
+}
+
 _CACHE_TTL = 300  # 5 minutes
 _cache: Optional[dict] = None
 _cache_ts: float = 0
@@ -113,7 +124,12 @@ class BotSettingsService:
 
     async def get(self, key: str) -> Optional[str]:
         all_settings = await self.get_all()
-        return all_settings.get(key)
+        value = all_settings.get(key)
+        if value and key in _SENSITIVE_KEYS:
+            from app.services.encryption import decrypt_value, is_encrypted
+            if is_encrypted(value):
+                return decrypt_value(value)
+        return value
 
     async def get_all(self) -> dict:
         global _cache, _cache_ts
@@ -132,6 +148,11 @@ class BotSettingsService:
 
     async def set(self, key: str, value: str) -> None:
         global _cache, _cache_ts
+        if key in _SENSITIVE_KEYS and value:
+            from app.services.encryption import encrypt_value, is_encrypted
+            if not is_encrypted(value):
+                value = encrypt_value(value)
+
         result = await self.session.execute(
             select(BotSettings).where(BotSettings.key == key)
         )
@@ -143,6 +164,32 @@ class BotSettingsService:
         await self.session.flush()
         _cache = None
         _cache_ts = 0
+
+    async def set_raw(self, key: str, value: str) -> None:
+        """Set a value without encryption (for internal use)."""
+        global _cache, _cache_ts
+        result = await self.session.execute(
+            select(BotSettings).where(BotSettings.key == key)
+        )
+        row = result.scalar_one_or_none()
+        if row:
+            row.value = value
+        else:
+            self.session.add(BotSettings(key=key, value=value))
+        await self.session.flush()
+        _cache = None
+        _cache_ts = 0
+
+    async def is_encrypted_in_db(self, key: str) -> bool:
+        """Check if a value is stored encrypted in the DB."""
+        result = await self.session.execute(
+            select(BotSettings).where(BotSettings.key == key)
+        )
+        row = result.scalar_one_or_none()
+        if not row or not row.value:
+            return False
+        from app.services.encryption import is_encrypted
+        return is_encrypted(row.value)
 
     async def set_many(self, data: dict) -> None:
         global _cache, _cache_ts
