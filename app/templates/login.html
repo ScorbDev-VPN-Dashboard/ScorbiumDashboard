@@ -268,7 +268,10 @@
 
     <div id="form-2fa" class="login-card" style="display:none">
       <div class="logo-block">
-        <div class="logo-icon" style="display:flex;width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--accent-warm),var(--accent-secondary));align-items:center;justify-content:center;margin-bottom:1rem;box-shadow:0 8px 32px rgba(245,158,11,.35);font-size:1.8rem;color:#fff;">
+        {% if custom_logo %}
+        <img src="{{ custom_logo }}" alt="Logo" class="logo-avatar" onerror="this.style.display='none';document.getElementById('fallback-2fa-icon').style.display='flex';">
+        {% endif %}
+        <div id="fallback-2fa-icon" class="logo-icon" style="display:{% if custom_logo %}none{% else %}flex{% endif %};width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--accent-warm),var(--accent-secondary));align-items:center;justify-content:center;margin-bottom:1rem;box-shadow:0 8px 32px rgba(245,158,11,.35);font-size:1.8rem;color:#fff;">
           <i class="bi bi-shield-lock-fill"></i>
         </div>
         <div class="app-name">{{ app_name | default('VPN Panel') }}</div>
@@ -315,9 +318,9 @@
     </div>
   </div>
 
-  <div class="security-badge" style="position:relative;z-index:1;margin-top:1.5rem;text-align:center">
-    <i class="bi bi-shield-check"></i>
-    <span>SSL · CSRF Protection · Rate Limited</span>
+  <div class="security-badge" style="position:relative;z-index:1;margin-top:1.5rem;text-align:center;max-width:440px;width:100%;margin-left:auto;margin-right:auto">
+    <i class="bi bi-shield-check" style="flex-shrink:0"></i>
+    <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">SSL · CSRF Protection · Rate Limited</span>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
