@@ -168,6 +168,37 @@
       margin-top: 1rem; font-size: .85rem;
       color: var(--text-muted); font-weight: 500;
     }
+
+    /* 2FA toggle */
+    .divider-2fa {
+      display: flex; align-items: center; gap: .75rem;
+      margin: 1.25rem 0 1rem;
+      color: var(--text-muted); font-size: .75rem; font-weight: 600;
+    }
+    .divider-2fa::before, .divider-2fa::after {
+      content: ''; flex: 1; height: 1px;
+      background: var(--border);
+    }
+    .btn-2fa-toggle {
+      width: 100%; background: rgba(245,158,11,.08);
+      border: 1px solid rgba(245,158,11,.2);
+      color: var(--accent-warm); font-size: .82rem; font-weight: 600;
+      border-radius: 12px; padding: .65rem; cursor: pointer;
+      transition: all .2s;
+    }
+    .btn-2fa-toggle:hover {
+      background: rgba(245,158,11,.15);
+      border-color: rgba(245,158,11,.4);
+    }
+    .btn-back-2fa {
+      display: block; width: 100%; margin-top: 1rem;
+      background: none; border: none; color: var(--text-muted);
+      font-size: .82rem; cursor: pointer; padding: .5rem;
+      border-radius: 8px; transition: all .15s;
+    }
+    .btn-back-2fa:hover { color: var(--text); background: var(--surface-hover); }
+    .btn-2fa.loading .spinner { display: inline-block; }
+    .btn-2fa.loading .btn-text { opacity: .7; }
   </style>
 </head>
 <body>
@@ -181,7 +212,7 @@
   <div class="orb orb-2"></div>
   <div class="orb orb-3"></div>
   <div class="login-wrap">
-    <div class="login-card">
+    <div class="login-card" id="form-password">
       <div class="logo-block">
         {% if custom_logo %}
         <img src="{{ custom_logo }}" alt="Logo" class="logo-avatar" onerror="this.style.display='none';document.getElementById('fallback-icon').style.display='flex';">
@@ -227,14 +258,66 @@
         </button>
       </form>
 
-      <div class="footer-text">
-        Защищённый доступ · Только для администраторов
+      <div id="divider-2fa" class="divider-2fa">
+        <span>или</span>
       </div>
-      <div class="security-badge">
-        <i class="bi bi-shield-check"></i>
-        <span>SSL · CSRF Protection · Rate Limited</span>
-      </div>
+      <button type="button" class="btn-2fa-toggle" id="btn-toggle-2fa" onclick="toggle2faLogin()">
+        <i class="bi bi-shield-lock-fill me-2"></i>Войти по коду 2FA
+      </button>
     </div>
+
+    <div id="form-2fa" class="login-card" style="display:none">
+      <div class="logo-block">
+        <div class="logo-icon" style="display:flex;width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--accent-warm),var(--accent-secondary));align-items:center;justify-content:center;margin-bottom:1rem;box-shadow:0 8px 32px rgba(245,158,11,.35);font-size:1.8rem;color:#fff;">
+          <i class="bi bi-shield-lock-fill"></i>
+        </div>
+        <div class="app-name">{{ app_name | default('VPN Panel') }}</div>
+        <div class="app-sub">
+          Вход по 2FA-коду
+          <span class="version-badge">v{{ app_version | default('1.0.0') }}</span>
+        </div>
+      </div>
+
+      {% if error %}
+      <div class="alert-custom mb-3 d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <span>{{ error }}</span>
+      </div>
+      {% endif %}
+
+      <form method="post" action="/panel/login-2fa" id="login-2fa-form">
+        <div class="mb-3">
+          <label class="form-label">Логин</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+            <input type="text" name="username" class="form-control" placeholder="admin" required autofocus autocomplete="username" />
+          </div>
+        </div>
+        <div class="mb-4">
+          <label class="form-label">Код 2FA или резервный код</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-key-fill"></i></span>
+            <input type="text" name="code" class="form-control" placeholder="000000" required maxlength="12" inputmode="numeric" pattern="[0-9A-Za-z-]{4,12}" autocomplete="one-time-code" />
+          </div>
+        </div>
+        <button type="submit" class="btn btn-login w-100 btn-2fa" id="login-2fa-btn">
+          <span class="spinner"></span>
+          <span class="btn-text"><i class="bi bi-shield-check me-2"></i>Войти по коду</span>
+        </button>
+      </form>
+
+      <div class="footer-text" style="margin-top:1rem">
+        Введите 6-значный код из приложения или резервный код
+      </div>
+      <button type="button" class="btn-back-2fa" onclick="toggle2faLogin()">
+        <i class="bi bi-arrow-left me-1"></i>Назад к паролю
+      </button>
+    </div>
+  </div>
+
+  <div class="security-badge" style="position:relative;z-index:1;margin-top:1.5rem;text-align:center">
+    <i class="bi bi-shield-check"></i>
+    <span>SSL · CSRF Protection · Rate Limited</span>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
@@ -249,9 +332,33 @@
         icon.classList.replace('bi-eye-slash', 'bi-eye');
       }
     }
+    function toggle2faLogin() {
+      var form = document.getElementById('form-2fa');
+      var card = document.getElementById('form-password');
+      var divider = document.getElementById('divider-2fa');
+      var toggle = document.getElementById('btn-toggle-2fa');
+      if (form.style.display === 'none') {
+        form.style.display = 'block';
+        card.style.display = 'none';
+        divider.style.display = 'none';
+        toggle.style.display = 'none';
+        form.querySelector('input[name="username"]').focus();
+      } else {
+        form.style.display = 'none';
+        card.style.display = 'block';
+        divider.style.display = 'flex';
+        toggle.style.display = 'block';
+        card.querySelector('input[name="username"]').focus();
+      }
+    }
     // Loading state on submit
     document.getElementById('login-form').addEventListener('submit', function() {
       const btn = document.getElementById('login-btn');
+      btn.classList.add('loading');
+      btn.disabled = true;
+    });
+    document.getElementById('login-2fa-form').addEventListener('submit', function() {
+      const btn = document.getElementById('login-2fa-btn');
       btn.classList.add('loading');
       btn.disabled = true;
     });

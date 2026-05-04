@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import cast, Numeric
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -269,6 +269,59 @@ async def login_submit(
     resp = RedirectResponse(url="/panel/", status_code=302)
     resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
     return resp
+
+
+@router.post("/login-2fa")
+async def login_2fa_submit(
+    request: Request,
+    username: str = Form(...),
+    code: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    settings = await BotSettingsService(db).get_all()
+    _error_ctx = {
+        "request": request,
+        "error": "Неверный логин или код 2FA",
+        "app_name": config.web.app_name,
+        "app_version": config.web.app_version,
+        "custom_logo": settings.get("custom_logo", ""),
+    }
+
+    import pyotp
+    import hashlib
+    import json
+
+    admin = await AdminService(db).get_by_username(username)
+    if not admin or not admin.is_active:
+        return RedirectResponse(url="/panel/login", status_code=302)
+
+    if not admin.totp_secret:
+        return RedirectResponse(url="/panel/login", status_code=302)
+
+    totp = pyotp.TOTP(admin.totp_secret)
+    if totp.verify(code):
+        token = create_access_token(subject=admin.username, role=admin.role)
+        resp = RedirectResponse(url="/panel/", status_code=302)
+        resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
+        return resp
+
+    # Try backup codes
+    if admin.backup_codes:
+        try:
+            hashed_codes = json.loads(admin.backup_codes)
+            code_hash = hashlib.sha256(code.upper().replace("-", "").strip().encode()).hexdigest()
+            if code_hash in hashed_codes:
+                hashed_codes.remove(code_hash)
+                admin.backup_codes = json.dumps(hashed_codes)
+                await db.commit()
+                token = create_access_token(subject=admin.username, role=admin.role)
+                resp = RedirectResponse(url="/panel/", status_code=302)
+                resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
+                return resp
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    return templates.TemplateResponse("login.html", _error_ctx)
 
 
 @router.get("/logout")
