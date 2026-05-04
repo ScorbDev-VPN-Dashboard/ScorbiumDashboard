@@ -146,8 +146,8 @@ class MiniApp {
         user: profile.user,
         plans: plans.plans,
         settings,
-        servers: servers.servers || [],
-        overall: servers.overall || 'unknown'
+        servers: (servers && servers.ok) ? (servers.servers || []) : [],
+        overall: (servers && servers.ok) ? (servers.overall || 'unknown') : 'unknown'
       });
 
     } catch (e) {
@@ -238,17 +238,17 @@ class MiniApp {
       const ps = settings;
 
       c.innerHTML = `
-        ${ps.has_yookassa ? `<div class="pb" onclick="app.go('buy')">
+        ${ps.has_yookassa ? `<div class="pb" onclick="app.buyWithYookassa()">
           <div class="pb-icon" style="background:linear-gradient(135deg,#00d4aa,#0ea5e9)">💳</div>
           ЮKassa (карта, СБП)
         </div>` : ''}
 
-        ${ps.has_freekassa ? `<div class="pb" onclick="app.go('buy')">
+        ${ps.has_freekassa ? `<div class="pb" onclick="app.buyWithFreeKassa()">
           <div class="pb-icon" style="background:#6b7280">🏦</div>
           FreeKassa
         </div>` : ''}
 
-        ${ps.has_cryptobot ? `<div class="pb" onclick="app.go('buy')">
+        ${ps.has_cryptobot ? `<div class="pb" onclick="app.buyWithCrypto()">
           <div class="pb-icon" style="background:linear-gradient(135deg,#f59e0b,#eab308)">₿</div>
           Криптовалюта
         </div>` : ''}
@@ -470,6 +470,75 @@ class MiniApp {
     this.showToast('⭐ Telegram Stars скоро', 'info');
   }
 
+  async buyWithYookassa() {
+    const plansResp = await this.api('/plans');
+    if (!plansResp.ok || !plansResp.plans || !plansResp.plans.length) {
+      this.showToast('Нет доступных тарифов', 'err');
+      return;
+    }
+    this.showPlanSelector(plansResp.plans, (plan) => this.buyPlan(plan.id, plan.name, plan.price, plan.duration_days));
+  }
+
+  async buyWithFreeKassa() {
+    const plansResp = await this.api('/plans');
+    if (!plansResp.ok || !plansResp.plans || !plansResp.plans.length) {
+      this.showToast('Нет доступных тарифов', 'err');
+      return;
+    }
+    this.showPlanSelector(plansResp.plans, (plan) => this.buyPlanFreeKassa(plan.id, plan.name, plan.price, plan.duration_days));
+  }
+
+  async buyWithCrypto() {
+    const plansResp = await this.api('/plans');
+    if (!plansResp.ok || !plansResp.plans || !plansResp.plans.length) {
+      this.showToast('Нет доступных тарифов', 'err');
+      return;
+    }
+    this.showPlanSelector(plansResp.plans, (plan) => this.buyPlanCrypto(plan.id, plan.name, plan.price, plan.duration_days));
+  }
+
+  showPlanSelector(plans, onSelect) {
+    const c = document.getElementById('buy-c');
+    c.innerHTML = `
+      <div class="ph"><div class="pt">💳 Выберите тариф</div><button class="btn bo bs" onclick="app.loadBuy()" style="width:auto;padding:6px 12px;font-size:12px">← Назад</button></div>
+      <div class="sl2">Доступные тарифы</div>
+      ${plans.map(p => `
+        <div class="pc" onclick="app._selectedPlan(${p.id}, '${p.name.replace(/'/g, "\\'")}', ${p.price}, ${p.duration_days})">
+          <div class="pn">${p.name}</div>
+          <div class="pp">${p.price} ₽</div>
+          <div class="pd">${p.duration_days} дней</div>
+        </div>
+      `).join('')}
+    `;
+    this._onPlanSelect = onSelect;
+  }
+
+  _selectedPlan(planId, name, price, days) {
+    if (this._onPlanSelect) {
+      this._onPlanSelect({ id: planId, name, price, duration_days: days });
+    }
+  }
+
+  async buyPlanFreeKassa(planId, name, price, days) {
+    try {
+      const resp = await this.api('/pay/freekassa', {
+        method: 'POST',
+        body: JSON.stringify({ plan_id: planId })
+      });
+      if (resp.ok && resp.pay_url) {
+        window.Telegram.WebApp.openLink(resp.pay_url);
+      } else {
+        this.showToast(resp.error || 'Ошибка оплаты', 'err');
+      }
+    } catch (e) {
+      this.showToast('Ошибка создания платежа', 'err');
+    }
+  }
+
+  async buyPlanCrypto(planId, name, price, days) {
+    this.showToast('₿ Крипто-оплата скоро', 'info');
+  }
+
   openPromo() {
     document.getElementById('pm').classList.add('on');
     document.getElementById('pi').focus();
@@ -525,6 +594,15 @@ class MiniApp {
         <button class="btn bo" onclick="app.go(app.currentScreen)">🔄 Попробовать снова</button>
       </div>
     `;
+  }
+
+  showError(msg) {
+    const t = document.getElementById('toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.className = 'toast err';
+    t.classList.add('on');
+    setTimeout(() => t.classList.remove('on'), 3000);
   }
 
   showToast(msg, type = 'ok') {

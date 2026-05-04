@@ -110,6 +110,7 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup, str | None]:
     from app.models.payment import Payment, PaymentStatus, PaymentType
     from app.models.user import User
     from app.models.vpn_key import VpnKey, VpnKeyStatus
+    from app.services.bot_settings import BotSettingsService
 
     async with AsyncSessionFactory() as session:
         total_users = await UserService(session).count_all()
@@ -157,8 +158,6 @@ async def _admin_main_text() -> tuple[str, InlineKeyboardMarkup, str | None]:
         )
         rev_week_val = rev_week_r.scalar_one()
         rev_week = float(rev_week_val) if rev_week_val else 0.0
-
-        from app.services.bot_settings import BotSettingsService
 
         panel_url = (await BotSettingsService(session).get("panel_url") or "").rstrip(
             "/"
@@ -1882,6 +1881,7 @@ async def _admin_main_text_extended() -> tuple[str, InlineKeyboardMarkup, str | 
     from app.models.payment import Payment, PaymentStatus, PaymentType
     from app.models.user import User
     from app.models.vpn_key import VpnKey, VpnKeyStatus
+    from app.services.bot_settings import BotSettingsService
 
     async with AsyncSessionFactory() as session:
         total_users = await UserService(session).count_all()
@@ -1915,7 +1915,6 @@ async def _admin_main_text_extended() -> tuple[str, InlineKeyboardMarkup, str | 
         )
         rev_today = float(rev_today_r.scalar_one() or 0)
 
-        from app.services.bot_settings import BotSettingsService
         panel_url = (await BotSettingsService(session).get("panel_url") or "").rstrip("/")
         maintenance = await BotSettingsService(session).is_maintenance_mode()
 

@@ -3559,6 +3559,7 @@ async def update_notification_setting(
     await BotSettingsService(db).set(key, value)
     await db.commit()
     # Clear health service cooldowns on settings change
+    from app.services.health import health_service
     health_service._alert_cooldowns.clear()
     return JSONResponse({"ok": True})
 

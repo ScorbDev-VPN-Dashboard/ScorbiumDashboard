@@ -38,7 +38,16 @@ def upgrade() -> None:
             sa.Column('target_id', sa.BigInteger, nullable=True),
             sa.Column('details', sa.Text, nullable=True),
             sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False, index=True),
+            sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=True),
         )
+
+    # Handle case where table exists but updated_at column is missing
+    result = conn.execute(sa.text("""
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'audit_log' AND column_name = 'updated_at'
+    """))
+    if not result.fetchone():
+        op.add_column('audit_log', sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=True))
 
 
 def downgrade() -> None:
