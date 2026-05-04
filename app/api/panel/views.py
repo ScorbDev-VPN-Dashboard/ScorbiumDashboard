@@ -306,7 +306,7 @@ async def twofa_page(request: Request, db: AsyncSession = Depends(get_db)):
     # If accessing with full session, show settings page
     admin_info = _require_permission(request, "system")
     ctx = await _base_ctx(request, db, "2fa")
-    ctx["admin"] = await AdminService(db).get_by_username(admin_info["username"])
+    ctx["admin"] = await AdminService(db).get_by_username(admin_info["sub"])
     return templates.TemplateResponse("two_fa.html", ctx)
 
 
@@ -383,7 +383,7 @@ async def twofa_setup(request: Request, db: AsyncSession = Depends(get_db)):
     secret = pyotp.random_base32()
     totp = pyotp.TOTP(secret)
     uri = totp.provisioning_uri(
-        name=admin_info["username"],
+        name=admin_info["sub"],
         issuer_name=config.web.app_name or "Scorbium"
     )
     qr = qrcode.QRCode(version=1, box_size=10, border=2)
@@ -414,7 +414,7 @@ async def twofa_activate(request: Request, db: AsyncSession = Depends(get_db)):
     totp = pyotp.TOTP(secret)
     if not totp.verify(code):
         return JSONResponse({"ok": False, "message": "Неверный код"}, status_code=400)
-    admin = await AdminService(db).get_by_username(admin_info["username"])
+    admin = await AdminService(db).get_by_username(admin_info["sub"])
     if admin:
         admin.totp_secret = secret
         # Generate 8 backup codes
@@ -488,7 +488,7 @@ async def twofa_disable(request: Request, db: AsyncSession = Depends(get_db)):
     admin_info = _require_permission(request, "system")
     body = await request.json()
     code = body.get("code", "")
-    admin = await AdminService(db).get_by_username(admin_info["username"])
+    admin = await AdminService(db).get_by_username(admin_info["sub"])
     if not admin or not admin.totp_secret:
         return JSONResponse({"ok": False, "message": "2FA не включена"}, status_code=400)
 
@@ -507,7 +507,7 @@ async def twofa_disable(request: Request, db: AsyncSession = Depends(get_db)):
 async def twofa_check(request: Request, db: AsyncSession = Depends(get_db)):
     from fastapi.responses import JSONResponse
     admin_info = _require_permission(request, "system")
-    admin = await AdminService(db).get_by_username(admin_info["username"])
+    admin = await AdminService(db).get_by_username(admin_info["sub"])
     return JSONResponse({"enabled": bool(admin and admin.totp_secret)})
 
 
@@ -520,7 +520,7 @@ async def twofa_regenerate_backup(request: Request, db: AsyncSession = Depends(g
     from app.services.audit import AuditService
 
     admin_info = _require_permission(request, "system")
-    admin = await AdminService(db).get_by_username(admin_info["username"])
+    admin = await AdminService(db).get_by_username(admin_info["sub"])
     if not admin or not admin.totp_secret:
         return JSONResponse({"ok": False, "message": "2FA не включена"}, status_code=400)
 

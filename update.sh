@@ -374,15 +374,25 @@ fi
 
 # ── [5/6] Migrations ─────────────────────────────────────────────────────────
 info "[5/6] Применяю миграции БД..."
+
 MIGRATION_OUTPUT=$(docker compose -f "$COMPOSE_FILE" exec app uv run python fix_alembic.py 2>&1) || {
     warn "fix_alembic.py вернул ошибку:\n${MIGRATION_OUTPUT}"
 }
-MIGRATION_OUTPUT=$(docker compose -f "$COMPOSE_FILE" exec app uv run alembic upgrade head 2>&1) || {
-    warn "Миграция вернула ошибку:\n${MIGRATION_OUTPUT}"
-    echo ""
-    warn "Возможно, база уже актуальна. Проверьте: docker compose exec app uv run alembic current"
-}
-success "Миграции применены"
+
+MIGRATION_OUTPUT=$(docker compose -f "$COMPOSE_FILE" exec app uv run alembic upgrade head 2>&1)
+MIGRATION_EXIT=$?
+if [[ $MIGRATION_EXIT -ne 0 ]]; then
+    if echo "$MIGRATION_OUTPUT" | grep -qi "already up to date\|no migration"; then
+        info "База уже актуальна"
+    else
+        warn "Миграция вернула ошибку (exit code: ${MIGRATION_EXIT}):"
+        echo "$MIGRATION_OUTPUT"
+        echo ""
+        warn "Проверьте: docker compose exec app uv run alembic current"
+    fi
+else
+    success "Миграции применены"
+fi
 
 # ── [6/6] Nginx ──────────────────────────────────────────────────────────────
 info "[6/6] Обновляю nginx..."
