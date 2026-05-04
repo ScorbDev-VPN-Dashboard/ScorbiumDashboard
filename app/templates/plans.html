@@ -96,14 +96,14 @@
 
   // Drag-and-drop sorting
   const plansGrid = document.getElementById('plans-grid');
-  if (plansGrid) {
+  if (plansGrid && typeof Sortable !== 'undefined') {
     new Sortable(plansGrid, {
-      group: 'plans',
       animation: 150,
       handle: '.drag-handle',
       ghostClass: 'sortable-ghost',
+      draggable: '.plan-item',
       onEnd: function(evt) {
-        const order = Array.from(evt.to.children).map(el => el.dataset.planId).filter(Boolean);
+        const order = Array.from(evt.to.querySelectorAll('.plan-item')).map(el => el.dataset.planId).filter(Boolean);
         const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         fetch('/panel/plans/reorder', {
           method: 'POST',

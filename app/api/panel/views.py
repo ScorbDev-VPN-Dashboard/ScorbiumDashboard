@@ -3577,7 +3577,9 @@ _NOTIFY_SERVICES = [
     {"key": "database", "label": "PostgreSQL", "icon": "🗄️"},
     {"key": "telegram_bot", "label": "Telegram Bot", "icon": "🤖"},
     {"key": "vpn_panel", "label": "VPN панель", "icon": "🌐"},
-    {"key": "yookassa", "label": "Платежные системы", "icon": "💳"},
+    {"key": "yookassa", "label": "YooKassa", "icon": "💳"},
+    {"key": "cryptobot", "label": "CryptoBot", "icon": "₿"},
+    {"key": "freekassa", "label": "FreeKassa", "icon": "🏦"},
 ]
 
 

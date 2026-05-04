@@ -63,8 +63,15 @@ class HealthService:
             ("database", self._check_db),
             ("telegram_bot", self._check_telegram),
             ("vpn_panel", self._check_vpn_panel),
-            ("payment_systems", self._check_payment_systems),
         ]
+
+        # Add individual payment system checks
+        payment_checks = [
+            ("payment_yookassa", self._check_yookassa),
+            ("payment_cryptobot", self._check_cryptobot),
+            ("payment_freekassa", self._check_freekassa),
+        ]
+        checks.extend(payment_checks)
 
         # Run all checks concurrently with individual timeouts
         async def _safe_check(name, fn):
@@ -113,7 +120,9 @@ class HealthService:
                 "database": (await settings.get("notify_svc_database")) == "1",
                 "telegram_bot": (await settings.get("notify_svc_telegram_bot")) == "1",
                 "vpn_panel": (await settings.get("notify_svc_vpn_panel")) == "1",
-                "payment_systems": (await settings.get("notify_svc_yookassa")) == "1",
+                "payment_yookassa": (await settings.get("notify_svc_yookassa")) == "1",
+                "payment_cryptobot": (await settings.get("notify_svc_yookassa")) == "1",
+                "payment_freekassa": (await settings.get("notify_svc_yookassa")) == "1",
             }
 
         if chat_ids_raw and chat_ids_raw.strip():
@@ -186,114 +195,93 @@ class HealthService:
             await bot.session.close()
 
     async def _check_vpn_panel(self, entry: HealthEntry):
-        """Check Pasarguard/Marzban VPN panel (single unified check)."""
-        import httpx
-
-        base = str(config.pasarguard.pasarguard_admin_panel).rstrip("/")
-        if not base or "..." in base:
-            entry.warn(0, "Not configured")
-            return
-        start = time.time()
+        """Check Pasarguard/Marzban VPN panel via actual API client."""
         try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                resp = await client.get(f"{base}/api/health")
+            from app.services.pasarguard.pasarguard import PasarguardService
+
+            start = time.time()
+            panel = PasarguardService()
+            ok = await panel.validate_connection()
             latency = (time.time() - start) * 1000
-            if resp.status_code == 200:
-                entry.ok(latency, "Pasarguard/Marzban OK")
+            if ok:
+                entry.ok(latency, "VPN панель подключена")
             else:
-                entry.warn(latency, f"Status {resp.status_code}")
+                entry.fail("Не удалось подключиться")
         except Exception as e:
             entry.fail(str(e))
 
-    async def _check_payment_systems(self, entry: HealthEntry):
-        """Check all configured payment systems as a single unified check."""
+    async def _check_yookassa(self, entry: HealthEntry):
         import httpx
 
-        results = []
-        any_ok = False
-
-        # YooKassa
         shop_id = config.yookassa.yookassa_shop_id
-        if shop_id:
-            start = time.time()
+        secret = config.yookassa.yookassa_secret_key
+        if not shop_id or not secret:
+            entry.warn(0, "Не настроена")
+            return
+        start = time.time()
+        async with httpx.AsyncClient(timeout=5) as client:
             try:
-                async with httpx.AsyncClient(timeout=5) as client:
-                    resp = await client.get(
-                        "https://api.yookassa.ru/v3/me",
-                        auth=(str(shop_id), config.yookassa.yookassa_secret_key.get_secret_value()),
-                    )
+                resp = await client.get(
+                    "https://api.yookassa.ru/v3/me",
+                    auth=(str(shop_id), secret.get_secret_value()),
+                )
                 latency = (time.time() - start) * 1000
                 if resp.status_code in (200, 401):
-                    results.append(("YooKassa", "ok", latency))
-                    any_ok = True
+                    entry.ok(latency, "API доступен")
                 else:
-                    results.append(("YooKassa", "warn", latency, resp.status_code))
+                    entry.warn(latency, f"Status {resp.status_code}")
             except Exception as e:
-                results.append(("YooKassa", "fail", 0, str(e)))
+                entry.fail(str(e))
 
-        # CryptoBot
+    async def _check_cryptobot(self, entry: HealthEntry):
         from app.core.database import AsyncSessionFactory
         from app.services.bot_settings import BotSettingsService
 
         async with AsyncSessionFactory() as session:
-            cb_token = await BotSettingsService(session).get("cryptobot_token")
-        if cb_token:
-            start = time.time()
-            async with httpx.AsyncClient(timeout=5) as client:
-                try:
-                    resp = await client.post(
-                        "https://pay.crypt.bot/api/getMe",
-                        headers={"Crypto-Pay-API-Token": cb_token},
-                    )
-                    latency = (time.time() - start) * 1000
-                    if resp.status_code == 200:
-                        results.append(("CryptoBot", "ok", latency))
-                        any_ok = True
-                    else:
-                        results.append(("CryptoBot", "warn", latency, resp.status_code))
-                except Exception as e:
-                    results.append(("CryptoBot", "fail", 0, str(e)))
-
-        # FreeKassa (basic DNS/connectivity check)
-        fk_shop = ""
-        async with AsyncSessionFactory() as session:
-            fk_shop = await BotSettingsService(session).get("freekassa_shop_id") or ""
-        if fk_shop:
-            start = time.time()
-            async with httpx.AsyncClient(timeout=5) as client:
-                try:
-                    resp = await client.get("https://api.freekassa.com", timeout=5)
-                    latency = (time.time() - start) * 1000
-                    if resp.status_code < 500:
-                        results.append(("FreeKassa", "ok", latency))
-                        any_ok = True
-                    else:
-                        results.append(("FreeKassa", "warn", latency, resp.status_code))
-                except Exception as e:
-                    results.append(("FreeKassa", "fail", 0, str(e)))
-
-        if not results:
-            entry.warn(0, "Нет настроенных платежных систем")
+            token = await BotSettingsService(session).get("cryptobot_token")
+        if not token:
+            entry.warn(0, "Не настроен")
             return
+        import httpx
 
-        failed = [r for r in results if r[1] == "fail"]
-        warned = [r for r in results if r[1] == "warn"]
-
-        if failed and not any_ok:
-            msgs = [f"{r[0]}: {r[3]}" for r in failed]
-            entry.fail("; ".join(msgs))
-        elif failed or warned:
-            details = []
-            for r in results:
-                if r[1] == "ok":
-                    details.append(f"{r[0]} OK")
-                elif r[1] == "warn":
-                    details.append(f"{r[0]} {r[3]}")
+        start = time.time()
+        async with httpx.AsyncClient(timeout=5) as client:
+            try:
+                resp = await client.post(
+                    "https://pay.crypt.bot/api/getMe",
+                    headers={"Crypto-Pay-API-Token": token},
+                )
+                latency = (time.time() - start) * 1000
+                if resp.status_code == 200:
+                    entry.ok(latency)
                 else:
-                    details.append(f"{r[0]} err")
-            entry.warn(0, "; ".join(details))
-        else:
-            entry.ok(0, "Все системы OK")
+                    entry.warn(latency, f"Status {resp.status_code}")
+            except Exception as e:
+                entry.fail(str(e))
+
+    async def _check_freekassa(self, entry: HealthEntry):
+        from app.core.database import AsyncSessionFactory
+        from app.services.bot_settings import BotSettingsService
+
+        async with AsyncSessionFactory() as session:
+            shop_id = await BotSettingsService(session).get("freekassa_shop_id") or ""
+            api_key = await BotSettingsService(session).get("freekassa_api_key") or ""
+        if not shop_id or not api_key:
+            entry.warn(0, "Не настроена")
+            return
+        import httpx
+
+        start = time.time()
+        async with httpx.AsyncClient(timeout=5) as client:
+            try:
+                resp = await client.get("https://api.freekassa.com", timeout=5)
+                latency = (time.time() - start) * 1000
+                if resp.status_code < 500:
+                    entry.ok(latency, "API доступен")
+                else:
+                    entry.warn(latency, f"Status {resp.status_code}")
+            except Exception as e:
+                entry.fail(str(e))
 
 
 health_service = HealthService()
