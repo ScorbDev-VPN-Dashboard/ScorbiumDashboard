@@ -12,7 +12,7 @@
   </div>
 </div>
 
-<div id="plans-grid">
+<div id="plans-grid-container">
   {% include "partials/plans_grid.html" %}
 </div>
 
@@ -26,7 +26,7 @@
       </div>
       <form id="planForm"
             hx-post="/panel/plans"
-            hx-target="#plans-grid"
+            hx-target="#plans-grid-container"
             hx-swap="innerHTML"
             hx-on::after-request="onPlanSaved(event)">
         <div class="modal-body">
@@ -94,16 +94,25 @@
     }
   }
 
-  // Drag-and-drop sorting
-  const plansGrid = document.getElementById('plans-grid');
-  if (plansGrid && typeof Sortable !== 'undefined') {
-    new Sortable(plansGrid, {
+  let plansSortable = null;
+
+  function initSortable() {
+    const plansGrid = document.getElementById('plans-grid-container');
+    if (!plansGrid || typeof Sortable === 'undefined') return;
+
+    if (plansSortable) plansSortable.destroy();
+
+    plansSortable = new Sortable(plansGrid, {
       animation: 150,
       handle: '.drag-handle',
       ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
       draggable: '.plan-item',
+      forceFallback: true,
+      fallbackClass: 'sortable-fallback',
+      fallbackOnBody: true,
       onEnd: function(evt) {
-        const order = Array.from(evt.to.querySelectorAll('.plan-item')).map(el => el.dataset.planId).filter(Boolean);
+        const order = Array.from(plansGrid.querySelectorAll('.plan-item')).map(el => el.dataset.planId).filter(Boolean);
         const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         fetch('/panel/plans/reorder', {
           method: 'POST',
@@ -115,10 +124,19 @@
       }
     });
   }
+
+  document.addEventListener('DOMContentLoaded', initSortable);
+  document.addEventListener('htmx:afterSwap', function(e) {
+    if (e.target.id === 'plans-grid-container' || e.target.closest('#plans-grid-container')) {
+      setTimeout(initSortable, 50);
+    }
+  });
 </script>
 <style>
   .sortable-ghost { opacity: 0.4; }
-  .drag-handle { cursor: grab; }
+  .sortable-chosen { box-shadow: 0 0 0 2px var(--accent); }
+  .sortable-fallback { box-shadow: 0 8px 32px rgba(0,0,0,0.4); transform: scale(1.02); z-index: 9999 !important; }
+  .drag-handle { cursor: grab; user-select: none; -webkit-user-select: none; }
   .drag-handle:active { cursor: grabbing; }
 </style>
 {% endblock %}

@@ -1306,7 +1306,6 @@ async def payments_stats_json(request: Request, days: int = 30, db: AsyncSession
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
-    # Summary
     result = await db.execute(
         select(
             func.coalesce(func.sum(Payment.amount), 0).label('total'),

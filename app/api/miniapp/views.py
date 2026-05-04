@@ -30,7 +30,12 @@ _tpl_path.mkdir(exist_ok=True)
 templates = Jinja2Templates(directory=str(_tpl_path))
 
 
-def _verify_telegram_data(init_data: str) -> Optional[dict]:
+def _compute_hmac(token: str, data_check: str) -> str:
+    secret = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
+    return hmac.new(secret, data_check.encode(), hashlib.sha256).hexdigest()
+
+
+async def _verify_telegram_data(init_data: str, db: Optional[AsyncSession] = None) -> Optional[dict]:
     """Verify Telegram WebApp initData and return parsed user data."""
     try:
         if not init_data or len(init_data) < 10:
@@ -52,47 +57,57 @@ def _verify_telegram_data(init_data: str) -> Optional[dict]:
             return None
 
         data_check = "\n".join(f"{k}={v}" for k, v in sorted(parsed.items()))
-        token = config.telegram.telegram_bot_token.get_secret_value()
-        if not token:
-            log.error("MiniApp auth: bot token not configured")
+
+        # Collect candidate tokens: .env first, then DB
+        tokens_to_try: list[str] = []
+        env_token = config.telegram.telegram_bot_token.get_secret_value()
+        if env_token:
+            tokens_to_try.append(env_token)
+        if db:
+            try:
+                db_token = await BotSettingsService(db).get("telegram_bot_token")
+                if db_token and db_token not in tokens_to_try:
+                    tokens_to_try.append(db_token)
+            except Exception as e:
+                log.debug(f"MiniApp auth: failed to fetch DB token: {e}")
+
+        if not tokens_to_try:
+            log.error("MiniApp auth: no bot tokens configured")
             return None
 
-        secret = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
-        expected = hmac.new(secret, data_check.encode(), hashlib.sha256).hexdigest()
+        # Try each token
+        user_data = None
+        for token in tokens_to_try:
+            expected = _compute_hmac(token, data_check)
+            if hmac.compare_digest(expected, hash_val):
+                user_raw = parsed.get("user", "{}")
+                user_data = json.loads(user_raw)
+                if user_data and "id" in user_data:
+                    log.info(f"MiniApp auth OK: user_id={user_data.get('id')}, username={user_data.get('username')}")
+                    return user_data
 
-        if not hmac.compare_digest(expected, hash_val):
-            log.warning(
-                f"MiniApp auth: HMAC mismatch. "
-                f"Expected: {expected[:16]}..., Got: {hash_val[:16]}..., "
-                f"Keys: {list(parsed.keys())}"
-            )
-            return None
-
-        user_raw = parsed.get("user", "{}")
-        user_data = json.loads(user_raw)
-        if not user_data or "id" not in user_data:
-            log.warning(f"MiniApp auth: invalid user data: {user_raw[:200]}")
-            return None
-
-        log.info(f"MiniApp auth OK: user_id={user_data.get('id')}, username={user_data.get('username')}")
-        return user_data
+        log.warning(
+            f"MiniApp auth: HMAC mismatch with all tokens. "
+            f"Keys: {list(parsed.keys())}"
+        )
+        return None
     except Exception as e:
         log.warning(f"MiniApp auth error: {type(e).__name__}: {e}")
         return None
 
 
-async def _get_tg_user(request: Request) -> Optional[dict]:
+async def _get_tg_user(request: Request, db: Optional[AsyncSession] = None) -> Optional[dict]:
     """Extract and verify Telegram user from request."""
     # 1. Header (primary method after JS fix)
     init_data = request.headers.get("X-Telegram-Init-Data", "")
     if init_data:
         log.debug(f"MiniApp: X-Telegram-Init-Data header present, length={len(init_data)}")
-        return _verify_telegram_data(init_data)
+        return await _verify_telegram_data(init_data, db)
 
     # 2. Query param
     init_data = request.query_params.get("tgWebAppData", "")
     if init_data:
-        return _verify_telegram_data(init_data)
+        return await _verify_telegram_data(init_data, db)
 
     # 3. Request body (for POST requests that include initData)
     if request.method == "POST":
@@ -100,7 +115,7 @@ async def _get_tg_user(request: Request) -> Optional[dict]:
             body = await request.json()
             init_data = body.get("initData", "")
             if init_data:
-                return _verify_telegram_data(init_data)
+                return await _verify_telegram_data(init_data, db)
         except Exception:
             pass
 
@@ -142,7 +157,7 @@ async def miniapp_index(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/auth")
 async def miniapp_auth(request: Request, db: AsyncSession = Depends(get_db)):
     """Authenticate user via Telegram initData, create if not exists."""
-    tg_user = await _get_tg_user(request)
+    tg_user = await _get_tg_user(request, db)
 
     if not tg_user:
         return JSONResponse(
@@ -238,7 +253,7 @@ async def miniapp_auth_fallback(request: Request, db: AsyncSession = Depends(get
 @router.get("/admin/stats")
 async def admin_stats(request: Request, db: AsyncSession = Depends(get_db)):
     """Get admin statistics."""
-    tg_user = await _get_tg_user(request)
+    tg_user = await _get_tg_user(request, db)
     if not tg_user:
         return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
 
@@ -306,7 +321,7 @@ async def get_plans(db: AsyncSession = Depends(get_db)):
 @router.get("/profile")
 async def get_profile(request: Request, db: AsyncSession = Depends(get_db)):
     """Get user profile with subscriptions."""
-    tg_user = await _get_tg_user(request)
+    tg_user = await _get_tg_user(request, db)
     if not tg_user:
         return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
 
@@ -369,7 +384,7 @@ async def get_profile(request: Request, db: AsyncSession = Depends(get_db)):
 async def pay_balance(request: Request, db: AsyncSession = Depends(get_db)):
     """Pay with internal balance - ATOMIC with rollback on failure."""
     import asyncio
-    tg_user = await _get_tg_user(request)
+    tg_user = await _get_tg_user(request, db)
     if not tg_user:
         return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
 
@@ -441,7 +456,7 @@ async def pay_balance(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/extend/key")
 async def extend_key(request: Request, db: AsyncSession = Depends(get_db)):
     """Extend subscription using balance."""
-    tg_user = await _get_tg_user(request)
+    tg_user = await _get_tg_user(request, db)
     if not tg_user:
         return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
 
@@ -484,7 +499,7 @@ async def extend_key(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/pay/yookassa")
 async def pay_yookassa(request: Request, db: AsyncSession = Depends(get_db)):
     """Create YooKassa payment and return redirect URL."""
-    tg_user = await _get_tg_user(request)
+    tg_user = await _get_tg_user(request, db)
     if not tg_user:
         return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
 
@@ -532,7 +547,7 @@ async def pay_yookassa(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/pay/sbp")
 async def pay_sbp(request: Request, db: AsyncSession = Depends(get_db)):
     """Create SBP (YooKassa) payment."""
-    tg_user = await _get_tg_user(request)
+    tg_user = await _get_tg_user(request, db)
     if not tg_user:
         return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
 
@@ -581,7 +596,7 @@ async def pay_sbp(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/pay/freekassa")
 async def pay_freekassa(request: Request, db: AsyncSession = Depends(get_db)):
     """Create FreeKassa payment and return redirect URL."""
-    tg_user = await _get_tg_user(request)
+    tg_user = await _get_tg_user(request, db)
     if not tg_user:
         return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
 
@@ -633,7 +648,7 @@ async def pay_freekassa(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/pay/check/{payment_id}")
 async def check_payment(payment_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     """Check payment status and provision VPN key if succeeded."""
-    tg_user = await _get_tg_user(request)
+    tg_user = await _get_tg_user(request, db)
     if not tg_user:
         return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
 
@@ -807,7 +822,7 @@ async def _fetch_bot_username_safe() -> str:
 @router.post("/promo/apply")
 async def apply_promo(request: Request, db: AsyncSession = Depends(get_db)):
     """Apply promo code (balance / days / discount)."""
-    tg_user = await _get_tg_user(request)
+    tg_user = await _get_tg_user(request, db)
     if not tg_user:
         return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
 
@@ -874,7 +889,7 @@ async def get_faq(db: AsyncSession = Depends(get_db)):
 @router.get("/servers/status")
 async def servers_status(request: Request, db: AsyncSession = Depends(get_db)):
     """Get VPN servers status."""
-    tg_user = await _get_tg_user(request)
+    tg_user = await _get_tg_user(request, db)
     if not tg_user:
         return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
 
@@ -906,7 +921,7 @@ async def servers_status(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/user/stats")
 async def user_stats(request: Request, db: AsyncSession = Depends(get_db)):
     """Get user statistics."""
-    tg_user = await _get_tg_user(request)
+    tg_user = await _get_tg_user(request, db)
     if not tg_user:
         return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
 
@@ -947,7 +962,7 @@ async def user_stats(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/user/payments")
 async def user_payments(request: Request, limit: int = 10, db: AsyncSession = Depends(get_db)):
     """Get user payment history."""
-    tg_user = await _get_tg_user(request)
+    tg_user = await _get_tg_user(request, db)
     if not tg_user:
         return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
 
