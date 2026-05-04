@@ -2447,20 +2447,20 @@ async def get_marzban_groups(request: Request):
             '<div style="color:#ef4444;font-size:.8rem"><i class="bi bi-x-circle me-1"></i>Не удалось загрузить группы</div>'
         )
 
-    html = ""
+    out_html = ""
     for g in groups:
         disabled = " (отключена)" if g.get("is_disabled") else ""
         inbounds = ", ".join(g.get("inbound_tags", []))
-        group_name = html.escape(str(g.get("name", "")))
-        html += (
+        group_name = __import__("html").escape(str(g.get("name", "")))
+        out_html += (
             f'<div class="form-check mb-2">'
             f'<input class="form-check-input" type="checkbox" name="group_id" value="{g["id"]}" id="grp{g["id"]}">'
             f'<label class="form-check-label" for="grp{g["id"]}" style="color:#c8d0e0;font-size:.85rem">'
             f"<b>{group_name}</b>{disabled}"
-            f'<span style="color:#8892a4;font-size:.75rem;display:block">{html.escape(inbounds)} · {g.get("total_users", 0)} юзеров</span>'
+            f'<span style="color:#8892a4;font-size:.75rem;display:block">{__import__("html").escape(inbounds)} · {g.get("total_users", 0)} юзеров</span>'
             f"</label></div>"
         )
-    return HTMLResponse(html)
+    return HTMLResponse(out_html)
 
 
 
@@ -3576,9 +3576,8 @@ def _get_uptime() -> str:
 _NOTIFY_SERVICES = [
     {"key": "database", "label": "PostgreSQL", "icon": "🗄️"},
     {"key": "telegram_bot", "label": "Telegram Bot", "icon": "🤖"},
-    {"key": "vpn_panel", "label": "VPN Panel (Pasarguard/Marzban)", "icon": "🌐"},
-    {"key": "yookassa", "label": "YooKassa", "icon": "💳"},
-    {"key": "cryptobot", "label": "CryptoBot", "icon": "₿"},
+    {"key": "vpn_panel", "label": "VPN панель", "icon": "🌐"},
+    {"key": "yookassa", "label": "Платежные системы", "icon": "💳"},
 ]
 
 

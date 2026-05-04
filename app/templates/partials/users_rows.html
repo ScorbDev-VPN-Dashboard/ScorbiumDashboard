@@ -1,7 +1,7 @@
 {% for u in users %}
 <tr id="user-row-{{ u.id }}" data-user="{{ u.id }}" data-banned="{{ u.is_banned|lower }}" data-keys="{{ u.subscriptions_count }}" data-balance="{{ u.balance or 0 }}" data-created="{{ u.created_at.isoformat() if u.created_at else '' }}">
   <td><input type="checkbox" class="user-check" value="{{ u.id }}" onchange="updateBulkBar()"></td>
-  <td><code style="color:#00d4aa">{{ u.id }}</code></td>
+  <td><code style="color:var(--accent)">{{ u.id }}</code></td>
   <td>{{ u.full_name }}</td>
   <td>{% if u.username %}<span style="color:var(--text-muted)">@{{ u.username }}</span>{% else %}—{% endif %}</td>
   <td>{{ u.subscriptions_count }}</td>
@@ -9,46 +9,46 @@
   <td>
     <div>
       {% if u.is_banned %}
-        <span class="badge badge-custom badge-expired">Забанен</span>
+        <span class="badge badge-custom badge-expired"><i class="bi bi-ban me-1"></i>Забанен</span>
       {% elif u.is_active %}
-        <span class="badge badge-custom badge-active">Активен</span>
+        <span class="badge badge-custom badge-active"><i class="bi bi-check-circle me-1"></i>Активен</span>
       {% else %}
-        <span class="badge badge-custom badge-closed">Неактивен</span>
+        <span class="badge badge-custom badge-closed"><i class="bi bi-person-slash me-1"></i>Неактивен</span>
       {% endif %}
-      <div style="font-size:.7rem;color:var(--text-muted);margin-top:.2rem">💰 {{ "%.2f"|format(u.balance or 0) }} ₽</div>
+      <div style="font-size:.7rem;color:var(--text-muted);margin-top:.2rem"><i class="bi bi-wallet2 me-1" style="color:var(--warning)"></i>{{ "%.2f"|format(u.balance or 0) }} ₽</div>
     </div>
   </td>
   <td>
     <div class="d-flex gap-1 flex-wrap">
       <a href="/panel/users/{{ u.id }}" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Детали">
-        👁️
+        <i class="bi bi-eye"></i>
       </a>
       <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Написать" onclick="openMsgModal({{ u.id }})">
-        💬
+        <i class="bi bi-chat-dots"></i>
       </button>
       <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Баланс"
         onclick="openBalanceModal({{ u.id }}, {{ u.balance or 0 }})">
-        💰
+        <i class="bi bi-wallet2"></i>
       </button>
       <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="Подарить подписку"
         onclick="openGiftModal({{ u.id }})">
-        🎁
+        <i class="bi bi-gift"></i>
       </button>
       {% if u.is_banned %}
       <button class="btn btn-sm btn-outline-success py-0 px-2" title="Разбанить"
         hx-post="/panel/users/{{ u.id }}/unban" hx-target="#user-row-{{ u.id }}" hx-swap="outerHTML">
-        🔓
+        <i class="bi bi-unlock"></i>
       </button>
       {% else %}
       <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Забанить"
         hx-post="/panel/users/{{ u.id }}/ban" hx-target="#user-row-{{ u.id }}" hx-swap="outerHTML"
         hx-confirm="Забанить пользователя?">
-        🔒
+        <i class="bi bi-lock"></i>
       </button>
       {% endif %}
     </div>
   </td>
 </tr>
 {% else %}
-<tr><td colspan="8" class="text-center py-4" style="color:var(--text-muted)">Пользователи не найдены</td></tr>
+<tr><td colspan="8" class="text-center py-4" style="color:var(--text-muted)"><i class="bi bi-people d-block mb-2" style="font-size:1.5rem;opacity:.3"></i>Пользователи не найдены</td></tr>
 {% endfor %}

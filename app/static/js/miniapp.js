@@ -443,7 +443,7 @@ class MiniApp {
     try {
       const settings = await this.api('/settings');
       if (!settings.has_yookassa) {
-        this.showToast('ЮKassa не настроена', 'err');
+        this.showToast('Платежная система не настроена', 'err');
         return;
       }
 

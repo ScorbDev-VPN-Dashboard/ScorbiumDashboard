@@ -6,6 +6,8 @@
 <!-- Service health cards -->
 <div class="row g-3 mb-3" id="healthCards">
   {% for name, entry in services.items() %}
+  {% set labels = {'database': 'База данных', 'telegram_bot': 'Telegram бот', 'vpn_panel': 'VPN панель', 'payment_systems': 'Платежные системы', 'yookassa': 'Платежные системы', 'cryptobot': 'Платежные системы'} %}
+  {% set label = labels.get(name, name) %}
   <div class="col-sm-4 col-md-3 col-lg-2">
     <div class="card p-3 text-center">
       <div class="mb-2" style="font-size:1.5rem">
@@ -17,7 +19,7 @@
           <i class="bi bi-x-circle-fill" style="color:var(--danger)"></i>
         {% endif %}
       </div>
-      <div class="fw-semibold" style="color:var(--text);font-size:.85rem">{{ name }}</div>
+      <div class="fw-semibold" style="color:var(--text);font-size:.85rem">{{ label }}</div>
       <div style="font-size:.75rem;color:var(--text-muted)">
         {% if entry.status == 'healthy' %}OK{% elif entry.status == 'degraded' %}Degraded{% else %}DOWN{% endif %}
       </div>
@@ -114,10 +116,19 @@ async function refreshHealth() {
     const data = await r.json();
     const container = document.getElementById('healthCards');
     container.innerHTML = '';
+    const labels = {
+      database: 'База данных',
+      telegram_bot: 'Telegram бот',
+      vpn_panel: 'VPN панель',
+      payment_systems: 'Платежные системы',
+      yookassa: 'Платежные системы',
+      cryptobot: 'Платежные системы',
+    };
     for (const [name, e] of Object.entries(data)) {
+      const label = labels[name] || name;
       const icon = e.status === 'healthy' ? 'bi-check-circle-fill' : e.status === 'degraded' ? 'bi-exclamation-triangle-fill' : 'bi-x-circle-fill';
       const color = e.status === 'healthy' ? 'var(--success)' : e.status === 'degraded' ? 'var(--warning)' : 'var(--danger)';
-      const label = e.status === 'healthy' ? 'OK' : e.status === 'degraded' ? 'Degraded' : 'DOWN';
+      const statusLabel = e.status === 'healthy' ? 'OK' : e.status === 'degraded' ? 'Degraded' : 'DOWN';
       const latency = e.latency_ms > 0 ? `<div style="font-size:.7rem;color:var(--text-muted)">${e.latency_ms.toFixed(0)}ms</div>` : '';
       const msg = e.message && e.status !== 'healthy' ? `<div style="font-size:.65rem;color:var(--danger);margin-top:.25rem;word-break:break-word">${e.message.substring(0, 80)}</div>` : '';
       const time = e.checked_at ? new Date(e.checked_at).toLocaleTimeString() : '—';
@@ -125,8 +136,8 @@ async function refreshHealth() {
         <div class="col-sm-4 col-md-3 col-lg-2">
           <div class="card p-3 text-center">
             <div class="mb-2" style="font-size:1.5rem"><i class="${icon}" style="color:${color}"></i></div>
-            <div class="fw-semibold" style="color:var(--text);font-size:.85rem">${name}</div>
-            <div style="font-size:.75rem;color:var(--text-muted)">${label}</div>
+            <div class="fw-semibold" style="color:var(--text);font-size:.85rem">${label}</div>
+            <div style="font-size:.75rem;color:var(--text-muted)">${statusLabel}</div>
             ${latency}${msg}
             <div style="font-size:.6rem;color:var(--text-muted);margin-top:.25rem">${time}</div>
           </div>
