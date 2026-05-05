@@ -38,6 +38,7 @@ dependencies = [
     "pyotp>=2.9.0",
     "qrcode[pil]>=7.4.0",
     # Monitoring
+    "psutil>=5.9.0",
     "prometheus-client>=0.20.0",
     "sentry-sdk[fastapi]>=2.0.0",
     # CLI

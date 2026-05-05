@@ -17,21 +17,13 @@ class MiniApp {
   }
 
   async init() {
-    // Wait for Telegram WebApp to be ready with timeout
+    // Simple init - WebApp is usually ready when script runs
     if (window.Telegram?.WebApp) {
-      await Promise.race([
-        new Promise((resolve) => {
-          if (window.Telegram.WebApp.initData) {
-            resolve();
-          } else {
-            window.Telegram.WebApp.onEvent('ready', resolve);
-            window.Telegram.WebApp.ready();
-          }
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('WebApp timeout')), 5000))
-      ]).catch(() => {});
-
+      // Call ready immediately (safe to call multiple times)
+      window.Telegram.WebApp.ready();
       window.Telegram.WebApp.expand();
+      
+      // Get initData (may be empty if opened via direct link)
       this.initData = window.Telegram.WebApp.initData || '';
       this.initDataUnsafe = window.Telegram.WebApp.initDataUnsafe || {};
       this.userPhotoUrl = this.initDataUnsafe?.user?.photo_url || '';
@@ -48,7 +40,7 @@ class MiniApp {
     });
 
     if (!this.initData) {
-      this.showError('Перезайдите в приложение');
+      this.showError('Перезайдите в приложение через бота');
       return;
     }
 
@@ -127,7 +119,8 @@ class MiniApp {
 
     try {
       const resp = await this.api('/auth', {
-        method: 'POST'
+        method: 'POST',
+        body: JSON.stringify({ initData: this.initData })
       });
 
       if (resp.ok) {

@@ -10,7 +10,6 @@ from app.utils.log import log
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
-
 def _secret_key() -> str:
     """Return a dedicated JWT signing secret."""
     import os
@@ -21,13 +20,11 @@ def _secret_key() -> str:
         )
     return secret
 
-
 def hash_password(password: str) -> str:
     """Hash password with bcrypt (auto-generates salt, handles encoding)."""
     # bcrypt has 72-byte limit; passlib does this internally, we do it explicitly
     pw_bytes = password.encode("utf-8")[:72]
-    return bcrypt.hashpw(pw_bytes, bcrypt.gensalt(rounds=12)).decode("ascii")
-
+    return bcrypt.hashpw(pw_bytes, bcrypt.gensalt(log_rounds=12)).decode("ascii")
 
 def verify_password(plain: str, hashed: str) -> bool:
     """Verify plain password against bcrypt hash."""
@@ -37,7 +34,6 @@ def verify_password(plain: str, hashed: str) -> bool:
         return bcrypt.checkpw(pw_bytes, hash_bytes)
     except Exception:
         return False
-
 
 def create_access_token(
     subject: Any,
@@ -53,12 +49,21 @@ def create_access_token(
         payload.update(extra)
     return jwt.encode(payload, _secret_key(), algorithm=ALGORITHM)
 
-
 def decode_access_token(token: str) -> Optional[str]:
     """Returns subject (str) or None if token is invalid/expired."""
     try:
         payload = jwt.decode(token, _secret_key(), algorithms=[ALGORITHM])
         return payload.get("sub")
+    except JWTError:
+        return None
+
+def decode_access_token_full(token: str) -> Optional[dict]:
+    """Returns full payload or None if token is invalid/expired."""
+    try:
+        payload = jwt.decode(token, _secret_key(), algorithms=[ALGORITHM])
+        if payload.get("sub") is None:
+            return None
+        return payload
     except JWTError:
         return None
 

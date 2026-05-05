@@ -383,6 +383,125 @@ async def _show_groups(callback: CallbackQuery, saved_ids: list[int]) -> None:
 # ── Main handlers ─────────────────────────────────────────────────────────────
 
 
+@router.message(Command("stats"))
+async def cmd_stats(message: Message):
+    """Quick stats for admins."""
+    if not _is_admin(message.from_user.id):
+        return
+
+    from app.services.system_metrics import SystemMetrics
+    from app.services.user import UserService
+    from app.services.vpn_key import VpnKeyService
+    from app.services.payment import PaymentService
+
+    async with AsyncSessionFactory() as session:
+        total_users = await UserService(session).count_all()
+        active_subs = await VpnKeyService(session).count_active()
+        revenue = await PaymentService(session).total_revenue()
+
+    metrics = await SystemMetrics.collect()
+
+    text = "📊 <b>Quick Stats</b>\n\n"
+    text += f"👥 Users: {total_users}\n"
+    text += f"🔑 Active subs: {active_subs}\n"
+    text += f"💰 Revenue: {revenue:.2f} ₽\n\n"
+    text += f"💻 CPU: {metrics['cpu']}%\n"
+    text += f"🧠 RAM: {metrics['ram']['percent']}% ({metrics['ram']['used']} GB)\n"
+    text += f"💾 Disk: {metrics['disk']['percent']}% ({metrics['disk']['used']} GB)"
+
+    await message.answer(text)
+
+
+@router.message(Command("system"))
+async def cmd_system(message: Message):
+    """System metrics for admins."""
+    if not _is_admin(message.from_user.id):
+        return
+
+    from app.services.system_metrics import SystemMetrics
+    metrics = await SystemMetrics.collect()
+
+    text = "⚙️ <b>System Metrics</b>\n\n"
+    text += f"💻 CPU: {metrics['cpu']}%\n"
+    text += f"🧠 RAM: {metrics['ram']['percent']}% ({metrics['ram']['used']}/{metrics['ram']['total']} GB)\n"
+    text += f"💾 Disk: {metrics['disk']['percent']}% ({metrics['disk']['used']}/{metrics['disk']['total']} GB)\n"
+    text += f"🌐 Network: ↑{metrics['net']['sent_mb']} MB / ↓{metrics['net']['recv_mb']} MB"
+
+    await message.answer(text)
+
+
+@router.message(Command("userinfo"))
+async def cmd_userinfo(message: Message) -> None:
+    """Quick user info for admins: /userinfo <user_id>"""
+    if not _is_admin(message.from_user.id):
+        return
+
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.answer("⚠️ Usage: /userinfo <user_id>")
+        return
+
+    try:
+        user_id = int(args[1].strip())
+    except ValueError:
+        await message.answer("❌ Invalid user ID")
+        return
+
+    from app.services.user import UserService
+    from app.services.vpn_key import VpnKeyService
+    from app.services.payment import PaymentService
+
+    try:
+        async with AsyncSessionFactory() as session:
+            user = await UserService(session).get_by_id(user_id)
+            if not user:
+                await message.answer(f"❌ User {user_id} not found")
+                return
+
+            keys = await VpnKeyService(session).get_all_for_user(user_id)
+            active = sum(1 for k in keys if str(k.status) == 'active')
+
+            text = f"👤 <b>User Info</b>\n\n"
+            text += f"ID: <code>{user.id}</code>\n"
+            text += f"Username: @{user.username or '—'}\n"
+            text += f"Name: {user.full_name or '—'}\n"
+            text += f"Balance: {float(user.balance or 0):.2f} ₽\n"
+            text += f"Active keys: {active}\n"
+            text += f"Created: {user.created_at.strftime('%d.%m.%Y') if user.created_at else '—'}"
+
+            await message.answer(text)
+    except Exception as e:
+        await message.answer(f"❌ Error: {e}")
+
+
+@router.message(Command("broadcast"))
+async def cmd_broadcast(message: Message, state: FSMContext) -> None:
+    """Start broadcast: /broadcast <message>"""
+    if not _is_admin(message.from_user.id):
+        return
+
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.answer("⚠️ Usage: /broadcast <message>")
+        return
+
+    text = args[1].strip()
+    from app.services.telegram_notify import TelegramNotifyService
+
+    await message.answer(f"📢 Broadcasting to all admins:\n\n{text}")
+
+    notify = TelegramNotifyService()
+    count = 0
+    for admin_id in config.telegram.telegram_admin_ids:
+        try:
+            await notify.send_message(admin_id, f"📢 <b>Broadcast</b>\n\n{text}")
+            count += 1
+        except Exception:
+            pass
+
+    await message.answer(f"✅ Sent to {count} admins")
+
+
 @router.message(Command("admin"))
 async def admin_panel(message: Message) -> None:
     if not _is_admin(message.from_user.id):

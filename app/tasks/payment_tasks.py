@@ -138,23 +138,26 @@ async def check_pending_yookassa_payments() -> None:
                             f"Платеж подтвержден, но ключ не создан. Проверьте Pasarguard."
                         )
 
-                await TelegramNotifyService().send_message(pd["user_id"], text)
-
-                # WebSocket notification to admin panel
-                try:
-                    from app.services.notification import notification_manager
-                    await notification_manager.broadcast({
-                        "type": "new_payment",
-                        "data": {
-                            "payment_id": pd["id"],
-                            "user_id": pd["user_id"],
-                            "amount": payment_amount or "0",
-                            "currency": payment_currency or "RUB",
-                        },
-                    })
-                except Exception as e:
-                    log.warning(f"[polling] WebSocket broadcast failed: {e}")
-
+                # Only send notification if payment succeeded and has key
+                if key_data:
+                    await TelegramNotifyService().send_message(pd["user_id"], text)
+                
+                # WebSocket notification to admin panel (only on success)
+                if key_data:
+                    try:
+                        from app.services.notification import notification_manager
+                        await notification_manager.broadcast({
+                            "type": "new_payment",
+                            "data": {
+                                "payment_id": pd["id"],
+                                "user_id": pd["user_id"],
+                                "amount": payment_amount or "0",
+                                "currency": payment_currency or "RUB",
+                            },
+                        })
+                    except Exception as e:
+                        log.warning(f"[polling] WebSocket broadcast failed: {e}")
+                
                 log.info(f"[polling] Payment {pd['id']} confirmed, key={key_data['id'] if key_data else 'FAILED'}")
 
             elif yk_payment.status in ("canceled", "expired"):

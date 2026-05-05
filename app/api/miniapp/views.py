@@ -157,7 +157,14 @@ async def miniapp_auth(request: Request, db: AsyncSession = Depends(get_db)):
 
     if not tg_user:
         init_data = request.headers.get("X-Telegram-Init-Data", "") or request.headers.get("x-telegram-init-data", "")
-        log.warning(f"Auth failed. Header initData len: {len(init_data)}")
+        body_init = ""
+        if request.method == "POST":
+            try:
+                body = await request.json()
+                body_init = body.get("initData", "")[:100]
+            except Exception:
+                pass
+        log.warning(f"Auth failed. Header len: {len(init_data)}, Body preview: {body_init}")
         return JSONResponse({"ok": False, "error": "Invalid auth"}, status_code=401)
 
     user_id = tg_user.get("id")

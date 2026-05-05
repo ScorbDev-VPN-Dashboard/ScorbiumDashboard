@@ -421,6 +421,12 @@ async def gift_buy(callback: CallbackQuery) -> None:
             return
 
         key = await VpnKeyService(session).provision(user_id=target_id, plan=plan)
+
+        if not key:
+            await session.rollback()
+            await callback.answer("❌ Ошибка создания ключа", show_alert=True)
+            return
+
         await session.commit()
 
         target = await UserService(session).get_by_id(target_id)

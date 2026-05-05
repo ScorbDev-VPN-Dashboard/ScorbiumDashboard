@@ -156,8 +156,6 @@ async def _lifespan(app: FastAPI):
     from app.services.slow_query import register_slow_query_logger
     register_slow_query_logger()
 
-    _start_monitoring()
-
     import os as _os
     _env_cryptobot = _os.environ.get("CRYPTOBOT_TOKEN", "").strip()
     if _env_cryptobot:
@@ -415,6 +413,27 @@ def create_app() -> FastAPI:
         finally:
             await notification_manager.disconnect(websocket)
 
+    @app.websocket("/ws/metrics")
+    async def websocket_metrics(websocket: WebSocket):
+        """WebSocket endpoint for real-time system metrics."""
+        await websocket.accept()
+        try:
+            while True:
+                from app.services.system_metrics import SystemMetrics
+                metrics = await SystemMetrics.collect()
+                await websocket.send_json(metrics)
+                await asyncio.sleep(3)
+        except Exception:
+            pass
+
+    @app.get("/metrics-dashboard", include_in_schema=False)
+    async def metrics_dashboard_page(request: Request):
+        """Serve the HTML dashboard page."""
+        from fastapi.templating import Jinja2Templates
+        from pathlib import Path
+        templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+        return templates.TemplateResponse("metrics/dashboard.html", {"request": request})
+
     @app.post(config.telegram.telegram_webhook_path, include_in_schema=False)
     async def telegram_webhook(request: Request):
         from aiogram.types import Update
@@ -456,11 +475,31 @@ def _start_monitoring():
     async def _monitor_loop():
         import asyncio
         from app.services.health import health_service
+        from app.services.alerts import alert_manager
+        from app.services.system_metrics import SystemMetrics
+
+        log.info("🩺 Service monitor started")
+        await asyncio.sleep(60)
         while True:
             await asyncio.sleep(60)
             try:
                 await health_service.check_all()
                 await health_service.send_alerts()
+
+                # Check system metrics and alert
+                metrics = await SystemMetrics.collect()
+                await alert_manager.check_metrics_and_alert(metrics)
+
+                # Check database health
+                from app.core.database import AsyncSessionFactory
+                from sqlalchemy import text
+                try:
+                    async with AsyncSessionFactory() as session:
+                        await session.execute(text("SELECT 1"))
+                    await alert_manager.check_service_health("Database", True)
+                except Exception:
+                    await alert_manager.check_service_health("Database", False)
+
             except Exception as e:
                 log.error("Monitor loop error: %s", e)
     _start_bg_task(_monitor_loop(), name="service_monitor")

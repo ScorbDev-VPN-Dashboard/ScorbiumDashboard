@@ -285,6 +285,7 @@ async def login_2fa_submit(
         "app_version": config.web.app_version,
         "custom_logo": settings.get("custom_logo", ""),
         "show_2fa": True,
+        "bot_language": settings.get("bot_language", "ru"),
     }
 
     import pyotp
@@ -340,6 +341,7 @@ async def twofa_page(request: Request, db: AsyncSession = Depends(get_db)):
         try:
             payload = decode_access_token_full(preauth)
             if payload and payload.get("type") == "preauth":
+                settings = await BotSettingsService(db).get_all()
                 return templates.TemplateResponse(
                     "2fa_login.html",
                     {
@@ -348,6 +350,8 @@ async def twofa_page(request: Request, db: AsyncSession = Depends(get_db)):
                         "error": None,
                         "app_name": config.web.app_name,
                         "app_version": config.web.app_version,
+                        "custom_logo": settings.get("custom_logo", ""),
+                        "bot_language": settings.get("bot_language", "ru"),
                     },
                 )
         except Exception:

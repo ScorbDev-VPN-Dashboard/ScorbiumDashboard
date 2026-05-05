@@ -11,7 +11,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 async def _safe_answer(callback: CallbackQuery) -> None:
     """Safely answer callback query, ignoring timeout errors."""
     try:
-        await _safe_answer(callback)
+        await callback.answer()
     except Exception:
         pass
 
