@@ -81,7 +81,6 @@ async def _verify_telegram_data(init_data: str, db=None) -> Optional[dict]:
 
 async def _get_tg_user(request: Request, db=None) -> Optional[dict]:
     """Get verified Telegram user from request."""
-    # Query param (GET requests)
     init_data = request.query_params.get("tgWebAppData", "")
     if init_data:
         result = await _verify_telegram_data(init_data, db)
@@ -400,52 +399,11 @@ async def pay_yookassa(request: Request, db: AsyncSession = Depends(get_db)):
         })
     except Exception as e:
         log.error(f"YooKassa error: {e}")
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        return JSONResponse({"ok": False, "error": "Payment error"}, status_code=500)
 
-
-@router.post("/pay/freekassa")
-async def pay_freekassa(request: Request, db: AsyncSession = Depends(get_db)):
-    tg_user = await _get_tg_user(request, db)
-    if not tg_user:
-        return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
-
-    body = await request.json()
-    plan_id = body.get("plan_id")
-    user_id = tg_user["id"]
-
-    plan = await PlanService(db).get_by_id(plan_id)
-    if not plan or not plan.is_active:
-        return JSONResponse({"ok": False, "error": "Plan not found"}, status_code=404)
-
-    settings = await BotSettingsService(db).get_all()
-    from app.services.freekassa import FreeKassaService
-    fk = FreeKassaService.from_settings(settings)
-    if not fk:
-        return JSONResponse({"ok": False, "error": "FreeKassa not configured"}, status_code=400)
-
-    try:
-        payment = await PaymentService(db).create_pending(
-            user_id=user_id, plan=plan, provider=PaymentProvider.FREEKASSA
-        )
-        await db.flush()
-        order_id = f"fk_{payment.id}_{plan.id}"
-
-        base_url = str(config.web.allowed_origins[0]).rstrip("/") if config.web.allowed_origins else ""
-        notification_url = f"{base_url}/api/v1/payments/webhook/freekassa" if base_url else ""
-
-        result = await fk.create_order(
-            payment_id=order_id, amount=float(plan.price), currency="RUB",
-            currency_id=36, email=f"user{user_id}@vpn.bot", ip="127.0.0.1",
-            notification_url=notification_url,
-        )
-        if result and result.get("type") == "success":
-            payment.external_id = str(result.get("orderId", ""))
-            await db.commit()
-            return JSONResponse({"ok": True, "pay_url": result.get("location", "")})
-        return JSONResponse({"ok": False, "error": result.get("message", "Error")}, status_code=400)
     except Exception as e:
         log.error(f"FreeKassa error: {e}")
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        return JSONResponse({"ok": False, "error": "Payment error"}, status_code=500)
 
 
 @router.get("/pay/check/{payment_id}")

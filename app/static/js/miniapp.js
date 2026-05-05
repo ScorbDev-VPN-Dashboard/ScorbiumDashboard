@@ -10,6 +10,7 @@ class MiniApp {
     this.maxRetries = 3;
     this.isOnline = true;
     this.currentScreen = 'home';
+    this.userPhotoUrl = this.initDataUnsafe?.user?.photo_url || '';
 
     this.init();
   }
@@ -32,8 +33,10 @@ class MiniApp {
       this.showToast('Ошибка приложения. Попробуйте обновить.', 'err');
     });
 
-    await this.auth();
-    this.loadHome();
+    const authOk = await this.auth();
+    if (authOk) {
+      this.loadHome();
+    }
     this.bindEvents();
   }
 
@@ -57,6 +60,10 @@ class MiniApp {
     };
 
     const config = { headers, ...options };
+
+    if (!this.initData) {
+      return { ok: false, error: 'auth_required' };
+    }
 
     for (let i = 0; i < this.maxRetries; i++) {
       try {
@@ -95,6 +102,11 @@ class MiniApp {
   }
 
   async auth() {
+    if (!this.initData) {
+      this.showError('Перезайдите в приложение');
+      return false;
+    }
+
     try {
       const resp = await this.api('/auth', {
         method: 'POST',
@@ -108,17 +120,6 @@ class MiniApp {
           if (el) el.style.display = 'block';
         }
         return true;
-      }
-
-      if (this.initDataUnsafe.user?.id) {
-        const fallback = await this.api('/auth-fallback', {
-          method: 'POST',
-          body: JSON.stringify({ user: this.initDataUnsafe.user })
-        });
-        if (fallback.ok) {
-          this.user = fallback.user;
-          return true;
-        }
       }
 
       this.showError('Ошибка авторизации');
@@ -166,10 +167,19 @@ class MiniApp {
       `<div class="srv-item"><span class="srv-dot ${data.overall === 'degraded' ? 'warn' : ''}"></span>Серверы ${data.overall}</div>` :
       '';
 
+    const avatarContent = this.userPhotoUrl
+      ? `<img src="${this.userPhotoUrl}" alt="avatar" onerror="this.style.display='none'">`
+      : (data.user.full_name?.[0] || '@');
+
     c.innerHTML = `
       <div class="hero">
-        <div style="font-size:32px;font-weight:800;margin-bottom:4px">${data.user.full_name || '@user'}</div>
-        <div style="font-size:14px;color:rgba(255,255,255,.9)">@${data.user.username || 'user'}</div>
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+          <div class="av">${avatarContent}</div>
+          <div>
+            <div style="font-size:22px;font-weight:800">${data.user.full_name || '@user'}</div>
+            <div style="font-size:14px;color:rgba(255,255,255,.9)">@${data.user.username || 'user'}</div>
+          </div>
+        </div>
       </div>
 
       ${srvStatus}
@@ -305,9 +315,12 @@ class MiniApp {
       }).join('') : '<div style="font-size:13px;color:var(--hi);text-align:center;padding:12px">Нет платежей</div>';
 
       const c = document.getElementById('profile-c');
+      const avatarContent = this.userPhotoUrl
+        ? `<img src="${this.userPhotoUrl}" alt="avatar" onerror="this.style.display='none'">`
+        : (profile.user.full_name?.[0] || '@');
       c.innerHTML = `
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
-          <div class="av">${profile.user.full_name?.[0] || '@'}</div>
+          <div class="av">${avatarContent}</div>
           <div>
             <div style="font-size:20px;font-weight:800">${profile.user.full_name}</div>
             <div style="font-size:13px;color:var(--hi)">@${profile.user.username || 'user'}</div>
@@ -463,7 +476,7 @@ class MiniApp {
       if (resp.ok && resp.confirm_url) {
         window.Telegram.WebApp.openLink(resp.confirm_url);
       } else {
-        this.showToast(resp.error || 'Ошибка оплаты', 'err');
+        this.showToast('Не удалось создать платеж', 'err');
       }
     } catch (e) {
       this.showToast('Ошибка создания платежа', 'err');
@@ -532,7 +545,7 @@ class MiniApp {
       if (resp.ok && resp.pay_url) {
         window.Telegram.WebApp.openLink(resp.pay_url);
       } else {
-        this.showToast(resp.error || 'Ошибка оплаты', 'err');
+        this.showToast('Не удалось создать платеж', 'err');
       }
     } catch (e) {
       this.showToast('Ошибка создания платежа', 'err');
