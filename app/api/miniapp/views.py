@@ -31,31 +31,50 @@ templates = Jinja2Templates(directory=str(_tpl_path))
 
 
 def _compute_hmac(token: str, data_check: str) -> str:
-    secret = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
+    """Compute HMAC per Telegram docs: secret = HMAC_SHA256(token, "WebAppData")."""
+    secret = hmac.new(token.encode(), b"WebAppData", hashlib.sha256).digest()
     return hmac.new(secret, data_check.encode(), hashlib.sha256).hexdigest()
 
 
 async def _verify_telegram_data(init_data: str, db=None) -> Optional[dict]:
-    """Verify Telegram WebApp initData."""
+    """Verify Telegram WebApp initData per official docs."""
     try:
         if not init_data or len(init_data) < 10:
             return None
 
-        init_data = urllib.parse.unquote(init_data)
-        parsed = dict(urllib.parse.parse_qsl(init_data, keep_blank_values=True))
-        hash_val = parsed.pop("hash", "")
+        # Parse URL-encoded query string
+        parsed = list(urllib.parse.parse_qsl(init_data, keep_blank_values=True))
+
+        # Extract hash and user, collect other pairs
+        hash_val = None
+        user_raw = None
+        other_pairs = []
+
+        for k, v in parsed:
+            if k == "hash":
+                hash_val = v
+            elif k == "user":
+                user_raw = v
+                other_pairs.append((k, v))
+            else:
+                other_pairs.append((k, v))
 
         if not hash_val:
             return None
 
-        user_raw = parsed.get("user", "{}")
-        user_data = json.loads(user_raw) if user_raw else {}
+        if not user_raw:
+            return None
 
+        # Parse user JSON (value is URL-encoded in initData)
+        user_data = json.loads(urllib.parse.unquote(user_raw))
         if not user_data or "id" not in user_data:
             return None
 
-        data_check = "\n".join(f"{k}={v}" for k, v in sorted(parsed.items()))
+        # Build data_check: sort by key, join with "key=value" (decoded values per Telegram example)
+        other_pairs.sort(key=lambda x: x[0])
+        data_check = "\n".join(f"{k}={urllib.parse.unquote(v)}" for k, v in other_pairs)
 
+        # Get tokens to verify against
         tokens = []
         env_token = config.telegram.telegram_bot_token.get_secret_value()
         if env_token:
@@ -81,20 +100,15 @@ async def _verify_telegram_data(init_data: str, db=None) -> Optional[dict]:
 
 async def _get_tg_user(request: Request, db=None) -> Optional[dict]:
     """Get verified Telegram user from request."""
-    init_data = request.query_params.get("tgWebAppData", "")
-    if init_data:
-        result = await _verify_telegram_data(init_data, db)
-        if result:
-            return result
 
-    # Header
+    # Try header (GET requests)
     init_data = request.headers.get("X-Telegram-Init-Data", "") or request.headers.get("x-telegram-init-data", "")
     if init_data:
         result = await _verify_telegram_data(init_data, db)
         if result:
             return result
 
-    # POST body
+    # Try POST body (auth endpoint)
     if request.method == "POST":
         try:
             body = await request.json()
@@ -113,13 +127,20 @@ async def _get_tg_user(request: Request, db=None) -> Optional[dict]:
 
 @router.get("/debug")
 async def miniapp_debug(request: Request, db: AsyncSession = Depends(get_db)):
-    """Debug endpoint."""
-    return JSONResponse({
-        "headers": dict(request.headers),
-        "query": dict(request.query_params),
-        "tgWebAppData_len": len(request.query_params.get("tgWebAppData", "")),
-        "header_init_data_len": len(request.headers.get("x-telegram-init-data", "")),
-    })
+    """Debug endpoint to check initData."""
+    init_data = request.headers.get("x-telegram-init-data", "") or request.headers.get("X-Telegram-Init-Data", "")
+    result = {"has_data": bool(init_data), "header_len": len(init_data)}
+    if init_data:
+        try:
+            parsed = dict(urllib.parse.parse_qsl(init_data, keep_blank_values=True))
+            result["has_hash"] = "hash" in parsed
+            result["has_user"] = "user" in parsed
+            if "user" in parsed:
+                user = json.loads(urllib.parse.unquote(parsed["user"]))
+                result["user_id"] = user.get("id")
+        except Exception as e:
+            result["error"] = str(e)
+    return JSONResponse(result)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -142,6 +163,16 @@ async def miniapp_auth(request: Request, db: AsyncSession = Depends(get_db)):
     tg_user = await _get_tg_user(request, db)
 
     if not tg_user:
+        # Debug logging
+        init_data = request.headers.get("X-Telegram-Init-Data", "") or request.headers.get("x-telegram-init-data", "")
+        body_init = ""
+        if request.method == "POST":
+            try:
+                body = await request.json()
+                body_init = body.get("initData", "")[:100]
+            except Exception:
+                pass
+        log.warning(f"Auth failed. Header len: {len(init_data)}, Body preview: {body_init}")
         return JSONResponse({"ok": False, "error": "Invalid auth"}, status_code=401)
 
     user_id = tg_user.get("id")
@@ -401,6 +432,47 @@ async def pay_yookassa(request: Request, db: AsyncSession = Depends(get_db)):
         log.error(f"YooKassa error: {e}")
         return JSONResponse({"ok": False, "error": "Payment error"}, status_code=500)
 
+
+@router.post("/pay/freekassa")
+async def pay_freekassa(request: Request, db: AsyncSession = Depends(get_db)):
+    tg_user = await _get_tg_user(request, db)
+    if not tg_user:
+        return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
+
+    body = await request.json()
+    plan_id = body.get("plan_id")
+    user_id = tg_user["id"]
+
+    plan = await PlanService(db).get_by_id(plan_id)
+    if not plan or not plan.is_active:
+        return JSONResponse({"ok": False, "error": "Plan not found"}, status_code=404)
+
+    settings = await BotSettingsService(db).get_all()
+    from app.services.freekassa import FreeKassaService
+    fk = FreeKassaService.from_settings(settings)
+    if not fk:
+        return JSONResponse({"ok": False, "error": "FreeKassa not configured"}, status_code=400)
+
+    try:
+        payment = await PaymentService(db).create_pending(
+            user_id=user_id, plan=plan, provider=PaymentProvider.FREEKASSA
+        )
+        await db.flush()
+        order_id = f"fk_{payment.id}_{plan.id}"
+
+        base_url = str(config.web.allowed_origins[0]).rstrip("/") if config.web.allowed_origins else ""
+        notification_url = f"{base_url}/api/v1/payments/webhook/freekassa" if base_url else ""
+
+        result = await fk.create_order(
+            payment_id=order_id, amount=float(plan.price), currency="RUB",
+            currency_id=36, email=f"user{user_id}@vpn.bot", ip="127.0.0.1",
+            notification_url=notification_url,
+        )
+        if result and result.get("type") == "success":
+            payment.external_id = str(result.get("orderId", ""))
+            await db.commit()
+            return JSONResponse({"ok": True, "pay_url": result.get("location", "")})
+        return JSONResponse({"ok": False, "error": "Payment error"}, status_code=400)
     except Exception as e:
         log.error(f"FreeKassa error: {e}")
         return JSONResponse({"ok": False, "error": "Payment error"}, status_code=500)
@@ -424,7 +496,7 @@ async def check_payment(payment_id: int, request: Request, db: AsyncSession = De
         return JSONResponse({"ok": True, "status": "succeeded",
             "access_url": key.access_url if key else None,
             "expires_at": key.expires_at.isoformat() if key and key.expires_at else None})
-
+    
     if payment.status == PaymentStatus.FAILED.value:
         return JSONResponse({"ok": True, "status": "failed"})
 

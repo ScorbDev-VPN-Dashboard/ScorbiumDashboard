@@ -84,10 +84,18 @@
     }
     .logo-block { display: flex; flex-direction: column; align-items: center; margin-bottom: 2rem; position: relative; z-index: 1; }
     .logo-avatar {
-      width: 72px; height: 72px; border-radius: 50%;
-      object-fit: cover;
-      margin-bottom: 1rem;
-      box-shadow: 0 8px 32px rgba(0,212,170,.35);
+      width: 80px; height: 80px; border-radius: 20px;
+      object-fit: contain; background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      animation: logoFloat 3s ease-in-out infinite;
+    }
+    .logo-avatar:hover { transform: scale(1.05); box-shadow: 0 12px 40px rgba(0,212,170,0.2); }
+    @keyframes logoFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
       border: 2px solid rgba(0,212,170,.25);
       background: var(--surface);
     }

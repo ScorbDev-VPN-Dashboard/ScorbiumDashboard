@@ -1,5 +1,5 @@
 // Scorbium Mini App - Production Ready
-// Fixed: infinite load loop, broken navigation, missing global functions
+// Fixed: initData handling, session, avatar
 
 class MiniApp {
   constructor() {
@@ -7,6 +7,7 @@ class MiniApp {
     this.initData = window.Telegram?.WebApp?.initData || '';
     this.initDataUnsafe = window.Telegram?.WebApp?.initDataUnsafe || {};
     this.user = null;
+    this.token = null;
     this.maxRetries = 3;
     this.isOnline = true;
     this.currentScreen = 'home';
@@ -47,21 +48,28 @@ class MiniApp {
   }
 
   async api(path, options = {}) {
-    const isGet = !options.method || options.method.toUpperCase() === 'GET';
-    const sep = path.includes('?') ? '&' : '?';
-    const url = isGet && this.initData
-      ? `${this.apiBase}${path}${sep}tgWebAppData=${encodeURIComponent(this.initData)}`
-      : `${this.apiBase}${path}`;
-
+    const url = `${this.apiBase}${path}`;
     const headers = {
       'Content-Type': 'application/json',
-      'X-Telegram-Init-Data': this.initData,
       ...options.headers
     };
 
+    // Auth: send initData in POST body
+    if (path === '/auth') {
+      if (this.initData) {
+        options.body = JSON.stringify({ initData: this.initData });
+      }
+    } else if (this.token) {
+      // Use session token for subsequent requests
+      headers['Authorization'] = `Bearer ${this.token}`;
+    } else if (this.initData) {
+      // Fallback: send initData in header
+      headers['X-Telegram-Init-Data'] = this.initData;
+    }
+
     const config = { headers, ...options };
 
-    if (!this.initData) {
+    if (!this.initData && !this.token) {
       return { ok: false, error: 'auth_required' };
     }
 
@@ -109,12 +117,12 @@ class MiniApp {
 
     try {
       const resp = await this.api('/auth', {
-        method: 'POST',
-        body: JSON.stringify({ initData: this.initData })
+        method: 'POST'
       });
 
       if (resp.ok) {
         this.user = resp.user;
+        this.token = resp.token || null;
         if (this.user.is_admin) {
           const el = document.getElementById('n-admin');
           if (el) el.style.display = 'block';
@@ -250,7 +258,6 @@ class MiniApp {
 
       const c = document.getElementById('buy-c');
       const ps = settings;
-
       c.innerHTML = `
         ${ps.has_yookassa ? `<div class="pb" onclick="app.buyWithYookassa()">
           <div class="pb-icon" style="background:linear-gradient(135deg,#00d4aa,#0ea5e9)">💳</div>
@@ -318,6 +325,7 @@ class MiniApp {
       const avatarContent = this.userPhotoUrl
         ? `<img src="${this.userPhotoUrl}" alt="avatar" onerror="this.style.display='none'">`
         : (profile.user.full_name?.[0] || '@');
+
       c.innerHTML = `
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
           <div class="av">${avatarContent}</div>

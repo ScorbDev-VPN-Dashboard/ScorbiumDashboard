@@ -64,12 +64,11 @@ def decode_access_token(token: str) -> Optional[str]:
 
 
 def decode_access_token_full(token: str) -> Optional[dict]:
-    """Returns {"sub": str, "role": str} or None if token is invalid/expired."""
+    """Returns full payload or None if token is invalid/expired."""
     try:
         payload = jwt.decode(token, _secret_key(), algorithms=[ALGORITHM])
-        sub = payload.get("sub")
-        if sub is None:
+        if payload.get("sub") is None:
             return None
-        return {"sub": sub, "role": payload.get("role", "superadmin")}
+        return payload
     except JWTError:
         return None
