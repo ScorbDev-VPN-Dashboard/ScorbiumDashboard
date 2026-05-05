@@ -259,24 +259,41 @@ async def login_submit(
     if not admin.is_active:
         return templates.TemplateResponse("login.html", {**_error_ctx, "error": "Аккаунт заблокирован"})
 
-    if admin.totp_secret:
-        preauth = create_access_token(subject=admin.username, role=admin.role, extra={"type": "preauth"})
-        resp = RedirectResponse(url="/panel/2fa", status_code=302)
-        resp.set_cookie("vpn_preauth", preauth, httponly=True, samesite="lax", max_age=300)
-        return resp
-
     token = create_access_token(subject=admin.username, role=admin.role)
     resp = RedirectResponse(url="/panel/", status_code=302)
     resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
     return resp
 
 
-@router.post("/login-2fa")
-async def login_2fa_submit(
+@router.get("/logout")
+async def logout():
+    resp = RedirectResponse(url="/panel/login", status_code=302)
+    resp.delete_cookie(SESSION_COOKIE)
+    resp.delete_cookie("vpn_preauth")
+    return resp
+
+
+@router.get("/2fa", response_class=HTMLResponse)
+async def twofa_page(request: Request, db: AsyncSession = Depends(get_db)):
+    # If accessing with full session, show settings page
+    admin_info = _require_permission(request, "system")
+    ctx = await _base_ctx(request, db, "2fa")
+    ctx["admin"] = await AdminService(db).get_by_username(admin_info["sub"])
+    return templates.TemplateResponse("two_fa.html", ctx)
+
+
+@router.post("/2fa-login")
+async def twofa_login_submit(
     request: Request,
     code: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
+    import pyotp
+    import hashlib
+    import json
+    from sqlalchemy import select
+    from app.models.admin import Admin
+
     settings = await BotSettingsService(db).get_all()
     _error_ctx = {
         "request": request,
@@ -287,12 +304,6 @@ async def login_2fa_submit(
         "show_2fa": True,
         "bot_language": settings.get("bot_language", "ru"),
     }
-
-    import pyotp
-    import hashlib
-    import json
-    from sqlalchemy import select
-    from app.models.admin import Admin
 
     result = await db.execute(select(Admin).where(Admin.is_active == True, Admin.totp_secret.isnot(None)))
     admins_with_2fa = result.scalars().all()
@@ -317,113 +328,10 @@ async def login_2fa_submit(
                     resp = RedirectResponse(url="/panel/", status_code=302)
                     resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
                     return resp
-            except (json.JSONDecodeError, ValueError):
+            except Exception:
                 pass
 
     return templates.TemplateResponse("login.html", _error_ctx)
-
-
-@router.get("/logout")
-async def logout():
-    resp = RedirectResponse(url="/panel/login", status_code=302)
-    resp.delete_cookie(SESSION_COOKIE)
-    resp.delete_cookie("vpn_preauth")
-    return resp
-
-
-@router.get("/2fa", response_class=HTMLResponse)
-async def twofa_page(request: Request, db: AsyncSession = Depends(get_db)):
-    preauth = request.cookies.get("vpn_preauth", "")
-    has_session = bool(request.cookies.get(SESSION_COOKIE, ""))
-
-    # If accessing with preauth cookie (during login), show login page
-    if preauth and not has_session:
-        try:
-            payload = decode_access_token_full(preauth)
-            if payload and payload.get("type") == "preauth":
-                settings = await BotSettingsService(db).get_all()
-                return templates.TemplateResponse(
-                    "2fa_login.html",
-                    {
-                        "request": request,
-                        "admin_username": payload.get("sub", ""),
-                        "error": None,
-                        "app_name": config.web.app_name,
-                        "app_version": config.web.app_version,
-                        "custom_logo": settings.get("custom_logo", ""),
-                        "bot_language": settings.get("bot_language", "ru"),
-                    },
-                )
-        except Exception:
-            pass
-        return RedirectResponse(url="/panel/login", status_code=302)
-
-    # If accessing with full session, show settings page
-    admin_info = _require_permission(request, "system")
-    ctx = await _base_ctx(request, db, "2fa")
-    ctx["admin"] = await AdminService(db).get_by_username(admin_info["sub"])
-    return templates.TemplateResponse("two_fa.html", ctx)
-
-
-@router.post("/2fa-login")
-async def twofa_login_submit(
-    request: Request,
-    code: str = Form(...),
-    db: AsyncSession = Depends(get_db),
-):
-    preauth = request.cookies.get("vpn_preauth", "")
-    if not preauth:
-        return RedirectResponse(url="/panel/login", status_code=302)
-    try:
-        payload = decode_access_token_full(preauth)
-        if not payload or payload.get("type") != "preauth":
-            return RedirectResponse(url="/panel/login", status_code=302)
-    except Exception:
-        return RedirectResponse(url="/panel/login", status_code=302)
-
-    import pyotp
-    import hashlib
-    import json
-
-    admin = await AdminService(db).get_by_username(payload["sub"])
-    if not admin or not admin.totp_secret:
-        return RedirectResponse(url="/panel/login", status_code=302)
-
-    totp = pyotp.TOTP(admin.totp_secret)
-    if totp.verify(code):
-        token = create_access_token(subject=admin.username, role=admin.role)
-        resp = RedirectResponse(url="/panel/", status_code=302)
-        resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
-        resp.delete_cookie("vpn_preauth")
-        return resp
-
-    # Try backup codes
-    if admin.backup_codes:
-        try:
-            hashed_codes = json.loads(admin.backup_codes)
-            code_hash = hashlib.sha256(code.upper().replace("-", "").strip().encode()).hexdigest()
-            if code_hash in hashed_codes:
-                hashed_codes.remove(code_hash)
-                admin.backup_codes = json.dumps(hashed_codes)
-                await db.commit()
-                token = create_access_token(subject=admin.username, role=admin.role)
-                resp = RedirectResponse(url="/panel/", status_code=302)
-                resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400)
-                resp.delete_cookie("vpn_preauth")
-                return resp
-        except (json.JSONDecodeError, ValueError):
-            pass
-
-    return templates.TemplateResponse(
-        "2fa_login.html",
-        {
-            "request": request,
-            "admin_username": payload.get("sub", ""),
-            "error": "Неверный код",
-            "app_name": config.web.app_name,
-            "app_version": config.web.app_version,
-        },
-    )
 
 
 @router.get("/2fa/setup")
@@ -673,6 +581,13 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         ctx["marzban_stats"] = panel_stats
     except Exception:
         ctx["marzban_stats"] = None
+
+    # Add local system metrics (CPU, RAM, etc.)
+    try:
+        from app.services.system_metrics import SystemMetrics
+        ctx["system_metrics"] = await SystemMetrics.collect()
+    except Exception:
+        ctx["system_metrics"] = None
 
     return templates.TemplateResponse("dashboard.html", ctx)
 

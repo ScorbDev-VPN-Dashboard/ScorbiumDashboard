@@ -84,44 +84,17 @@
     }
     .logo-block { display: flex; flex-direction: column; align-items: center; margin-bottom: 1.5rem; position: relative; z-index: 1; }
     .logo-avatar {
-      width: 80px; height: 80px; border-radius: 20px;
-      object-fit: contain; background: rgba(255,255,255,0.05);
-      border: 1px solid var(--border);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
-      animation: logoFadeIn 0.4s ease;
+        width: 80px; height: 80px; border-radius: 20px;
+        object-fit: contain; background: rgba(255,255,255,0.05);
+        border: 1px solid var(--border);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        animation: logoFadeIn 0.4s ease;
     }
     .logo-avatar:hover { transform: scale(1.05); box-shadow: 0 12px 40px rgba(0,212,170,0.2); }
     @keyframes logoFadeIn {
-      from { opacity: 0; transform: scale(0.9); }
-      to { opacity: 1; transform: scale(1); }
-    }
-      width: 80px; height: 80px; border-radius: 20px;
-      object-fit: contain; background: rgba(255,255,255,0.05);
-      border: 1px solid var(--border);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
-      animation: logoFadeIn 0.4s ease;
-    }
-    .logo-avatar:hover { transform: scale(1.05); box-shadow: 0 12px 40px rgba(0,212,170,0.2); }
-    @keyframes logoFadeIn {
-      from { opacity: 0; transform: scale(0.9); }
-      to { opacity: 1; transform: scale(1); }
-    }
-      width: 80px; height: 80px; border-radius: 20px;
-      object-fit: contain; background: rgba(255,255,255,0.05);
-      border: 1px solid var(--border);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
-      animation: logoFloat 3s ease-in-out infinite;
-    }
-    .logo-avatar:hover { transform: scale(1.05); box-shadow: 0 12px 40px rgba(0,212,170,0.2); }
-    @keyframes logoFloat {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-5px); }
-    }
-      border: 2px solid rgba(0,212,170,.25);
-      background: var(--surface);
+        from { opacity: 0; transform: scale(0.9); }
+        to { opacity: 1; transform: scale(1); }
     }
     .app-name { font-size: 1.35rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
     .app-sub { font-size: .82rem; color: var(--text-muted); margin-top: .25rem; }
@@ -327,7 +300,7 @@
       </div>
       {% endif %}
 
-      <form method="post" action="/panel/login-2fa" id="login-2fa-form">
+      <form method="post" action="/panel/2fa-login" id="login-2fa-form">
         <div class="mb-4">
           <label class="form-label">Код 2FA или резервный код</label>
           <div class="input-group">
