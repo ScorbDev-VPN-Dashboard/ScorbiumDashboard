@@ -17,11 +17,24 @@ class MiniApp {
   }
 
   async init() {
+    // Wait for Telegram WebApp to be ready with timeout
     if (window.Telegram?.WebApp) {
-      window.Telegram.WebApp.ready();
+      await Promise.race([
+        new Promise((resolve) => {
+          if (window.Telegram.WebApp.initData) {
+            resolve();
+          } else {
+            window.Telegram.WebApp.onEvent('ready', resolve);
+            window.Telegram.WebApp.ready();
+          }
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('WebApp timeout')), 5000))
+      ]).catch(() => {});
+
       window.Telegram.WebApp.expand();
-      this.initData = window.Telegram.WebApp.initData;
-      this.initDataUnsafe = window.Telegram.WebApp.initDataUnsafe;
+      this.initData = window.Telegram.WebApp.initData || '';
+      this.initDataUnsafe = window.Telegram.WebApp.initDataUnsafe || {};
+      this.userPhotoUrl = this.initDataUnsafe?.user?.photo_url || '';
 
       document.body.className = this.initDataUnsafe.theme_params?.bg_color === '#000000' ? 'dark' : 'light';
 
@@ -33,6 +46,11 @@ class MiniApp {
       console.error('Promise rejection:', e.reason);
       this.showToast('Ошибка приложения. Попробуйте обновить.', 'err');
     });
+
+    if (!this.initData) {
+      this.showError('Перезайдите в приложение');
+      return;
+    }
 
     const authOk = await this.auth();
     if (authOk) {
@@ -54,22 +72,14 @@ class MiniApp {
       ...options.headers
     };
 
-    // Auth: send initData in POST body
-    if (path === '/auth') {
-      if (this.initData) {
-        options.body = JSON.stringify({ initData: this.initData });
-      }
-    } else if (this.token) {
-      // Use session token for subsequent requests
-      headers['Authorization'] = `Bearer ${this.token}`;
-    } else if (this.initData) {
-      // Fallback: send initData in header
+    // Always send initData in header for all requests (most reliable)
+    if (this.initData) {
       headers['X-Telegram-Init-Data'] = this.initData;
     }
 
     const config = { headers, ...options };
 
-    if (!this.initData && !this.token) {
+    if (!this.initData) {
       return { ok: false, error: 'auth_required' };
     }
 
