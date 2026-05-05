@@ -31,8 +31,8 @@ templates = Jinja2Templates(directory=str(_tpl_path))
 
 
 def _compute_hmac(token: str, data_check: str) -> str:
-    """Compute HMAC per Telegram docs: secret = HMAC_SHA256(token, "WebAppData")."""
-    secret = hmac.new(token.encode(), b"WebAppData", hashlib.sha256).digest()
+    """Compute HMAC per Telegram docs: secret = HMAC_SHA256(b'WebAppData', token)."""
+    secret = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
     return hmac.new(secret, data_check.encode(), hashlib.sha256).hexdigest()
 
 
@@ -44,35 +44,28 @@ async def _verify_telegram_data(init_data: str, db=None) -> Optional[dict]:
 
         # Parse URL-encoded query string
         parsed = list(urllib.parse.parse_qsl(init_data, keep_blank_values=True))
-
-        # Extract hash and user, collect other pairs
+        
+        # Extract hash and build data_check (all fields except hash, sorted by key)
         hash_val = None
-        user_raw = None
-        other_pairs = []
-
-        for k, v in parsed:
+        data_check_parts = []
+        
+        for k, v in sorted(parsed, key=lambda x: x[0]):
             if k == "hash":
                 hash_val = v
-            elif k == "user":
-                user_raw = v
-                other_pairs.append((k, v))
             else:
-                other_pairs.append((k, v))
-
+                # Use URL-decoded values for data_check per Telegram docs
+                data_check_parts.append(f"{k}={urllib.parse.unquote(v)}")
+        
         if not hash_val:
             return None
-
-        if not user_raw:
-            return None
-
-        # Parse user JSON (value is URL-encoded in initData)
+        
+        data_check = "\n".join(data_check_parts)
+        
+        # Parse user JSON
+        user_raw = dict(parsed).get("user", "{}")
         user_data = json.loads(urllib.parse.unquote(user_raw))
         if not user_data or "id" not in user_data:
             return None
-
-        # Build data_check: sort by key, join with "key=value" (decoded values per Telegram example)
-        other_pairs.sort(key=lambda x: x[0])
-        data_check = "\n".join(f"{k}={urllib.parse.unquote(v)}" for k, v in other_pairs)
 
         # Get tokens to verify against
         tokens = []
@@ -87,6 +80,7 @@ async def _verify_telegram_data(init_data: str, db=None) -> Optional[dict]:
             except Exception:
                 pass
 
+        # Verify HMAC
         for token in tokens:
             if hmac.compare_digest(_compute_hmac(token, data_check), hash_val):
                 return user_data
@@ -100,15 +94,14 @@ async def _verify_telegram_data(init_data: str, db=None) -> Optional[dict]:
 
 async def _get_tg_user(request: Request, db=None) -> Optional[dict]:
     """Get verified Telegram user from request."""
-
-    # Try header (GET requests)
+    # Try header first (most reliable for GET requests)
     init_data = request.headers.get("X-Telegram-Init-Data", "") or request.headers.get("x-telegram-init-data", "")
     if init_data:
         result = await _verify_telegram_data(init_data, db)
         if result:
             return result
 
-    # Try POST body (auth endpoint)
+    # Try POST body (for auth endpoint)
     if request.method == "POST":
         try:
             body = await request.json()
@@ -163,16 +156,8 @@ async def miniapp_auth(request: Request, db: AsyncSession = Depends(get_db)):
     tg_user = await _get_tg_user(request, db)
 
     if not tg_user:
-        # Debug logging
         init_data = request.headers.get("X-Telegram-Init-Data", "") or request.headers.get("x-telegram-init-data", "")
-        body_init = ""
-        if request.method == "POST":
-            try:
-                body = await request.json()
-                body_init = body.get("initData", "")[:100]
-            except Exception:
-                pass
-        log.warning(f"Auth failed. Header len: {len(init_data)}, Body preview: {body_init}")
+        log.warning(f"Auth failed. Header initData len: {len(init_data)}")
         return JSONResponse({"ok": False, "error": "Invalid auth"}, status_code=401)
 
     user_id = tg_user.get("id")
