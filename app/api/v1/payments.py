@@ -298,3 +298,302 @@ async def yookassa_webhook(request: Request, db: AsyncSession = Depends(get_db))
     except Exception as e:
         log.error(f"Yookassa webhook error: {e}")
         return {"status": "ok"}
+
+
+@router.post("/webhook/cryptobot", summary="CryptoBot webhook", include_in_schema=False)
+async def cryptobot_webhook(request: Request, db: AsyncSession = Depends(get_db)) -> dict:
+    """Handle CryptoBot invoice paid webhook."""
+    import json
+    try:
+        data = await request.json()
+    except Exception as e:
+        log.error(f"CryptoBot webhook: invalid JSON: {e}")
+        return {"ok": False}
+
+    invoice = data.get("payload", {})
+    invoice_id = invoice.get("invoice_id")
+    status = invoice.get("status", "")
+
+    if status != "paid":
+        return {"ok": True}
+
+    payload_raw = invoice.get("payload", "")
+    try:
+        from app.services.plan import PlanService
+        from app.services.vpn_key import VpnKeyService
+        from app.services.telegram_notify import TelegramNotifyService
+
+        parts = payload_raw.split("_")
+        if len(parts) >= 3 and parts[0] == "cb":
+            payment_id = int(parts[1])
+            plan_id = int(parts[2])
+            extend_key_id = int(parts[3]) if len(parts) > 3 else None
+        else:
+            log.error(f"CryptoBot webhook: unknown payload format: {payload_raw}")
+            return {"ok": True}
+
+        payment = await PaymentService(db).get_by_id(payment_id)
+        if not payment or payment.status == PaymentStatus.SUCCEEDED.value:
+            return {"ok": True}
+
+        plan = await PlanService(db).get_by_id(plan_id)
+        if not plan:
+            log.error(f"CryptoBot webhook: plan {plan_id} not found")
+            return {"ok": True}
+
+        payment.status = PaymentStatus.SUCCEEDED.value
+        payment.external_id = str(invoice_id)
+        await db.flush()
+
+        key = None
+        if extend_key_id:
+            key = await VpnKeyService(db).extend(extend_key_id, plan.duration_days)
+        else:
+            key = await VpnKeyService(db).provision(user_id=payment.user_id, plan=plan)
+
+        if key:
+            payment.vpn_key_id = key.id
+
+        await db.commit()
+
+        settings = await BotSettingsService(db).get_all()
+        success_msg = settings.get("payment_success_message", "✅ Оплата прошла успешно!")
+
+        if key:
+            if extend_key_id:
+                exp = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
+                text = f"{success_msg}\n\n🔄 <b>Подписка продлена!</b>\n📅 Новая дата: <b>{exp}</b>"
+            else:
+                text = f"{success_msg}\n\n🔑 <b>Ваш VPN ключ:</b>\n<code>{key.access_url}</code>"
+        else:
+            text = f"{success_msg}\n\n⚠️ Ключ не создан, обратитесь в поддержку."
+
+        await TelegramNotifyService().send_message(payment.user_id, text)
+        log.info(f"CryptoBot: payment {payment_id} confirmed via webhook")
+
+    except Exception as e:
+        log.error(f"CryptoBot webhook error: {e}")
+
+    return {"ok": True}
+
+
+@router.post("/webhook/platega", summary="Platega webhook", include_in_schema=False)
+async def platega_webhook(request: Request, db: AsyncSession = Depends(get_db)) -> str:
+    """Handle Platega transaction webhook."""
+    import json
+    try:
+        data = await request.json()
+    except Exception as e:
+        log.error(f"Platega webhook: invalid JSON: {e}")
+        return "ERROR"
+
+    transaction_id = data.get("transactionId", "")
+    status = data.get("status", "")
+
+    if status not in ("SUCCESS", "PAID", "COMPLETED"):
+        return "OK"
+
+    payload_raw = data.get("payload", "")
+    try:
+        from app.services.plan import PlanService
+        from app.services.vpn_key import VpnKeyService
+        from app.services.telegram_notify import TelegramNotifyService
+
+        parts = payload_raw.split("_")
+        if parts[0] == "pl" and len(parts) >= 3:
+            payment_id = int(parts[1])
+            plan_id = int(parts[2])
+            extend_key_id = int(parts[3]) if len(parts) > 3 else None
+        else:
+            log.error(f"Platega webhook: unknown payload format: {payload_raw}")
+            return "OK"
+
+        payment = await PaymentService(db).get_by_id(payment_id)
+        if not payment or payment.status == PaymentStatus.SUCCEEDED.value:
+            return "OK"
+
+        plan = await PlanService(db).get_by_id(plan_id)
+        if not plan:
+            log.error(f"Platega webhook: plan {plan_id} not found")
+            return "OK"
+
+        payment.status = PaymentStatus.SUCCEEDED.value
+        payment.external_id = transaction_id
+        await db.flush()
+
+        key = None
+        if extend_key_id:
+            key = await VpnKeyService(db).extend(extend_key_id, plan.duration_days)
+        else:
+            key = await VpnKeyService(db).provision(user_id=payment.user_id, plan=plan)
+
+        if key:
+            payment.vpn_key_id = key.id
+
+        await db.commit()
+
+        settings = await BotSettingsService(db).get_all()
+        success_msg = settings.get("payment_success_message", "✅ Оплата прошла успешно!")
+
+        if key:
+            if extend_key_id:
+                exp = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
+                text = f"{success_msg}\n\n🔄 <b>Подписка продлена!</b>\n📅 Новая дата: <b>{exp}</b>"
+            else:
+                text = f"{success_msg}\n\n🔑 <b>Ваш VPN ключ:</b>\n<code>{key.access_url}</code>"
+        else:
+            text = f"{success_msg}\n\n⚠️ Ключ не создан, обратитесь в поддержку."
+
+        await TelegramNotifyService().send_message(payment.user_id, text)
+        log.info(f"Platega: payment {payment_id} confirmed via webhook")
+
+    except Exception as e:
+        log.error(f"Platega webhook error: {e}")
+
+    return "OK"
+
+
+@router.post("/webhook/paypalych", summary="PayPalych webhook", include_in_schema=False)
+async def paypalych_webhook(request: Request, db: AsyncSession = Depends(get_db)) -> str:
+    """Handle PayPalych bill webhook."""
+    import json
+    try:
+        data = await request.json()
+    except Exception as e:
+        log.error(f"PayPalych webhook: invalid JSON: {e}")
+        return "ERROR"
+
+    bill_id = data.get("bill_id", "")
+    status = data.get("status", "")
+
+    if status not in ("PAID", "SUCCESS", "COMPLETED"):
+        return "OK"
+
+    custom_raw = data.get("custom", "")
+    try:
+        from app.services.plan import PlanService
+        from app.services.vpn_key import VpnKeyService
+        from app.services.telegram_notify import TelegramNotifyService
+
+        parts = custom_raw.split("_")
+        if parts[0] == "pp" and len(parts) >= 3:
+            payment_id = int(parts[1])
+            plan_id = int(parts[2])
+            extend_key_id = int(parts[3]) if len(parts) > 3 else None
+        else:
+            log.error(f"PayPalych webhook: unknown custom format: {custom_raw}")
+            return "OK"
+
+        payment = await PaymentService(db).get_by_id(payment_id)
+        if not payment or payment.status == PaymentStatus.SUCCEEDED.value:
+            return "OK"
+
+        plan = await PlanService(db).get_by_id(plan_id)
+        if not plan:
+            log.error(f"PayPalych webhook: plan {plan_id} not found")
+            return "OK"
+
+        payment.status = PaymentStatus.SUCCEEDED.value
+        payment.external_id = bill_id
+        await db.flush()
+
+        key = None
+        if extend_key_id:
+            key = await VpnKeyService(db).extend(extend_key_id, plan.duration_days)
+        else:
+            key = await VpnKeyService(db).provision(user_id=payment.user_id, plan=plan)
+
+        if key:
+            payment.vpn_key_id = key.id
+
+        await db.commit()
+
+        settings = await BotSettingsService(db).get_all()
+        success_msg = settings.get("payment_success_message", "✅ Оплата прошла успешно!")
+
+        if key:
+            if extend_key_id:
+                exp = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
+                text = f"{success_msg}\n\n🔄 <b>Подписка продлена!</b>\n📅 Новая дата: <b>{exp}</b>"
+            else:
+                text = f"{success_msg}\n\n🔑 <b>Ваш VPN ключ:</b>\n<code>{key.access_url}</code>"
+        else:
+            text = f"{success_msg}\n\n⚠️ Ключ не создан, обратитесь в поддержку."
+
+        await TelegramNotifyService().send_message(payment.user_id, text)
+        log.info(f"PayPalych: payment {payment_id} confirmed via webhook")
+
+    except Exception as e:
+        log.error(f"PayPalych webhook error: {e}")
+
+    return "OK"
+
+
+@router.post("/webhook/aikassa", summary="AiKassa webhook", include_in_schema=False)
+async def aikassa_webhook(request: Request, db: AsyncSession = Depends(get_db)) -> str:
+    """Handle AiKassa webhook."""
+    form = await request.form()
+    invoice_id = str(form.get("invoice_id", ""))
+    status = str(form.get("status", ""))
+
+    if status not in ("paid", "success", "completed"):
+        return "OK"
+
+    payload_raw = form.get("orderId", "")
+    try:
+        from app.services.plan import PlanService
+        from app.services.vpn_key import VpnKeyService
+        from app.services.telegram_notify import TelegramNotifyService
+
+        parts = payload_raw.split("_")
+        if parts[0] == "ak" and len(parts) >= 3:
+            payment_id = int(parts[1])
+            plan_id = int(parts[2])
+            extend_key_id = int(parts[3]) if len(parts) > 3 else None
+        else:
+            log.error(f"AiKassa webhook: unknown orderId format: {payload_raw}")
+            return "OK"
+
+        payment = await PaymentService(db).get_by_id(payment_id)
+        if not payment or payment.status == PaymentStatus.SUCCEEDED.value:
+            return "OK"
+
+        plan = await PlanService(db).get_by_id(plan_id)
+        if not plan:
+            log.error(f"AiKassa webhook: plan {plan_id} not found")
+            return "OK"
+
+        payment.status = PaymentStatus.SUCCEEDED.value
+        payment.external_id = invoice_id
+        await db.flush()
+
+        key = None
+        if extend_key_id:
+            key = await VpnKeyService(db).extend(extend_key_id, plan.duration_days)
+        else:
+            key = await VpnKeyService(db).provision(user_id=payment.user_id, plan=plan)
+
+        if key:
+            payment.vpn_key_id = key.id
+
+        await db.commit()
+
+        settings = await BotSettingsService(db).get_all()
+        success_msg = settings.get("payment_success_message", "✅ Оплата прошла успешно!")
+
+        if key:
+            if extend_key_id:
+                exp = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
+                text = f"{success_msg}\n\n🔄 <b>Подписка продлена!</b>\n📅 Новая дата: <b>{exp}</b>"
+            else:
+                text = f"{success_msg}\n\n🔑 <b>Ваш VPN ключ:</b>\n<code>{key.access_url}</code>"
+        else:
+            text = f"{success_msg}\n\n⚠️ Ключ не создан, обратитесь в поддержку."
+
+        await TelegramNotifyService().send_message(payment.user_id, text)
+        log.info(f"AiKassa: payment {payment_id} confirmed via webhook")
+
+    except Exception as e:
+        log.error(f"AiKassa webhook error: {e}")
+
+    return "OK"

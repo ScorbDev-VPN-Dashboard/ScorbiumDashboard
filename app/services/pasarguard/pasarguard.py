@@ -43,7 +43,7 @@ class MarzbanClient:
             if not self._login or not self._password:
                 raise PasarguardAuthError("Marzban login/password not configured")
 
-            async with AsyncClient(timeout=15, verify=False) as client:
+            async with AsyncClient(timeout=15, verify=True) as client:
                 resp = await client.post(
                     f"{self._base}/api/admin/token",
                     data={"username": self._login, "password": self._password},
@@ -75,7 +75,7 @@ class MarzbanClient:
     async def get(self, path: str, params: dict = None) -> dict:
         url = f"{self._base}{path}"
         try:
-            async with AsyncClient(timeout=15, verify=False) as client:
+            async with AsyncClient(timeout=15, verify=True) as client:
                 resp = await client.get(
                     url, headers=await self._headers(), params=params
                 )
@@ -98,7 +98,7 @@ class MarzbanClient:
     async def post(self, path: str, payload: dict = None) -> dict:
         url = f"{self._base}{path}"
         try:
-            async with AsyncClient(timeout=15, verify=False) as client:
+            async with AsyncClient(timeout=15, verify=True) as client:
                 resp = await client.post(
                     url, headers=await self._headers(), json=payload or {}
                 )
@@ -127,7 +127,7 @@ class MarzbanClient:
     async def put(self, path: str, payload: dict = None) -> dict:
         url = f"{self._base}{path}"
         try:
-            async with AsyncClient(timeout=15, verify=False) as client:
+            async with AsyncClient(timeout=15, verify=True) as client:
                 resp = await client.put(
                     url, headers=await self._headers(), json=payload or {}
                 )
@@ -149,7 +149,7 @@ class MarzbanClient:
     async def delete(self, path: str) -> None:
         url = f"{self._base}{path}"
         try:
-            async with AsyncClient(timeout=15, verify=False) as client:
+            async with AsyncClient(timeout=15, verify=True) as client:
                 resp = await client.delete(url, headers=await self._headers())
                 if resp.status_code == 401:
                     resp = await client.delete(

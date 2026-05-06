@@ -58,7 +58,13 @@ async def check_pending_yookassa_payments() -> None:
 
     for pd in payment_data:
         try:
-            yk_payment = await yk.get_payment(pd["external_id"])
+            try:
+                yk_payment = await asyncio.wait_for(
+                    yk.get_payment(pd["external_id"]), timeout=30
+                )
+            except asyncio.TimeoutError:
+                log.warning(f"[polling] Timeout checking payment {pd['id']}")
+                continue
             if yk_payment.status == "succeeded":
                 plan_id = None
                 if pd["meta"]:
@@ -170,11 +176,22 @@ async def check_pending_yookassa_payments() -> None:
 
 
 async def payment_polling_loop() -> None:
+    """Main payment polling loop with error isolation."""
     log.info("💳 Payment polling task started")
     while True:
-        await asyncio.sleep(CHECK_INTERVAL)
-        await check_pending_yookassa_payments()
-        await expire_old_pending_payments()
+        try:
+            await asyncio.sleep(CHECK_INTERVAL)
+            try:
+                await check_pending_yookassa_payments()
+            except Exception as e:
+                log.error(f"[payment_tasks] check_pending_yookassa_payments failed: {e}")
+            try:
+                await expire_old_pending_payments()
+            except Exception as e:
+                log.error(f"[payment_tasks] expire_old_pending_payments failed: {e}")
+        except Exception as e:
+            log.error(f"[payment_tasks] polling loop fatal error: {e}")
+            await asyncio.sleep(CHECK_INTERVAL * 2)
 
 
 async def expire_old_pending_payments() -> None:

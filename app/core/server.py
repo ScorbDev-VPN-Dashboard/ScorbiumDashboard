@@ -415,7 +415,16 @@ def create_app() -> FastAPI:
 
     @app.websocket("/ws/metrics")
     async def websocket_metrics(websocket: WebSocket):
-        """WebSocket endpoint for real-time system metrics."""
+        """WebSocket endpoint for real-time system metrics. Requires valid session cookie."""
+        from fastapi import WebSocketException
+        from app.utils.security import decode_access_token_full
+
+        cookie = websocket.cookies.get("vpn_session")
+        if not cookie:
+            raise WebSocketException(code=1008, reason="Unauthorized")
+        admin_info = decode_access_token_full(cookie)
+        if not admin_info:
+            raise WebSocketException(code=1008, reason="Unauthorized")
         await websocket.accept()
         try:
             while True:

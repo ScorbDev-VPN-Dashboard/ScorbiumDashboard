@@ -41,6 +41,7 @@ class VpnKey(Base):
         nullable=False,
         index=True,
     )
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="vpn_keys")
     plan = relationship("Plan", lazy="selectin")

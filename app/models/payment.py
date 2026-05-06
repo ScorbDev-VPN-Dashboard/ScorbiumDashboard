@@ -19,6 +19,9 @@ class PaymentProvider(str, enum.Enum):
     CRYPTOBOT = "cryptobot"
     TELEGRAM_STARS = "telegram_stars"
     FREEKASSA = "freekassa"
+    AIKASSA = "aikassa"
+    PLATEGA = "platega"
+    PAYPALYCH = "paypalych"
     BALANCE = "balance"
     TOPUP = "topup"
 
@@ -46,6 +49,7 @@ class Payment(Base):
     amount = Column(Numeric(10, 2), nullable=False)
     currency = Column(String(8), default="RUB", nullable=False)
     status = Column(String(16), default=PaymentStatus.PENDING.value, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     meta = Column(Text, nullable=True)
 
     user = relationship("User", back_populates="payments")

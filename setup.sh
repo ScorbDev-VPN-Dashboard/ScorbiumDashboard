@@ -5,6 +5,9 @@
 # =============================================================================
 set -euo pipefail
 
+# Cleanup on exit
+trap 'rm -f setup.lock' EXIT
+
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
 
@@ -148,6 +151,9 @@ WEB_USER=${WEB_USER:-admin}
 
 read -rsp "Пароль панели (мин. 8 символов): " WEB_PASS
 echo ""
+if [[ -z "$WEB_PASS" ]]; then
+    error "Пароль не может быть пустым"
+fi
 [[ ${#WEB_PASS} -lt 8 ]] && error "Пароль слишком короткий (минимум 8 символов)"
 
 # Generate a dedicated JWT secret

@@ -1,5 +1,4 @@
 import asyncio
-import threading
 import uuid
 from decimal import Decimal
 from typing import Optional
@@ -39,13 +38,13 @@ async def _get_yookassa_credentials() -> Optional[dict]:
     return None
 
 
-_yookassa_lock = threading.Lock()
+_yookassa_lock = asyncio.Lock()
 
 
 def _configure_yookassa_sync(shop_id: int, secret_key: str) -> None:
-    with _yookassa_lock:
-        yookassa.Configuration.account_id = shop_id
-        yookassa.Configuration.secret_key = secret_key
+    """Configure YooKassa synchronously. Caller must hold _yookassa_lock."""
+    yookassa.Configuration.account_id = shop_id
+    yookassa.Configuration.secret_key = secret_key
 
 
 class YookassaService:
@@ -55,6 +54,7 @@ class YookassaService:
         Для async-инициализации из БД используй YookassaService.create().
         """
         if shop_id and secret_key:
+            # This is called from async context via create(), lock is acquired there
             _configure_yookassa_sync(shop_id, secret_key)
             self._ready = True
         else:
@@ -68,7 +68,8 @@ class YookassaService:
         creds = await _get_yookassa_credentials()
         if not creds:
             raise YookassaPaymentError("Yookassa is not configured.")
-        return cls(shop_id=creds["shop_id"], secret_key=creds["secret_key"])
+        async with _yookassa_lock:
+            return cls(shop_id=creds["shop_id"], secret_key=creds["secret_key"])
 
     async def create_payment(
         self,

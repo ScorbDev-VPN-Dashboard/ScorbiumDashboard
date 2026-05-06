@@ -1,5 +1,6 @@
 from typing import Optional
 import time
+import asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,11 +16,15 @@ _SENSITIVE_KEYS = {
     "aikassa_token",
     "bot_token",
     "telegram_bot_token",
+    "platega_merchant_id",
+    "platega_secret",
+    "paypalych_api_token",
 }
 
 _CACHE_TTL = 300  # 5 minutes
 _cache: Optional[dict] = None
 _cache_ts: float = 0
+_cache_lock = asyncio.Lock()
 
 DEFAULTS = {
     "welcome_message": "👋 Привет, {name}!\n\nЭто VPN-бот. Выбери действие:",
@@ -65,6 +70,8 @@ DEFAULTS = {
     "ps_stars_enabled": "1",
     "ps_freekassa_enabled": "0",
     "ps_aikassa_enabled": "0",
+    "ps_platega_enabled": "0",
+    "ps_paypalych_enabled": "0",
     "ps_sbp_enabled": "0",
     # ── FreeKassa ─────────────────────────────────────────────────────────────
     "freekassa_shop_id": "",
@@ -143,22 +150,23 @@ class BotSettingsService:
         return value
 
     async def get_all(self) -> dict:
-        global _cache, _cache_ts
+        global _cache, _cache_ts, _cache_lock
         now = time.time()
-        if _cache is not None and (now - _cache_ts) < _CACHE_TTL:
-            return _cache
+        async with _cache_lock:
+            if _cache is not None and (now - _cache_ts) < _CACHE_TTL:
+                return _cache
 
-        result = await self.session.execute(select(BotSettings))
-        rows = {r.key: r.value for r in result.scalars().all()}
+            result = await self.session.execute(select(BotSettings))
+            rows = {r.key: r.value for r in result.scalars().all()}
 
-        merged = dict(DEFAULTS)
-        merged.update(rows)
-        _cache = merged
-        _cache_ts = now
-        return merged
+            merged = dict(DEFAULTS)
+            merged.update(rows)
+            _cache = merged
+            _cache_ts = now
+            return merged
 
     async def set(self, key: str, value: str) -> None:
-        global _cache, _cache_ts
+        global _cache, _cache_ts, _cache_lock
         if key in _SENSITIVE_KEYS and value:
             from app.services.encryption import encrypt_value, is_encrypted
             if not is_encrypted(value):
@@ -173,12 +181,13 @@ class BotSettingsService:
         else:
             self.session.add(BotSettings(key=key, value=value))
         await self.session.flush()
-        _cache = None
-        _cache_ts = 0
+        async with _cache_lock:
+            _cache = None
+            _cache_ts = 0
 
     async def set_raw(self, key: str, value: str) -> None:
         """Set a value without encryption (for internal use)."""
-        global _cache, _cache_ts
+        global _cache, _cache_ts, _cache_lock
         result = await self.session.execute(
             select(BotSettings).where(BotSettings.key == key)
         )
@@ -188,8 +197,9 @@ class BotSettingsService:
         else:
             self.session.add(BotSettings(key=key, value=value))
         await self.session.flush()
-        _cache = None
-        _cache_ts = 0
+        async with _cache_lock:
+            _cache = None
+            _cache_ts = 0
 
     async def is_encrypted_in_db(self, key: str) -> bool:
         """Check if a value is stored encrypted in the DB."""
@@ -203,11 +213,12 @@ class BotSettingsService:
         return is_encrypted(row.value)
 
     async def set_many(self, data: dict) -> None:
-        global _cache, _cache_ts
+        global _cache, _cache_ts, _cache_lock
         for key, value in data.items():
             await self.set(key, value)
-        _cache = None
-        _cache_ts = 0
+        async with _cache_lock:
+            _cache = None
+            _cache_ts = 0
 
     async def is_maintenance_mode(self) -> bool:
         value = await self.get("maintenance_mode")

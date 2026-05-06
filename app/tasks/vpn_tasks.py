@@ -266,8 +266,11 @@ async def auto_renew_keys() -> None:
                     key = await VpnKeyService(session).extend(key_id, plan.duration_days)
                     
                     if key:
-                        await session.commit()
+                        # Extract scalars before commit closes session
                         exp_str = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
+                        key_id_for_log = key.id
+                        await session.commit()
+                        log.info(f"[auto_renew] key={key_id_for_log} user={user_id} renewed")
                         renew_msg = (
                             f"✅ <b>Подписка автоматически продлена!</b>\n\n"
                             f"📦 {name}\n"

@@ -47,7 +47,8 @@ class PaymentService:
                 Payment.payment_type == PaymentType.SUBSCRIPTION.value,
             )
         )
-        return result.scalar_one() or Decimal("0")
+        val = result.scalar()
+        return val if val is not None else Decimal("0")
 
     async def total_topups(self) -> Decimal:
         """Сумма всех пополнений баланса."""
@@ -57,7 +58,8 @@ class PaymentService:
                 Payment.payment_type == PaymentType.TOPUP.value,
             )
         )
-        return result.scalar_one() or Decimal("0")
+        val = result.scalar()
+        return val if val is not None else Decimal("0")
 
     async def count_by_status(self, status: PaymentStatus) -> int:
         result = await self.session.execute(
