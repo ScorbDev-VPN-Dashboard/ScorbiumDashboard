@@ -40,7 +40,7 @@ from app.models.admin import AdminRole
 from app.services.export import ExportService
 from app.services.notification import notification_manager
 
-_tpl_path = Path(__file__).resolve().parent.parent.parent / "templates"
+_tpl_path = Path(__file__).resolve().parent.parent.parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_tpl_path))
 
 SESSION_COOKIE = "vpn_session"
