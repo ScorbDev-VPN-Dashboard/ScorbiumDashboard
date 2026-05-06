@@ -1,6 +1,6 @@
 """VPN Nodes management routes."""
 import html
-from fastapi import Depends, Request, Response
+from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession

@@ -2,7 +2,7 @@
 import html
 from datetime import datetime, timezone
 
-from fastapi import Depends, Form, Request, Response
+from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +12,7 @@ from app.core.config import config
 from app.models.admin import Admin, AdminRole
 from app.services.admin import AdminService
 from app.services.bot_settings import BotSettingsService
-
+from typing import Optional
 from .shared import _require_permission, _get_admin_info, _toast, _base_ctx, templates
 
 router = APIRouter()

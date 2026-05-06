@@ -4,7 +4,7 @@ import io
 import subprocess
 from datetime import datetime, timezone
 
-from fastapi import Depends, File, Form, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse, Response as StreamingResponse
 
 from sqlalchemy import func, select

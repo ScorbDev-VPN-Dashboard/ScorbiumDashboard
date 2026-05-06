@@ -1,10 +1,11 @@
 """Bot keyboard layout editor routes."""
 import json as _json
-from fastapi import Depends, Form, Request, Response
+from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import get_db
 from app.services.bot_settings import BotSettingsService
 from app.services.telegram_notify import TelegramNotifyService
 

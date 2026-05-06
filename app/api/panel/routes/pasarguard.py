@@ -1,5 +1,5 @@
 """Pasarguard / Marzban panel routes."""
-from fastapi import Depends, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession

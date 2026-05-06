@@ -1,12 +1,12 @@
 """Audit log routes."""
 from datetime import datetime, timezone
 
-from fastapi import Depends, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.audit import AuditService
+from app.api.dependencies import get_db
 
 from .shared import _require_permission, _base_ctx, templates
 

@@ -3,7 +3,7 @@ import json as _json
 import re
 from typing import Optional
 
-from fastapi import Depends, Form, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, Form, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -495,7 +495,7 @@ async def save_telegram_groups(
 async def upload_photo(
     request: Request,
     photo_type: str = Form(...),
-    file: UploadFile = File(...),
+    file: UploadFile = UploadFile(...),
     db: AsyncSession = Depends(get_db),
 ):
     _require_permission(request, "system")

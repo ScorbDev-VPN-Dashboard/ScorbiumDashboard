@@ -1,6 +1,6 @@
 import enum
 from decimal import Decimal
-from sqlalchemy import BigInteger, Boolean, Column, ForeignKey, Integer, Numeric, String
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base

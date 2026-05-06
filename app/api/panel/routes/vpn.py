@@ -1,5 +1,5 @@
 """VPN keys management routes (revoke, extend, delete, sync)."""
-from fastapi import Depends, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession

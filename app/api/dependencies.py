@@ -11,8 +11,9 @@ from app.utils.security import decode_access_token, decode_access_token_full
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
-async def get_db(session: AsyncSession = Depends(get_session)) -> AsyncSession:
-    return session
+async def get_db() -> AsyncSession:
+    async with get_session() as session:
+        yield session
 
 
 async def get_current_admin(token: str = Depends(oauth2_scheme)) -> dict:

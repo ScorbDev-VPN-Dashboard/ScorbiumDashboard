@@ -1,12 +1,12 @@
 """Support tickets routes."""
-from fastapi import Depends, Form, Request, Response
+from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.api.dependencies import get_db
-from app.models.support import Ticket, TicketStatus, TicketPriority
+from app.models.support import SupportTicket, TicketStatus, TicketPriority
 from app.services.support import SupportService
 from app.services.telegram_notify import TelegramNotifyService
 
