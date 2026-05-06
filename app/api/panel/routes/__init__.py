@@ -8,7 +8,7 @@ from . import exports, admins, keyboard, audit, monitoring, notifications
 
 router = APIRouter()
 router.include_router(auth.router, prefix="/auth")
-router.include_router(dashboard.router, prefix="/dashboard")
+router.include_router(dashboard.router)
 router.include_router(plans.router, prefix="/plans")
 router.include_router(payments.router, prefix="/payments")
 router.include_router(subscriptions.router, prefix="/subscriptions")
