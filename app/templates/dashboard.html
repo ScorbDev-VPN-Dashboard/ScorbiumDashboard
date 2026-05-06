@@ -1,130 +1,28 @@
 {% extends "base.html" %}
-{% block title %}Дашборд — VPN Panel
-{% if system_metrics %}
-<div class="row g-3 mb-4">
-  <div class="col-lg-12 fade-in-up">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-          <div class="ring" style="background:linear-gradient(135deg, rgba(99,102,241,.15), rgba(139,92,246,.1)); color:#818cf8"><i class="bi bi-server"></i></div>
-          <div>
-            <div style="font-size:.9rem;font-weight:700;color:var(--text)">Сервер (системные метрики)</div>
-            <div style="font-size:.72rem;color:var(--text-muted)">{{ system_metrics.system.hostname }} — {{ system_metrics.system.platform }} {{ system_metrics.system.platform_release }}</div>
-          </div>
-        </div>
-        <span class="status-dot online"></span>
-      </div>
-      <div class="row g-2">
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--accent);margin-bottom:.3rem"><i class="bi bi-cpu"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.cpu }}%</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">CPU</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--success);margin-bottom:.3rem"><i class="bi bi-memory"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.ram.used }} GB / {{ system_metrics.ram.total }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">RAM ({{ system_metrics.ram.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--warning);margin-bottom:.3rem"><i class="bi bi-hdd"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.disk.used }} GB / {{ system_metrics.disk.total }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Диск ({{ system_metrics.disk.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--info);margin-bottom:.3rem"><i class="bi bi-activity"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.processes }}</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Процессов</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
-{% endblock %}
-{% block page_title %}Дашборд
-{% if system_metrics %}
-<div class="row g-3 mb-4">
-  <div class="col-lg-12 fade-in-up">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-          <div class="ring" style="background:linear-gradient(135deg, rgba(99,102,241,.15), rgba(139,92,246,.1)); color:#818cf8"><i class="bi bi-server"></i></div>
-          <div>
-            <div style="font-size:.9rem;font-weight:700;color:var(--text)">Сервер (системные метрики)</div>
-            <div style="font-size:.72rem;color:var(--text-muted)">{{ system_metrics.system.hostname }} — {{ system_metrics.system.platform }} {{ system_metrics.system.platform_release }}</div>
-          </div>
-        </div>
-        <span class="status-dot online"></span>
-      </div>
-      <div class="row g-2">
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--accent);margin-bottom:.3rem"><i class="bi bi-cpu"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.cpu }}%</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">CPU</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--success);margin-bottom:.3rem"><i class="bi bi-memory"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.ram.used }} GB / {{ system_metrics.ram.total }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">RAM ({{ system_metrics.ram.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--warning);margin-bottom:.3rem"><i class="bi bi-hdd"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.disk.used }} GB / {{ system_metrics.disk.total }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Диск ({{ system_metrics.disk.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--info);margin-bottom:.3rem"><i class="bi bi-activity"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.processes }}</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Процессов</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
-{% endblock %}
+{% block title %}Дашборд — VPN Panel{% endblock %}
+{% block page_title %}Дашборд{% endblock %}
 
 {% block head %}
 <style>
   .hero-bar {
-    background: linear-gradient(135deg, #0a0e17 0%, #0d1321 40%, #111827 100%);
-    border: 1px solid var(--border);
+    background: linear-gradient(135deg, var(--accent), var(--accent-secondary), #818cf8);
+    background-size: 200% 200%;
+    animation: gradientShift 8s ease infinite;
     border-radius: 20px;
     padding: 1.5rem 1.75rem;
     margin-bottom: 1.5rem;
     position: relative;
     overflow: hidden;
+    color: #fff;
   }
   .hero-bar::before {
     content: '';
-    position: absolute; inset: 0;
-    background:
-      radial-gradient(ellipse 600px 300px at 10% 20%, rgba(0,212,170,.06), transparent),
-      radial-gradient(ellipse 400px 250px at 85% 80%, rgba(99,102,241,.05), transparent);
-    pointer-events: none;
-  }
-  .hero-bar::after {
-    content: '';
     position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(0,212,170,.3), rgba(99,102,241,.3), transparent);
+    top: -50%; right: -20%;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(255,255,255,0.15), transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
   }
   @keyframes gradientShift {
     0%, 100% { background-position: 0% 50%; }
@@ -134,39 +32,242 @@
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 1.25rem; position: relative; z-index: 1;
   }
-  .hero-greeting { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text); }
-  .hero-date { font-size: .8rem; color: var(--text-muted); margin-top: .15rem; }
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--success);margin-bottom:.3rem"><i class="bi bi-memory"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.ram.used }} GB / {{ system_metrics.ram.total }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">RAM ({{ system_metrics.ram.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--warning);margin-bottom:.3rem"><i class="bi bi-hdd"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.disk.used }} GB / {{ system_metrics.disk.total }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Диск ({{ system_metrics.disk.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--info);margin-bottom:.3rem"><i class="bi bi-activity"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.processes }}</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Процессов</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+  .hero-greeting { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.03em; }
+  .hero-date { font-size: .8rem; opacity: .75; margin-top: .15rem; }
+  .hero-badge {
+    background: rgba(255,255,255,.15); backdrop-filter: blur(8px);
+    border-radius: 10px; padding: .4rem .85rem;
+    display: flex; align-items: center; gap: .4rem;
+    font-size: .78rem; font-weight: 600;
+  }
+  .hero-badge i { font-size: .9rem; }
+  .hero-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: .85rem;
+    position: relative; z-index: 1;
+  }
+  .hero-card {
+    background: rgba(255,255,255,.1); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 14px; padding: 1rem;
+    transition: all .3s ease; position: relative; overflow: hidden;
+  }
+  .hero-card:hover {
+    background: rgba(255,255,255,.15); transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,.15);
+  }
+  .hero-card-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: rgba(255,255,255,.15); display: flex;
+    align-items: center; justify-content: center;
+    font-size: 1rem; margin-bottom: .65rem;
+  }
+  .hero-card-val { font-size: 1.5rem; font-weight: 800; line-height: 1.1; }
+  .hero-card-lbl { font-size: .72rem; opacity: .7; margin-top: .2rem; }
+  .hero-card-trend {
+    font-size: .7rem; margin-top: .5rem; opacity: .85;
+    display: flex; align-items: center; gap: .3rem;
+  }
+  .hero-card-trend i { font-size: .75rem; }
+
+  .dash-kpi {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    transition: all .3s cubic-bezier(.4,0,.2,1);
+    background: var(--bg-card);
+    border-radius: 16px;
+    padding: 1.25rem;
+  }
+  .dash-kpi::after {
+    content: '';
+    position: absolute; top: -50%; right: -30%;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    opacity: 0; transition: opacity .4s ease;
+    pointer-events: none;
+  }
+  .dash-kpi:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-glow);
+    box-shadow: 0 12px 40px rgba(0,0,0,.2), 0 0 0 1px var(--border-glow);
+  }
+  .dash-kpi:hover::after { opacity: .06; }
+  .kpi-users::after { background: radial-gradient(circle, var(--accent), transparent 70%); }
+  .kpi-subs::after { background: radial-gradient(circle, var(--success), transparent 70%); }
+  .kpi-rev::after { background: radial-gradient(circle, var(--warning), transparent 70%); }
+  .kpi-tix::after { background: radial-gradient(circle, var(--info), transparent 70%); }
+
+  .kpi-icon {
+    width: 48px; height: 48px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; flex-shrink: 0; position: relative;
+  }
+  .kpi-icon::after {
+    content: ''; position: absolute; inset: 0; border-radius: 14px;
+    background: inherit; filter: blur(12px); opacity: .4; z-index: -1;
+  }
+
+  .chart-area { position: relative; height: 160px; }
+
+  .quick-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1rem 1.1rem;
+    color: var(--text);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    transition: all .25s ease;
+    font-size: .85rem;
+    font-weight: 500;
+    position: relative;
+    overflow: hidden;
+  }
+  .quick-tile::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  .quick-tile:hover {
+    background: var(--surface-hover);
+    border-color: var(--accent);
+    transform: translateX(6px);
+    box-shadow: 0 4px 16px rgba(0,0,0,.15);
+  }
+  .quick-tile:hover::before { opacity: 1; }
+  .quick-tile-icon {
+    width: 38px; height: 38px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+  }
+
+  .mini-kpi {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: .9rem;
+    text-align: center;
+    transition: all .2s;
+    border: 1px solid transparent;
+  }
+  .mini-kpi:hover { background: var(--surface-hover); border-color: var(--border); }
+
+  .section-title {
+    font-size: .95rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: .75rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+  }
+  .section-title i { color: var(--accent); }
+
+  .vpn-metric {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: .85rem;
+    text-align: center;
+    transition: all .2s;
+    border: 1px solid transparent;
+  }
+  .vpn-metric:hover { background: var(--surface-hover); border-color: var(--border); }
+
+  .ring {
+    width: 40px; height: 40px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; flex-shrink: 0;
+  }
+
+  .payment-row {
+    display: flex;
+    align-items: center;
+    padding: .6rem 0;
+    border-bottom: 1px solid var(--border);
+    gap: .75rem;
+  }
+  .payment-row:last-child { border-bottom: none; }
+  .payment-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .85rem; flex-shrink: 0;
+  }
+  .payment-info { flex: 1; }
+  .payment-amount { font-weight: 700; font-size: .85rem; color: var(--text); }
+  .payment-meta { font-size: .7rem; color: var(--text-muted); }
+
+  .user-row {
+    display: flex;
+    align-items: center;
+    padding: .5rem 0;
+    gap: .75rem;
+  }
+  .user-avatar {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent-glow), rgba(14,165,233,.1));
+    display: flex; align-items: center; justify-content: center;
+    font-size: .8rem; color: var(--accent); flex-shrink: 0;
+    font-weight: 700;
+  }
+  .user-name { font-weight: 600; font-size: .82rem; color: var(--text); }
+  .user-meta { font-size: .7rem; color: var(--text-muted); }
+
+  @media (max-width: 991px) {
+    .hero-row { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 575px) {
+    .hero-row { grid-template-columns: 1fr; }
+    .hero-top { flex-direction: column; align-items: flex-start; gap: .5rem; }
+    .hero-greeting { font-size: 1.15rem; }
+  }
+</style>
 {% endblock %}
 
 {% block content %}
 
 {% set admin = admin_info or {} %}
+<div class="hero-bar fade-in-up">
+  <div class="hero-top">
+    <div>
+      <div class="hero-greeting">{% if admin.sub %}{{ admin.sub }}{% else %}Администратор{% endif %}</div>
+      <div class="hero-date">{{ current_date }}</div>
+    </div>
+    <div class="hero-badge">
+      <i class="bi bi-lightning-charge-fill"></i>
+      <span>{{ stats.total_users }} пользователей</span>
+    </div>
+  </div>
+  <div class="hero-row">
+    <div class="hero-card hero-card-users">
+      <div class="hero-card-icon"><i class="bi bi-people-fill"></i></div>
+      <div class="hero-card-val">{{ stats.total_users }}</div>
+      <div class="hero-card-lbl">Пользователи</div>
+      <div class="hero-card-trend"><i class="bi bi-arrow-up-right"></i> +{{ stats.new_users_today }} сегодня</div>
+    </div>
+    <div class="hero-card hero-card-subs">
+      <div class="hero-card-icon"><i class="bi bi-calendar-check-fill"></i></div>
+      <div class="hero-card-val">{{ stats.active_subscriptions }}</div>
+      <div class="hero-card-lbl">Активные подписки</div>
+      <div class="hero-card-trend"><i class="bi bi-clock"></i> {{ stats.expired_keys }} истекших</div>
+    </div>
+    <div class="hero-card hero-card-rev">
+      <div class="hero-card-icon"><i class="bi bi-graph-up-arrow"></i></div>
+      <div class="hero-card-val">{{ stats.revenue_today | int }} ₽</div>
+      <div class="hero-card-lbl">Выручка сегодня</div>
+      <div class="hero-card-trend"><i class="bi bi-wallet2"></i> {{ stats.total_revenue | int }} ₽ всего</div>
+    </div>
+    <div class="hero-card hero-card-tix">
+      <div class="hero-card-icon"><i class="bi bi-headset"></i></div>
+      <div class="hero-card-val">{{ stats.open_tickets }}</div>
+      <div class="hero-card-lbl">Открытые тикеты</div>
+      <div class="hero-card-trend"><i class="bi bi-hourglass-split"></i> {{ stats.pending_payments }} ожид.</div>
+    </div>
+  </div>
+</div>
 
 <div class="row g-3 mb-4">
   <div class="col-6 col-xl-3 fade-in-up stagger-1">
@@ -277,153 +378,6 @@
   </div>
 </div>
 
-
-{% if system_metrics %}
-<div class="row g-3 mb-4">
-  <div class="col-lg-12 fade-in-up">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-          <div class="ring" style="background:linear-gradient(135deg, rgba(99,102,241,.15), rgba(139,92,246,.1)); color:#818cf8"><i class="bi bi-server"></i></div>
-          <div>
-            <div style="font-size:.9rem;font-weight:700;color:var(--text)">Сервер (системные метрики)</div>
-            <div style="font-size:.72rem;color:var(--text-muted)">{{ system_metrics.system.hostname }} — {{ system_metrics.system.platform }} {{ system_metrics.system.platform_release }}</div>
-          </div>
-        </div>
-        <span class="status-dot online"></span>
-      </div>
-      <div class="row g-2">
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--accent);margin-bottom:.3rem"><i class="bi bi-cpu"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.cpu }}%</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">CPU</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--success);margin-bottom:.3rem"><i class="bi bi-memory"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ (system_metrics.ram.used)|round(1) }} GB / {{ (system_metrics.ram.total)|round(1) }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">RAM ({{ system_metrics.ram.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--warning);margin-bottom:.3rem"><i class="bi bi-hdd"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ (system_metrics.disk.used)|round(1) }} GB / {{ (system_metrics.disk.total)|round(1) }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Диск ({{ system_metrics.disk.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--info);margin-bottom:.3rem"><i class="bi bi-activity"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.processes }}</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Процессов</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
-
-{% if system_metrics %}
-<div class="row g-3 mb-4">
-  <div class="col-lg-12 fade-in-up">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-          <div class="ring" style="background:linear-gradient(135deg, rgba(99,102,241,.15), rgba(139,92,246,.1)); color:#818cf8"><i class="bi bi-server"></i></div>
-          <div>
-            <div style="font-size:.9rem;font-weight:700;color:var(--text)">Сервер (системные метрики)</div>
-            <div style="font-size:.72rem;color:var(--text-muted)">{{ system_metrics.system.hostname }} — {{ system_metrics.system.platform }} {{ system_metrics.system.platform_release }}</div>
-          </div>
-        </div>
-        <span class="status-dot online"></span>
-      </div>
-      <div class="row g-2">
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--accent);margin-bottom:.3rem"><i class="bi bi-cpu"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.cpu }}%</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">CPU</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--success);margin-bottom:.3rem"><i class="bi bi-memory"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ (system_metrics.ram.used)|round(1) }} GB / {{ (system_metrics.ram.total)|round(1) }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">RAM ({{ system_metrics.ram.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--warning);margin-bottom:.3rem"><i class="bi bi-hdd"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ (system_metrics.disk.used)|round(1) }} GB / {{ (system_metrics.disk.total)|round(1) }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Диск ({{ system_metrics.disk.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--info);margin-bottom:.3rem"><i class="bi bi-activity"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.processes }}</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Процессов</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
-
-{% if system_metrics %}
-<div class="row g-3 mb-4">
-  <div class="col-lg-12 fade-in-up">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-          <div class="ring" style="background:linear-gradient(135deg, rgba(99,102,241,.15), rgba(139,92,246,.1)); color:#818cf8"><i class="bi bi-server"></i></div>
-          <div>
-            <div style="font-size:.9rem;font-weight:700;color:var(--text)">Сервер (системные метрики)</div>
-            <div style="font-size:.72rem;color:var(--text-muted)">{{ system_metrics.system.hostname }} — {{ system_metrics.system.platform }} {{ system_metrics.system.platform_release }}</div>
-          </div>
-        </div>
-        <span class="status-dot online"></span>
-      </div>
-      <div class="row g-2">
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--accent);margin-bottom:.3rem"><i class="bi bi-cpu"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.cpu }}%</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">CPU</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--success);margin-bottom:.3rem"><i class="bi bi-memory"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ (system_metrics.ram.used)|round(1) }} GB / {{ (system_metrics.ram.total)|round(1) }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">RAM ({{ system_metrics.ram.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--warning);margin-bottom:.3rem"><i class="bi bi-hdd"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ (system_metrics.disk.used)|round(1) }} GB / {{ (system_metrics.disk.total)|round(1) }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Диск ({{ system_metrics.disk.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--info);margin-bottom:.3rem"><i class="bi bi-activity"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.processes }}</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Процессов</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
 {% if marzban_stats %}
 <div class="row g-3 mb-4">
   <div class="col-lg-6 fade-in-up">
@@ -626,55 +580,6 @@
     </div>
   </div>
 </div>
-
-{% if system_metrics %}
-<div class="row g-3 mb-4">
-  <div class="col-lg-12 fade-in-up">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-          <div class="ring" style="background:linear-gradient(135deg, rgba(99,102,241,.15), rgba(139,92,246,.1)); color:#818cf8"><i class="bi bi-server"></i></div>
-          <div>
-            <div style="font-size:.9rem;font-weight:700;color:var(--text)">Сервер (системные метрики)</div>
-            <div style="font-size:.72rem;color:var(--text-muted)">{{ system_metrics.system.hostname }} — {{ system_metrics.system.platform }} {{ system_metrics.system.platform_release }}</div>
-          </div>
-        </div>
-        <span class="status-dot online"></span>
-      </div>
-      <div class="row g-2">
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--accent);margin-bottom:.3rem"><i class="bi bi-cpu"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.cpu }}%</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">CPU</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--success);margin-bottom:.3rem"><i class="bi bi-memory"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.ram.used }} GB / {{ system_metrics.ram.total }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">RAM ({{ system_metrics.ram.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--warning);margin-bottom:.3rem"><i class="bi bi-hdd"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.disk.used }} GB / {{ system_metrics.disk.total }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Диск ({{ system_metrics.disk.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--info);margin-bottom:.3rem"><i class="bi bi-activity"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.processes }}</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Процессов</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -760,53 +665,4 @@
     spark.style.height = '40px';
   }
 </script>
-
-{% if system_metrics %}
-<div class="row g-3 mb-4">
-  <div class="col-lg-12 fade-in-up">
-    <div class="card p-3">
-      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-2">
-          <div class="ring" style="background:linear-gradient(135deg, rgba(99,102,241,.15), rgba(139,92,246,.1)); color:#818cf8"><i class="bi bi-server"></i></div>
-          <div>
-            <div style="font-size:.9rem;font-weight:700;color:var(--text)">Сервер (системные метрики)</div>
-            <div style="font-size:.72rem;color:var(--text-muted)">{{ system_metrics.system.hostname }} — {{ system_metrics.system.platform }} {{ system_metrics.system.platform_release }}</div>
-          </div>
-        </div>
-        <span class="status-dot online"></span>
-      </div>
-      <div class="row g-2">
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--accent);margin-bottom:.3rem"><i class="bi bi-cpu"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.cpu }}%</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">CPU</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--success);margin-bottom:.3rem"><i class="bi bi-memory"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.ram.used }} GB / {{ system_metrics.ram.total }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">RAM ({{ system_metrics.ram.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--warning);margin-bottom:.3rem"><i class="bi bi-hdd"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.disk.used }} GB / {{ system_metrics.disk.total }} GB</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Диск ({{ system_metrics.disk.percent }}%)</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="vpn-metric">
-            <div style="font-size:.8rem;color:var(--info);margin-bottom:.3rem"><i class="bi bi-activity"></i></div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text)">{{ system_metrics.processes }}</div>
-            <div style="font-size:.65rem;color:var(--text-muted)">Процессов</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
 {% endblock %}
