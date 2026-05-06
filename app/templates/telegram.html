@@ -945,17 +945,43 @@
     <div class="card p-3">
       <div class="d-flex align-items-center justify-content-between mb-3">
         <div class="fw-semibold" style="color:var(--text)"><i class="bi bi-star-fill me-2" style="color:#f59e0b"></i>Telegram Stars</div>
-        <span class="badge badge-custom badge-active">Всегда активны</span>
+        <div class="d-flex align-items-center gap-2">
+          <span id="stars-status" class="badge badge-custom {% if ps.stars_enabled %}badge-active{% else %}badge-closed{% endif %}">
+            {% if ps.stars_enabled %}✓ Включены{% else %}✗ Отключены{% endif %}
+          </span>
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="stars-toggle"
+                   {% if ps.stars_enabled %}checked{% endif %}
+                   onchange="psToggle('ps_stars_enabled', this.checked, 'stars')">
+          </div>
+        </div>
       </div>
       <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.75rem">
-        Встроенная оплата через Telegram Stars. Работает автоматически — дополнительная настройка не требуется.
+        Встроенная оплата через Telegram Stars. Пользователи могут платить звёздами в боте.
       </div>
-      <div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:.6rem .9rem;font-size:.78rem;color:#22c55e">
-        <i class="bi bi-check-circle-fill me-1"></i>Активно. Курс: 1 Star ≈ 1.5 ₽
-      </div>
-      <div class="mt-2" style="font-size:.75rem;color:var(--text-muted)">
-        Для изменения курса конвертации отредактируйте <code>TelegramStarsService.rub_to_stars()</code>
-      </div>
+      <form hx-post="/panel/telegram/payment-systems/stars-rate" hx-swap="none"
+            hx-on::after-request="handlePsResponse(event, 'stars-rate')">
+        <div class="row g-2 align-items-end">
+          <div class="col-auto">
+            <label class="form-label">Курс конвертации</label>
+            <div class="input-group" style="max-width:200px">
+              <span class="input-group-text">1 Star ≈</span>
+              <input type="number" name="stars_rate" class="form-control" step="0.01" min="0.01"
+                     value="{{ ps.stars_rate or '1.5' }}" placeholder="1.5" />
+              <span class="input-group-text">₽</span>
+            </div>
+            <div style="font-size:.7rem;color:var(--text-muted);margin-top:.25rem">
+              Сколько рублей стоит 1 Star
+            </div>
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-sm btn-accent">
+              <i class="bi bi-floppy me-1"></i>Сохранить
+            </button>
+          </div>
+        </div>
+      </form>
+      <div id="stars-rate-result" class="mt-2" style="font-size:.8rem"></div>
     </div>
   </div>
 

@@ -5,8 +5,8 @@
 {% block content %}
 <!-- Service health cards -->
 <div class="row g-3 mb-3" id="healthCards">
-  {% set labels = {'database': 'PostgreSQL', 'telegram_bot': 'Telegram бот', 'vpn_panel': 'VPN панель', 'payment_yookassa': 'YooKassa', 'payment_cryptobot': 'CryptoBot', 'payment_freekassa': 'FreeKassa'} %}
-  {% for name, entry in services.items() %}
+  {% set labels = {'database': 'PostgreSQL', 'telegram_bot': 'Telegram бот', 'vpn_panel': 'VPN панель'} %}
+  {% for name, entry in services.items() if name in ['database', 'telegram_bot', 'vpn_panel'] %}
   {% set label = labels.get(name, name) %}
   <div class="col-sm-4 col-md-3 col-lg-2">
     <div class="card p-3 text-center">
@@ -77,14 +77,11 @@ async function refreshHealth() {
     const data = await r.json();
     const container = document.getElementById('healthCards');
     container.innerHTML = '';
-    const labels = {
-      database: 'PostgreSQL',
-      telegram_bot: 'Telegram бот',
-      vpn_panel: 'VPN панель',
-      payment_yookassa: 'YooKassa',
-      payment_cryptobot: 'CryptoBot',
-      payment_freekassa: 'FreeKassa',
-    };
+      const labels = {
+        database: 'PostgreSQL',
+        telegram_bot: 'Telegram бот',
+        vpn_panel: 'VPN панель',
+      };
     for (const [name, e] of Object.entries(data)) {
       const label = labels[name] || name;
       const icon = e.status === 'healthy' ? 'bi-check-circle-fill' : e.status === 'degraded' ? 'bi-exclamation-triangle-fill' : 'bi-x-circle-fill';
