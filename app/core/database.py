@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from typing import AsyncGenerator
 import asyncio
@@ -40,8 +41,9 @@ AsyncSessionFactory = async_sessionmaker(
 )
 
 
+@asynccontextmanager
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency — yields an async DB session."""
+    """Async context manager for DB sessions."""
     async with AsyncSessionFactory() as session:
         try:
             yield session

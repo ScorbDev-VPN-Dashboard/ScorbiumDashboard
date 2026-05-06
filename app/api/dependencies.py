@@ -12,6 +12,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 async def get_db() -> AsyncSession:
+    """FastAPI dependency — yields an async DB session."""
     async with get_session() as session:
         yield session
 
