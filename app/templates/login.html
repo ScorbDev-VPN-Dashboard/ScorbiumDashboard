@@ -227,7 +227,7 @@
         {% if custom_logo %}
         <img src="{{ custom_logo }}" alt="Logo" class="logo-avatar" id="logo-pw-img" onerror="this.style.display='none';document.getElementById('fallback-icon').style.display='flex';">
         {% endif %}
-        <div id="fallback-icon" style="display:{% if custom_logo %}none{% else %}flex{% endif %};width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-secondary));align-items:center;justify-content:center;margin-bottom:1rem;box-shadow:0 8px 32px rgba(0,212,170,.35);font-size:1.8rem;color:#fff;">
+        <div id="fallback-icon" style="display:{% if custom_logo %}none{% else %}flex{% endif %};width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-secondary));align-items:center;justify-content:center;margin-bottom:2rem;box-shadow:0 8px 32px rgba(0,212,170,.35);font-size:1.8rem;color:#fff;">
           <i class="bi bi-shield-lock-fill"></i>
         </div>
         <div class="app-name">{{ app_name | default('VPN Panel') }}</div>
