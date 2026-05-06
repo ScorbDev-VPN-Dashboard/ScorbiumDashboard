@@ -42,14 +42,17 @@
           <td><span style="color:var(--text-muted);font-size:.8rem">{{ p.provider }}</span></td>
           <td><b>{{ p.amount }}</b> {{ p.currency }}</td>
           <td>
-            {% if p.status == 'succeeded' %}
+            {% set st = p.status.value if p.status.value is defined else p.status %}
+            {% if st == 'succeeded' %}
               <span class="badge badge-custom badge-active">Успешно</span>
-            {% elif p.status == 'pending' %}
+            {% elif st == 'pending' %}
               <span class="badge badge-custom badge-pending">Ожидание</span>
-            {% elif p.status == 'refunded' %}
+            {% elif st == 'refunded' %}
               <span class="badge badge-custom badge-open">Возврат</span>
+            {% elif st == 'failed' %}
+              <span class="badge badge-custom badge-expired">Ошибка</span>
             {% else %}
-              <span class="badge badge-custom badge-expired">{{ p.status }}</span>
+              <span class="badge badge-custom badge-expired">{{ st }}</span>
             {% endif %}
           </td>
           <td style="color:var(--text-muted);font-size:.8rem">{{ p.created_at.strftime('%d.%m.%Y %H:%M') if p.created_at else '—' }}</td>
