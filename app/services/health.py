@@ -121,8 +121,8 @@ class HealthService:
                 "telegram_bot": (await settings.get("notify_svc_telegram_bot")) == "1",
                 "vpn_panel": (await settings.get("notify_svc_vpn_panel")) == "1",
                 "payment_yookassa": (await settings.get("notify_svc_yookassa")) == "1",
-                "payment_cryptobot": (await settings.get("notify_svc_yookassa")) == "1",
-                "payment_freekassa": (await settings.get("notify_svc_yookassa")) == "1",
+                "payment_cryptobot": (await settings.get("notify_svc_cryptobot")) == "1",
+                "payment_freekassa": (await settings.get("notify_svc_freekassa")) == "1",
             }
 
         if chat_ids_raw and chat_ids_raw.strip():

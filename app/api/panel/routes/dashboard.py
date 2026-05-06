@@ -71,12 +71,13 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         val = r.scalar_one()
         rev_week.append(float(val) if val else 0.0)
 
+    from app.services.support import SupportService
     ctx["stats"] = {
         "total_users": await UserService(db).count_all(),
         "active_subscriptions": await VpnKeyService(db).count_active(),
         "total_revenue": await PaymentService(db).total_revenue(),
         "total_topups": await PaymentService(db).total_topups(),
-        "open_tickets": await BotSettingsService(db).get_all() and 0 or 0,
+        "open_tickets": await SupportService(db).count_open(),
         "new_users_today": new_today,
         "revenue_today": rev_today,
         "expired_keys": expired_count,

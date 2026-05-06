@@ -72,7 +72,7 @@ async def edit_admin(
         resp = Response(status_code=404)
         _toast(resp, "Администратор не найден", "error")
         return resp
-    if target.username == admin_info["sub"] and role and role != "superadmin":
+    if admin_info and target.username == admin_info["sub"] and role and role != "superadmin":
         resp = Response(status_code=400)
         _toast(resp, "Нельзя понизить самого себя", "error")
         return resp
@@ -105,7 +105,7 @@ async def delete_admin(admin_id: int, request: Request, db: AsyncSession = Depen
         resp = Response(status_code=404)
         _toast(resp, "Администратор не найден", "error")
         return resp
-    if target.username == admin_info["sub"]:
+    if admin_info and target.username == admin_info["sub"]:
         resp = Response(status_code=400)
         _toast(resp, "Нельзя удалить самого себя", "error")
         return resp

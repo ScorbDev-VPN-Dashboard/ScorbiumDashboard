@@ -81,12 +81,12 @@ class BroadcastService:
             )
         elif target == "active":
             result = await self.session.execute(
-                select(func.count(VpnKey.user_id.distinct()))
+                select(func.count(func.distinct(VpnKey.user_id)))
                 .where(VpnKey.status == VpnKeyStatus.ACTIVE.value)
             )
         elif target == "expired":
             result = await self.session.execute(
-                select(func.count(VpnKey.user_id.distinct()))
+                select(func.count(func.distinct(VpnKey.user_id)))
                 .where(VpnKey.status == VpnKeyStatus.EXPIRED.value)
             )
         else:

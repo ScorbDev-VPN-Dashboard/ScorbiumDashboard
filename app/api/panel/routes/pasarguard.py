@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_db
 from app.services.pasarguard.pasarguard import PasarguardService
+from app.services.bot_settings import BotSettingsService
 
 from .shared import _require_permission, _base_ctx, templates
 
@@ -16,7 +17,8 @@ router = APIRouter()
 async def pasarguard_page(request: Request, db: AsyncSession = Depends(get_db)):
     _require_permission(request, "system")
     ctx = await _base_ctx(request, db, "pasarguard")
-    ctx["bot_settings"] = await (await _base_ctx(request, db, "pasarguard"))["bot_settings"]
+    settings = await BotSettingsService(db).get_all()
+    ctx["bot_settings"] = settings
     try:
         svc = PasarguardService()
         ctx["marzban_stats"] = await svc.get_system_stats()

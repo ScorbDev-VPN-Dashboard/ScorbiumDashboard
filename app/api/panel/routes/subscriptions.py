@@ -26,7 +26,7 @@ async def subscriptions_page(request: Request, db: AsyncSession = Depends(get_db
     from app.models.vpn_key import VpnKey, VpnKeyStatus
     from sqlalchemy import select
     result = await db.execute(
-        select(VpnKey).where(VpnKey.status == VpnKeyStatus.ACTIVE.value).order_by(VpnKey.expires_at.asc())
+        select(VpnKey).where(VpnKey.status == VpnKeyStatus.ACTIVE.value).order_by(VpnKey.expires_at.asc())  # type: ignore[comparison-overload]
     )
     ctx["subscriptions"] = list(result.scalars().all())
     ctx["plans"] = await PlanService(db).get_all(only_active=True)
@@ -77,7 +77,7 @@ async def create_subscription_days(
     key = await VpnKeyService(db).provision_days(user_id=user_id, days=days, name=key_name)
     await db.commit()
     if key:
-        exp_str = key.expires_at.strftime("%d.%m.%Y") if key.expires_at else "—"
+        exp_str = key.expires_at.strftime("%d.%m.%Y") if key.expires_at is not None else "—"
         await TelegramNotifyService().send_message(
             user_id,
             f"🔑 <b>Ваш VPN-ключ готов!</b>\n\nДлительность: <b>{days} дней</b>\n"
@@ -94,6 +94,7 @@ async def extend_subscription(
 ):
     _require_permission(request, "subscriptions.write")
     from app.models.vpn_key import VpnKey
+    from sqlalchemy import select
     result = await db.execute(select(VpnKey).where(VpnKey.id == key_id))
     key = result.scalar_one_or_none()
     if not key:
@@ -123,14 +124,16 @@ async def cancel_subscription(
 ):
     _require_permission(request, "subscriptions.write")
     from app.models.vpn_key import VpnKey, VpnKeyStatus
+    from sqlalchemy import select
     result = await db.execute(select(VpnKey).where(VpnKey.id == key_id))
     key = result.scalar_one_or_none()
     if not key:
         resp = Response(status_code=404)
         _toast(resp, 'Ключ не найден', 'error')
         return resp
-    key.status = VpnKeyStatus.EXPIRED.value
-    await db.commit()
+    if key:
+        key.status = VpnKeyStatus.EXPIRED.value
+        await db.commit()
     resp = Response(status_code=200)
     _toast(resp, "Подписка отменена")
     return resp

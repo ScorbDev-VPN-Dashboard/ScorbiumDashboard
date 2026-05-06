@@ -25,21 +25,28 @@ class PayPalychService:
             "Content-Type": "application/json"
         }
 
-    def _make_request(
+    async def _make_request(
         self,
         method: str,
         path: str,
         body: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """Make HTTP request to PayPal'ych API."""
+        import asyncio
         conn = None
         try:
             conn = http.client.HTTPSConnection(self.base_url, timeout=15)
             payload = json.dumps(body) if body else ""
             headers = self._get_headers()
-            conn.request(method, path, payload, headers)
-            response = conn.getresponse()
-            data = response.read().decode("utf-8")
+            # Run blocking I/O in executor
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None,
+                lambda: conn.request(method, path, payload, headers) or None
+            )
+            response = await loop.run_in_executor(None, conn.getresponse)
+            data = await loop.run_in_executor(None, response.read)
+            data = data.decode("utf-8")
             if not data:
                 return {"ok": False, "error": "Empty response"}
             result = json.loads(data)

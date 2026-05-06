@@ -113,6 +113,7 @@ async def freekassa_webhook(request: Request, db: AsyncSession = Depends(get_db)
                     payment.status = PaymentStatus.SUCCEEDED.value
                     payment.external_id = str(form.get("intid", ""))
                     await db.commit()
+                    from app.services.user import UserService
                     await UserService(db).add_balance(payment.user_id, payment.amount)
                     await db.commit()
                     log.info(f"FreeKassa: topup {payment_id} confirmed via webhook")

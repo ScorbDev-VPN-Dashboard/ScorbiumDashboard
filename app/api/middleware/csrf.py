@@ -60,7 +60,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                 import json
                 resp = Response(status_code=403)
                 resp.headers["HX-Trigger"] = json.dumps({
-                    "showToast": {"msg": "Ошибка CSRF. Обновите страницу.", "type": "error"}
+                    "showToast": {"msg": "Error CSRF. Update Page.", "type": "error"}
                 })
                 return resp
             if request.headers.get("accept", "").startswith("application/json"):

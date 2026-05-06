@@ -39,7 +39,8 @@ async def create_promo(
         return resp
     await PromoService(db).create(
         code=code.strip(),
-        discount_percent=discount_percent,
+        promo_type="discount_percent",
+        value=discount_percent,
         max_uses=max_uses or None,
         expires_days=expires_days,
     )

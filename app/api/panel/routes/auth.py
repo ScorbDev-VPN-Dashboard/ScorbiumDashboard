@@ -19,7 +19,7 @@ from app.core.permissions import has_permission
 from .shared import (
     SESSION_COOKIE, _mini_app_tokens, _time,
     _toast, _get_admin_info, _require_auth, _require_permission,
-    _redirect, _base_ctx, templates,
+    _redirect, _base_ctx, _check_session, templates,
 )
 
 router = APIRouter()
@@ -83,9 +83,13 @@ async def login_page(request: Request, db: AsyncSession = Depends(get_db)):
     custom_logo = settings.get("custom_logo", "")
     return templates.TemplateResponse(
         "login.html",
-        {"request": request, "error": None,
-         "app_name": config.web.app_name, "app_version": config.web.app_version,
-         "custom_logo": custom_logo},
+        {
+            "request": request,
+            "error": None,
+            "app_name": config.web.app_name,
+            "app_version": config.web.app_version,
+            "custom_logo": custom_logo
+        },
     )
 
 
@@ -97,8 +101,10 @@ async def login_submit(
 ):
     settings = await BotSettingsService(db).get_all()
     _error_ctx = {
-        "request": request, "error": "Неверный логин или пароль",
-        "app_name": config.web.app_name, "app_version": config.web.app_version,
+        "request": request,
+        "error": "Неверный логин или пароль",
+        "app_name": config.web.app_name,
+        "app_version": config.web.app_version,
         "custom_logo": settings.get("custom_logo", ""),
     }
 
@@ -168,10 +174,13 @@ async def twofa_login_submit(
 
     settings = await BotSettingsService(db).get_all()
     _error_ctx = {
-        "request": request, "error": "Неверный код 2FA",
-        "app_name": config.web.app_name, "app_version": config.web.app_version,
+        "request": request,
+        "error": "Неверный код 2FA",
+        "app_name": config.web.app_name,
+        "app_version": config.web.app_version,
         "custom_logo": settings.get("custom_logo", ""),
-        "show_2fa": True, "bot_language": settings.get("bot_language", "ru"),
+        "show_2fa": True,
+        "bot_language": settings.get("bot_language", "ru"),
     }
 
     result = await db.execute(select(Admin).where(Admin.is_active == True, Admin.totp_secret.isnot(None)))

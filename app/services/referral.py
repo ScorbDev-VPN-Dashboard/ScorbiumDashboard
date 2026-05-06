@@ -29,6 +29,10 @@ class ReferralService:
             "total_bonus_days": int(bonus_sum.scalar_one() or 0),
         }
 
+    async def get_top_referrers(self, limit: int = 50) -> list[dict]:
+        """Alias for get_top with default limit of 50."""
+        return await self.get_top(limit=limit)
+
     async def get_top(self, limit: int = 20) -> list[dict]:
         result = await self.session.execute(
             select(

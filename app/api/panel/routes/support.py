@@ -20,7 +20,7 @@ async def support_page(request: Request, db: AsyncSession = Depends(get_db)):
     admin_info = _require_permission(request, "support")
     ctx = await _base_ctx(request, db, "support", admin_info)
     result = await db.execute(
-        select(Ticket).order_by(Ticket.created_at.desc()).limit(100)
+        select(SupportTicket).order_by(SupportTicket.created_at.desc()).limit(100)
     )
     ctx["tickets"] = list(result.scalars().all())
     return templates.TemplateResponse("support.html", ctx)
@@ -31,7 +31,7 @@ async def ticket_detail(
     ticket_id: int, request: Request, db: AsyncSession = Depends(get_db),
 ):
     _require_permission(request, "support")
-    result = await db.execute(select(Ticket).where(Ticket.id == ticket_id))
+    result = await db.execute(select(SupportTicket).where(SupportTicket.id == ticket_id))
     ticket = result.scalar_one_or_none()
     if not ticket:
         resp = Response(status_code=404)
@@ -53,7 +53,7 @@ async def reply_ticket(
 ):
     _require_permission(request, "support.write")
     from app.models.support import TicketMessage
-    result = await db.execute(select(Ticket).where(Ticket.id == ticket_id))
+    result = await db.execute(select(SupportTicket).where(SupportTicket.id == ticket_id))
     ticket = result.scalar_one_or_none()
     if not ticket:
         resp = Response(status_code=404)
@@ -74,7 +74,7 @@ async def close_ticket(
     ticket_id: int, request: Request, db: AsyncSession = Depends(get_db),
 ):
     _require_permission(request, "support.write")
-    result = await db.execute(select(Ticket).where(Ticket.id == ticket_id))
+    result = await db.execute(select(SupportTicket).where(SupportTicket.id == ticket_id))
     ticket = result.scalar_one_or_none()
     if not ticket:
         resp = Response(status_code=404)
@@ -94,7 +94,7 @@ async def update_ticket_status(
     _require_permission(request, "support.write")
     body = await request.json()
     new_status = body.get("status", "")
-    result = await db.execute(select(Ticket).where(Ticket.id == ticket_id))
+    result = await db.execute(select(SupportTicket).where(SupportTicket.id == ticket_id))
     ticket = result.scalar_one_or_none()
     if not ticket:
         return JSONResponse({"ok": False, "message": "Тикет не найден"}, status_code=404)
@@ -112,7 +112,7 @@ async def update_ticket_priority(
     _require_permission(request, "support.write")
     body = await request.json()
     new_priority = body.get("priority", "")
-    result = await db.execute(select(Ticket).where(Ticket.id == ticket_id))
+    result = await db.execute(select(SupportTicket).where(SupportTicket.id == ticket_id))
     ticket = result.scalar_one_or_none()
     if not ticket:
         return JSONResponse({"ok": False, "message": "Тикет не найден"}, status_code=404)

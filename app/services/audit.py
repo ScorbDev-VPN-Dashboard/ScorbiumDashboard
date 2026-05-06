@@ -12,9 +12,9 @@ class AuditService:
         self,
         admin_id: int,
         action: str,
-        target_type: str = None,
-        target_id: int = None,
-        details: str = None,
+        target_type: Optional[str] = None,
+        target_id: Optional[int] = None,
+        details: Optional[str] = None,
     ) -> AuditLog:
         entry = AuditLog(
             admin_id=admin_id,
