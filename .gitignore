@@ -3,6 +3,7 @@ __pycache__/
 
 # Node
 node_modules/
+frontend/dist/
 *.py[cod]
 *$py.class
 *.so
@@ -82,6 +83,9 @@ htmlcov/
 # Nginx generated
 nginx/ssl/
 nginx/nginx.generated.conf
+
+# Docker
+docker-compose.override.yml
 
 # Any files 
 api-1.json
